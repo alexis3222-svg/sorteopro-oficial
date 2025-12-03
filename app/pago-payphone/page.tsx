@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 const TOKEN = process.env.NEXT_PUBLIC_PAYPHONE_TOKEN ?? "";
@@ -12,13 +12,28 @@ declare global {
     }
 }
 
+// 👇 Page envuelta en Suspense (lo que Next pide)
 export default function PagoPayphonePage() {
+    return (
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center text-slate-700">
+                    Cargando pago...
+                </div>
+            }
+        >
+            <PagoPayphoneInner />
+        </Suspense>
+    );
+}
+
+function PagoPayphoneInner() {
     const router = useRouter();
     const searchParams = useSearchParams();
 
     const amountParam = searchParams.get("amount");
     const refParam = searchParams.get("ref");
-    const txParam = searchParams.get("tx"); // 👈 ID que viene desde el pedido
+    const txParam = searchParams.get("tx"); // ID que viene desde el pedido
 
     const total = amountParam ? Number(amountParam) : null;
     const referencia = refParam ?? "Pago SorteoPro";
@@ -77,7 +92,6 @@ export default function PagoPayphonePage() {
             try {
                 const amountInCents = Math.round(total! * 100);
 
-                // 👉 Usamos el mismo clientTransactionId que se guardó en el pedido
                 const clientTransactionId =
                     (txParam && txParam.length > 0 ? txParam : null) ||
                     `WEB-${Date.now().toString().slice(-10)}`.slice(0, 15);
@@ -101,6 +115,7 @@ export default function PagoPayphonePage() {
 
                 ppb.render("pp-button");
             } catch (e) {
+                console.error(e);
                 setErrorMsg("No se pudo inicializar PayPhone.");
             }
         });
@@ -109,7 +124,6 @@ export default function PagoPayphonePage() {
     return (
         <div className="min-h-screen bg-gray-100 px-4 py-10 flex justify-center">
             <div className="w-full max-w-md">
-                {/* Título */}
                 <h1 className="text-center text-xl font-bold text-slate-800">
                     Pago seguro con PayPhone
                 </h1>
@@ -127,7 +141,6 @@ export default function PagoPayphonePage() {
                     Referencia: {referencia}
                 </p>
 
-                {/* CAJA PAYPHONE OFICIAL (UNA SOLA COLUMNA) */}
                 <div className="mt-6 rounded-2xl shadow-md bg-white p-4 border border-gray-200">
                     <div id="pp-button" />
                 </div>
