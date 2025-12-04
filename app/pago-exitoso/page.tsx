@@ -1,37 +1,24 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
-export const dynamic = "force-dynamic";
-
 function PagoExitosoContent() {
     const searchParams = useSearchParams();
-    const router = useRouter();
-
     const tx =
         searchParams.get("clientTransactionId") ||
         searchParams.get("tx") ||
         searchParams.get("id");
-
-    const handleVolver = () => {
-        router.push("/");
-    };
-
-    const handleVerCompra = () => {
-        if (tx) {
-            // 👉 aquí en el futuro puedes crear la página /mi-compra
-            router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`);
-        } else {
-            router.push("/");
-        }
-    };
+    const router = useRouter();
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
             <div
                 className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center"
-                style={{ border: "2px solid #FF6600" }} // borde naranja
+                style={{
+                    border: "2px solid #FF6600",
+                }}
             >
                 <h1 className="text-2xl font-bold mb-2" style={{ color: "#FF6600" }}>
                     ¡Pago realizado con éxito!
@@ -48,23 +35,25 @@ function PagoExitosoContent() {
                     </p>
                 )}
 
-                {/* Botón principal */}
+                {/* BOTÓN VOLVER AL INICIO */}
                 <button
-                    onClick={handleVolver}
-                    className="w-full rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                    onClick={() => router.push("/")}
+                    className="mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold text-white"
                     style={{ backgroundColor: "#FF6600" }}
                 >
                     Volver al inicio
                 </button>
 
-                {/* Botón secundario: Ver mi compra */}
-                <button
-                    onClick={handleVerCompra}
-                    className="mt-3 w-full rounded-xl px-4 py-2 text-sm font-semibold bg-white border"
-                    style={{ borderColor: "#FF6600", color: "#FF6600" }}
-                >
-                    Ver mi compra
-                </button>
+                {/* 🔶 BOTÓN NUEVO: VER MI COMPRA */}
+                {tx && (
+                    <button
+                        onClick={() => router.push(`/mi-compra?tx=${tx}`)}
+                        className="mt-4 w-full bg-orange-500 hover:bg-orange-600 text-white font-semibold py-2 px-4 rounded-lg transition-all"
+                    >
+                        Ver mi compra
+                    </button>
+                )}
+
             </div>
         </main>
     );
