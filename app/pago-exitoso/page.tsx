@@ -1,4 +1,6 @@
 "use client";
+export const dynamic = "force-dynamic";
+
 
 import { Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
@@ -13,8 +15,13 @@ function PagoExitosoContent() {
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center">
-                <h1 className="text-2xl font-bold text-emerald-600 mb-2">
+            <div
+                className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center"
+                style={{
+                    border: "2px solid #FF6600", // 🔶 borde naranja
+                }}
+            >
+                <h1 className="text-2xl font-bold mb-2" style={{ color: "#FF6600" }}>
                     ¡Pago realizado con éxito!
                 </h1>
 
@@ -31,7 +38,8 @@ function PagoExitosoContent() {
 
                 <button
                     onClick={() => router.push("/")}
-                    className="mt-4 w-full rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700"
+                    className="mt-4 w-full rounded-xl px-4 py-2 text-sm font-semibold text-white"
+                    style={{ backgroundColor: "#FF6600" }} // 🔶 botón naranja
                 >
                     Volver al inicio
                 </button>
