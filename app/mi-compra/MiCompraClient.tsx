@@ -1,3 +1,4 @@
+// app/mi-compra/MiCompraClient.tsx
 "use client";
 
 import { useSearchParams } from "next/navigation";
@@ -42,7 +43,7 @@ export default function MiCompraClient() {
             setLoading(true);
 
             const { data, error } = await supabase
-                .from("pedidos") // 👈 tabla real
+                .from("pedidos") // 👈 tabla real en Supabase
                 .select("*")
                 .eq("payphone_client_transaction_id", tx)
                 .single();
@@ -60,7 +61,7 @@ export default function MiCompraClient() {
         loadData();
     }, [tx]);
 
-    // Sin tx en la URL
+    // 👉 Caso: no vino tx en la URL
     if (!tx) {
         return (
             <div className="flex items-center justify-center px-4 pt-32 pb-12">
@@ -76,7 +77,7 @@ export default function MiCompraClient() {
         );
     }
 
-    // Cargando desde Supabase
+    // 👉 Caso: cargando desde Supabase
     if (loading) {
         return (
             <div className="flex items-center justify-center px-4 pt-32 pb-12">
@@ -85,7 +86,7 @@ export default function MiCompraClient() {
         );
     }
 
-    // No se encontró el pedido
+    // 👉 Caso: no se encontró el pedido
     if (!pedido) {
         return (
             <div className="flex items-center justify-center px-4 pt-32 pb-12">
@@ -99,12 +100,24 @@ export default function MiCompraClient() {
                     <p className="font-mono text-xs bg-gray-100 px-3 py-2 rounded mt-3 break-all">
                         {tx}
                     </p>
+
+                    <div className="mt-6 flex justify-center">
+                        <a
+                            href="/"
+                            className="bg-[#ff6600] hover:bg-[#ff7f26] text-white font-semibold px-6 py-2 rounded-lg shadow"
+                        >
+                            Regresar al sorteo
+                        </a>
+                    </div>
                 </div>
             </div>
         );
     }
 
-    // Pedido encontrado ✅
+    // 👉 Caso: pedido encontrado ✅
+    const totalFormateado =
+        pedido.total != null ? Number(pedido.total).toFixed(2) : "-";
+
     return (
         <div className="flex items-center justify-center px-4 pt-32 pb-12">
             <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6">
@@ -126,8 +139,7 @@ export default function MiCompraClient() {
                         <strong>Cantidad de números:</strong> {pedido.cantidad_numeros}
                     </p>
                     <p>
-                        <strong>Total:</strong> $
-                        {pedido.total != null ? pedido.total.toFixed(2) : "-"}
+                        <strong>Total:</strong> ${totalFormateado}
                     </p>
                     <p>
                         <strong>Método de pago:</strong> {pedido.metodo_pago}
@@ -150,6 +162,16 @@ export default function MiCompraClient() {
                             {pedido.payphone_client_transaction_id}
                         </p>
                     </div>
+                </div>
+
+                {/* 🔙 Botón de retorno */}
+                <div className="mt-6 flex justify-center">
+                    <a
+                        href="/"
+                        className="bg-[#ff6600] hover:bg-[#ff7f26] text-white font-semibold px-6 py-2 rounded-lg shadow"
+                    >
+                        Regresar al sorteo
+                    </a>
                 </div>
             </div>
         </div>
