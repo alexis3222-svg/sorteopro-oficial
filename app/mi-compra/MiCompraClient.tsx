@@ -106,7 +106,7 @@ export default function MiCompraClient() {
                             href="/"
                             className="bg-[#ff6600] hover:bg-[#ff7f26] text-white font-semibold px-6 py-2 rounded-lg shadow"
                         >
-                            Regresar al sorteo
+                            Regresar al inicio
                         </a>
                     </div>
                 </div>
@@ -170,9 +170,10 @@ export default function MiCompraClient() {
                         href="/"
                         className="bg-[#ff6600] hover:bg-[#ff7f26] text-white font-semibold px-6 py-2 rounded-lg shadow"
                     >
-                        Regresar al sorteo
+                        Regresar al inicio
                     </a>
                 </div>
+
             </div>
         </div>
     );
