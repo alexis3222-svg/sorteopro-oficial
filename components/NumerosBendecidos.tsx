@@ -115,9 +115,10 @@ export function NumerosBendecidos({ sorteoId }: Props) {
                                     </p>
 
                                     {item.entregado && (
-                                        <p className="text-sm text-green-600 font-semibold">
+                                        <p className="text-sm text-gray-600 font-semibold">
                                             ¡Premio Entregado!
                                         </p>
+
                                     )}
                                 </div>
                             );
