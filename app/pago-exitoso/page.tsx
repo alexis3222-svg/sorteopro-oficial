@@ -12,15 +12,16 @@ function PagoExitosoContent() {
         searchParams.get("tx") ||
         searchParams.get("id");
 
-    const [loadingAsignacion, setLoadingAsignacion] = useState(false);
+    const [asignando, setAsignando] = useState(false);
     const [errorAsignacion, setErrorAsignacion] = useState<string | null>(null);
+    const [numeros, setNumeros] = useState<number[] | null>(null);
 
     useEffect(() => {
         if (!tx) return;
 
         async function asignar() {
             try {
-                setLoadingAsignacion(true);
+                setAsignando(true);
                 setErrorAsignacion(null);
 
                 const res = await fetch("/api/pedidos/asignar", {
@@ -32,16 +33,14 @@ function PagoExitosoContent() {
                 const data = await res.json();
 
                 if (!res.ok) {
-                    console.error("Error asignando números:", data);
-                    setErrorAsignacion(
-                        data.error || "No se pudieron asignar los números"
-                    );
+                    setErrorAsignacion(data.error || "No se pudieron asignar números");
+                } else {
+                    setNumeros(data.numeros || []);
                 }
-            } catch (e) {
-                console.error(e);
+            } catch (err) {
                 setErrorAsignacion("Error de conexión al asignar números");
             } finally {
-                setLoadingAsignacion(false);
+                setAsignando(false);
             }
         }
 
@@ -64,38 +63,49 @@ function PagoExitosoContent() {
 
                 {tx && (
                     <p className="text-xs text-gray-500 mb-4">
-                        Código de transacción:{" "}
-                        <span className="font-mono bg-gray-100 px-2 py-1 rounded">
+                        Código de transacción:
+                        <span className="font-mono bg-gray-100 px-2 py-1 rounded ml-1">
                             {tx}
                         </span>
                     </p>
                 )}
 
-                {loadingAsignacion && (
-                    <p className="text-xs text-gray-500 mb-2">
+                {asignando && (
+                    <p className="text-xs text-gray-500">
                         Asignando tus números en el sorteo...
                     </p>
                 )}
 
                 {errorAsignacion && (
-                    <p className="text-xs text-red-600 mb-2">
-                        {errorAsignacion}
-                    </p>
+                    <p className="text-xs text-red-600">{errorAsignacion}</p>
                 )}
 
-                <div className="mt-4 flex flex-col gap-2">
+                {numeros && numeros.length > 0 && (
+                    <div className="mt-4">
+                        <p className="text-sm font-semibold">Tus números asignados:</p>
+                        <div className="flex flex-wrap justify-center gap-2 mt-2">
+                            {numeros.map((n) => (
+                                <span
+                                    key={n}
+                                    className="px-3 py-1 rounded-full bg-[#fff1e6] text-[#ff6600] border border-[#ff6600]/40 text-sm font-semibold shadow-sm"
+                                >
+                                    #{n}
+                                </span>
+                            ))}
+                        </div>
+                    </div>
+                )}
+
+                <div className="mt-6 flex flex-col gap-2">
                     <button
-                        onClick={() => {
-                            if (!tx) return;
-                            router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`);
-                        }}
+                        onClick={() => router.push(`/mi-compra?tx=${encodeURIComponent(tx!)}`)}
                         className="w-full bg-[#FF6600] hover:bg-[#ff7f26] text-white font-semibold px-4 py-2 rounded-lg"
                     >
                         Ver mi compra
                     </button>
 
                     <button
-                        onClick={() => router.push("/")}
+                        onClick={() => router.push(`/`)}
                         className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold px-4 py-2 rounded-lg"
                     >
                         Regresar al inicio
@@ -106,9 +116,15 @@ function PagoExitosoContent() {
     );
 }
 
-export default function PagoExitosoPage() {
+export default function PagoExitoso() {
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Procesando pago...</div>}>
+        <Suspense
+            fallback={
+                <main className="min-h-screen flex items-center justify-center">
+                    Procesando pago...
+                </main>
+            }
+        >
             <PagoExitosoContent />
         </Suspense>
     );
