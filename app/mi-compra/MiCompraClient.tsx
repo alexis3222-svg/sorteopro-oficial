@@ -1,4 +1,3 @@
-// app/mi-compra/MiCompraClient.tsx
 "use client";
 
 import { useSearchParams } from "next/navigation";
@@ -24,6 +23,8 @@ type Pedido = {
     estado: string | null;
     created_at: string;
     payphone_client_transaction_id: string | null;
+    // 👇 ajusta el nombre si tu columna se llama diferente
+    numeros_asignados?: string[] | string | null;
 };
 
 export default function MiCompraClient() {
@@ -43,7 +44,7 @@ export default function MiCompraClient() {
             setLoading(true);
 
             const { data, error } = await supabase
-                .from("pedidos") // 👈 tabla real en Supabase
+                .from("pedidos")
                 .select("*")
                 .eq("payphone_client_transaction_id", tx)
                 .single();
@@ -81,7 +82,9 @@ export default function MiCompraClient() {
     if (loading) {
         return (
             <div className="flex items-center justify-center px-4 pt-32 pb-12">
-                <p className="text-gray-600 text-sm">Buscando tu compra...</p>
+                <div className="w-full max-w-md rounded-2xl bg-white shadow-md p-6 text-center bg-white/80">
+                    <p className="text-gray-700 text-sm">Buscando tu compra...</p>
+                </div>
             </div>
         );
     }
@@ -114,66 +117,210 @@ export default function MiCompraClient() {
         );
     }
 
-    // 👉 Caso: pedido encontrado ✅
+    // 👉 Procesar los números asignados
+    let numeros: string[] = [];
+    if (pedido.numeros_asignados) {
+        if (Array.isArray(pedido.numeros_asignados)) {
+            numeros = pedido.numeros_asignados.map(String);
+        } else if (typeof pedido.numeros_asignados === "string") {
+            numeros = pedido.numeros_asignados
+                .split(",")
+                .map((n) => n.trim())
+                .filter(Boolean);
+        }
+    }
+
     const totalFormateado =
         pedido.total != null ? Number(pedido.total).toFixed(2) : "-";
 
     return (
-        <div className="flex items-center justify-center px-4 pt-32 pb-12">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6">
-                <h1 className="text-2xl font-bold mb-4 text-[#ff6600]">
-                    Detalle de tu compra
-                </h1>
+        <div className="flex items-center justify-center px-4 pt-28 pb-12">
+            <div className="w-full max-w-3xl">
+                {/* Tarjeta grande y moderna */}
+                <div className="relative overflow-hidden rounded-3xl bg-white shadow-2xl border border-gray-200">
+                    {/* Banda superior con gradiente */}
+                    <div className="h-2 bg-gradient-to-r from-[#ff6600] via-[#ff9a3c] to-[#ff6600]" />
 
-                <div className="space-y-2 text-sm">
-                    <p>
-                        <strong>Nombre:</strong> {pedido.nombre}
-                    </p>
-                    <p>
-                        <strong>Teléfono:</strong> {pedido.telefono}
-                    </p>
-                    <p>
-                        <strong>Email:</strong> {pedido.correo}
-                    </p>
-                    <p>
-                        <strong>Cantidad de números:</strong> {pedido.cantidad_numeros}
-                    </p>
-                    <p>
-                        <strong>Total:</strong> ${totalFormateado}
-                    </p>
-                    <p>
-                        <strong>Método de pago:</strong> {pedido.metodo_pago}
-                    </p>
-                    <p>
-                        <strong>Estado:</strong> {pedido.estado}
-                    </p>
-                    <p>
-                        <strong>Fecha:</strong>{" "}
-                        {pedido.created_at
-                            ? new Date(pedido.created_at).toLocaleString("es-EC")
-                            : "-"}
-                    </p>
+                    <div className="p-6 md:p-8">
+                        {/* Header */}
+                        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-6">
+                            <div>
+                                <p className="text-xs font-semibold tracking-[0.2em] text-gray-400 uppercase">
+                                    Casa Bikers • Sorteos
+                                </p>
+                                <h1 className="text-2xl md:text-3xl font-extrabold text-gray-900 mt-1">
+                                    Detalle de tu compra
+                                </h1>
+                                <p className="text-xs md:text-sm text-gray-500 mt-1">
+                                    ID de transacción:
+                                    <span className="font-mono text-[11px] md:text-xs bg-gray-100 px-2 py-1 rounded ml-1">
+                                        {pedido.payphone_client_transaction_id || tx}
+                                    </span>
+                                </p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-[11px] uppercase text-gray-400 font-semibold">
+                                    Estado
+                                </p>
+                                <span
+                                    className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${pedido.estado === "PAGADO" ||
+                                            pedido.estado === "APROBADO" ||
+                                            pedido.estado === "COMPLETADO"
+                                            ? "bg-green-100 text-green-700"
+                                            : "bg-yellow-100 text-yellow-700"
+                                        }`}
+                                >
+                                    {pedido.estado || "PENDIENTE"}
+                                </span>
+                            </div>
+                        </div>
 
-                    <div className="pt-2">
-                        <p className="font-semibold text-xs mb-1">
-                            ID de transacción PayPhone:
-                        </p>
-                        <p className="font-mono text-[11px] bg-gray-100 px-3 py-2 rounded break-all">
-                            {pedido.payphone_client_transaction_id}
-                        </p>
+                        {/* Contenido en 2 columnas */}
+                        <div className="grid md:grid-cols-2 gap-6">
+                            {/* Columna izquierda: datos de cliente y compra */}
+                            <div className="space-y-4 text-sm">
+                                <div>
+                                    <h2 className="text-xs font-semibold tracking-[0.18em] text-gray-400 uppercase mb-2">
+                                        Datos del cliente
+                                    </h2>
+                                    <div className="space-y-1.5">
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Nombre:
+                                            </span>{" "}
+                                            <span className="text-gray-800">{pedido.nombre}</span>
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Teléfono:
+                                            </span>{" "}
+                                            <span className="text-gray-800">{pedido.telefono}</span>
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Email:
+                                            </span>{" "}
+                                            <span className="text-gray-800">{pedido.correo}</span>
+                                        </p>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h2 className="text-xs font-semibold tracking-[0.18em] text-gray-400 uppercase mb-2">
+                                        Resumen de compra
+                                    </h2>
+                                    <div className="space-y-1.5">
+                                        {pedido.actividad_numero != null && (
+                                            <p>
+                                                <span className="font-semibold text-gray-700">
+                                                    Actividad N°:
+                                                </span>{" "}
+                                                <span className="text-gray-800">
+                                                    {pedido.actividad_numero}
+                                                </span>
+                                            </p>
+                                        )}
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Cantidad de números:
+                                            </span>{" "}
+                                            <span className="text-gray-800">
+                                                {pedido.cantidad_numeros}
+                                            </span>
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Precio unitario:
+                                            </span>{" "}
+                                            <span className="text-gray-800">
+                                                $
+                                                {pedido.precio_unitario != null
+                                                    ? Number(pedido.precio_unitario).toFixed(2)
+                                                    : "-"}
+                                            </span>
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Total pagado:
+                                            </span>{" "}
+                                            <span className="text-gray-900 font-bold">
+                                                ${totalFormateado}
+                                            </span>
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Método de pago:
+                                            </span>{" "}
+                                            <span className="text-gray-800">
+                                                {pedido.metodo_pago || "PayPhone"}
+                                            </span>
+                                        </p>
+                                        <p>
+                                            <span className="font-semibold text-gray-700">
+                                                Fecha:
+                                            </span>{" "}
+                                            <span className="text-gray-800">
+                                                {pedido.created_at
+                                                    ? new Date(pedido.created_at).toLocaleString("es-EC")
+                                                    : "-"}
+                                            </span>
+                                        </p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Columna derecha: números asignados */}
+                            <div className="space-y-3 text-sm">
+                                <h2 className="text-xs font-semibold tracking-[0.18em] text-gray-400 uppercase">
+                                    Números asignados
+                                </h2>
+
+                                {numeros.length > 0 ? (
+                                    <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-3 md:p-4">
+                                        <p className="text-xs text-gray-500 mb-2">
+                                            Estos son los números que participan en el sorteo:
+                                        </p>
+                                        <div className="flex flex-wrap gap-2">
+                                            {numeros.map((n) => (
+                                                <span
+                                                    key={n}
+                                                    className="inline-flex items-center justify-center rounded-full border border-[#ff6600]/40 bg-[#fff5ec] px-3 py-1 text-xs font-semibold text-[#ff6600] shadow-sm"
+                                                >
+                                                    #{n}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="bg-gray-50 border border-dashed border-gray-200 rounded-2xl p-3 md:p-4">
+                                        <p className="text-xs text-gray-500">
+                                            Aún no se han registrado los números asignados para esta
+                                            compra. Si ya realizaste el pago, tus números se
+                                            confirmarán en breve.
+                                        </p>
+                                    </div>
+                                )}
+
+                                <div className="pt-2">
+                                    <p className="text-[11px] text-gray-400">
+                                        Te recomendamos hacer una captura de pantalla o guardar
+                                        esta página como comprobante.
+                                    </p>
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Footer con botón de retorno */}
+                        <div className="mt-8 flex justify-center">
+                            <a
+                                href="/"
+                                className="inline-flex items-center gap-2 bg-[#ff6600] hover:bg-[#ff7f26] text-white font-semibold px-7 py-2.5 rounded-full shadow-lg text-sm transition"
+                            >
+                                Regresar al inicio
+                            </a>
+                        </div>
                     </div>
                 </div>
-
-                {/* 🔙 Botón de retorno */}
-                <div className="mt-6 flex justify-center">
-                    <a
-                        href="/"
-                        className="bg-[#ff6600] hover:bg-[#ff7f26] text-white font-semibold px-6 py-2 rounded-lg shadow"
-                    >
-                        Regresar al inicio
-                    </a>
-                </div>
-
             </div>
         </div>
     );
