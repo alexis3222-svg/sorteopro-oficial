@@ -6,6 +6,8 @@ import { SorteoCarousel } from "../components/SorteoCarousel";
 import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
+import { NumerosBendecidos } from "../components/NumerosBendecidos";
+
 
 const anton = Anton({
   subsets: ["latin"],
@@ -368,45 +370,8 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PREMIOS INSTANTÁNEOS */}
-      <section className="w-full py-6 md:py-8">
-        <div className="mx-auto max-w-5xl px-4 text-center">
-          <h2
-            className={`${anton.className} text-lg md:text-2xl uppercase tracking-[0.18em] text-[#2b2b2b]`}
-          >
-            ¡PREMIOS INSTANTÁNEOS!
-          </h2>
-
-          <p className="mt-3 text-sm md:text-base text-gray-600 max-w-3xl mx-auto">
-            ¡Hay 10 números bendecidos con premios en efectivo! Realiza tu
-            compra y revisa si tienes uno de los siguientes números:
-          </p>
-
-          <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-x-10 gap-y-6">
-            {[
-              "00007",
-              "10101",
-              "22267",
-              "36836",
-              "44498",
-              "55286",
-              "68397",
-              "72564",
-              "89990",
-              "03030",
-            ].map((numero) => (
-              <div key={numero} className="space-y-1">
-                <p
-                  className={`${anton.className} text-xl md:text-xl tracking-[0.10em] text-gray-600`}
-                >
-                  {numero}
-                </p>
-                <p className="text-sm text-gray-600">¡Premio Entregado!</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
+      {/* PREMIOS INSTANTÁNEOS (DINÁMICO) */}
+      <NumerosBendecidos sorteoId={sorteo.id} />
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">

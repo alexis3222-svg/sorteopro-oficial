@@ -2,16 +2,22 @@
 
 import { useEffect, useState } from "react";
 import { createClient } from "@supabase/supabase-js";
+import { Anton } from "next/font/google";
+
+const anton = Anton({
+    subsets: ["latin"],
+    weight: "400",
+});
 
 const supabase = createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-// Lista de números bendecidos
+// misma lista que usabas antes, pero como números
 const NUMEROS_BENDECIDOS = [
-    1734, 12845, 23956, 30487, 41878,
-    52789, 60312, 74979, 85634, 77
+    7, 10101, 22267, 36836, 44498,
+    55286, 68397, 72564, 89990, 3030,
 ];
 
 type Bendecido = {
@@ -28,9 +34,9 @@ export function NumerosBendecidos({ sorteoId }: Props) {
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
-        async function load() {
-            if (!sorteoId) return;
+        if (!sorteoId) return;
 
+        async function load() {
             setLoading(true);
 
             const { data, error } = await supabase
@@ -41,15 +47,20 @@ export function NumerosBendecidos({ sorteoId }: Props) {
 
             if (error) {
                 console.error("Error cargando bendecidos:", error);
+                setItems(
+                    NUMEROS_BENDECIDOS.map((n) => ({ numero: n, entregado: false }))
+                );
                 setLoading(false);
                 return;
             }
 
-            const entregados = new Set((data || []).map((r) => r.numero));
+            const entregadosSet = new Set<number>(
+                (data || []).map((r: any) => r.numero as number)
+            );
 
-            const lista = NUMEROS_BENDECIDOS.map((num) => ({
-                numero: num,
-                entregado: entregados.has(num),
+            const lista = NUMEROS_BENDECIDOS.map((n) => ({
+                numero: n,
+                entregado: entregadosSet.has(n),
             }));
 
             setItems(lista);
@@ -60,44 +71,42 @@ export function NumerosBendecidos({ sorteoId }: Props) {
     }, [sorteoId]);
 
     return (
-        <section className="py-10 md:py-14 bg-white">
-            <div className="max-w-4xl mx-auto px-4 text-center">
-
-                <h2 className="text-2xl md:text-3xl font-extrabold tracking-wide uppercase mb-3">
-                    ¡Premios Instantáneos!
+        <section className="w-full py-6 md:py-8">
+            <div className="mx-auto max-w-5xl px-4 text-center">
+                <h2
+                    className={`${anton.className} text-lg md:text-2xl uppercase tracking-[0.18em] text-[#2b2b2b]`}
+                >
+                    ¡PREMIOS INSTANTÁNEOS!
                 </h2>
 
-                <p className="text-sm md:text-base text-gray-700 mb-8">
-                    Hay números bendecidos con premios instantáneos. Revisa si tienes uno:
+                <p className="mt-3 text-sm md:text-base text-gray-600 max-w-3xl mx-auto">
+                    ¡Hay 10 números bendecidos con premios en efectivo! Realiza tu compra
+                    y revisa si tienes uno de los siguientes números:
                 </p>
 
                 {loading ? (
-                    <p className="text-sm text-gray-500">Cargando...</p>
+                    <p className="mt-6 text-sm text-gray-500">Cargando...</p>
                 ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-5 gap-y-8 gap-x-4 md:gap-x-8">
+                    <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-x-10 gap-y-6">
                         {items.map((item) => {
                             const num = item.numero.toString().padStart(5, "0");
 
                             return (
-                                <div key={item.numero} className="flex flex-col items-center">
-
-                                    {/* Número */}
+                                <div key={item.numero} className="space-y-1">
                                     <p
-                                        className={
-                                            "text-xl md:text-2xl font-extrabold tracking-wide" +
-                                            (item.entregado ? " underline decoration-2 underline-offset-4" : "")
-                                        }
+                                        className={`${anton.className} text-xl md:text-xl tracking-[0.10em] text-gray-600${item.entregado
+                                                ? " underline decoration-2 underline-offset-4"
+                                                : ""
+                                            }`}
                                     >
                                         {num}
                                     </p>
 
-                                    {/* Texto solo si entregado */}
                                     {item.entregado && (
-                                        <p className="text-xs md:text-sm font-semibold text-green-600 mt-1">
+                                        <p className="text-sm text-green-600 font-semibold">
                                             ¡Premio Entregado!
                                         </p>
                                     )}
-
                                 </div>
                             );
                         })}
