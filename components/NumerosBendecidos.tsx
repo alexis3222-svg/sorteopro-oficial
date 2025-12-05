@@ -1,24 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { createClient } from "@supabase/supabase-js";
 import { Anton } from "next/font/google";
+import { supabase } from "../lib/supabaseClient";
 
 const anton = Anton({
     subsets: ["latin"],
     weight: "400",
 });
-
-const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
-
-// misma lista que usabas antes, pero como números
-const NUMEROS_BENDECIDOS = [
-    7, 10101, 22267, 36836, 44498,
-    55286, 68397, 72564, 89990, 3030,
-];
 
 type Bendecido = {
     numero: number;
@@ -39,26 +28,45 @@ export function NumerosBendecidos({ sorteoId }: Props) {
         async function load() {
             setLoading(true);
 
-            const { data, error } = await supabase
-                .from("numeros_asignados")
+            // 1️⃣ Traer los números bendecidos de la tabla nueva
+            const { data: bendecidos, error: bendError } = await supabase
+                .from("numeros_bendecidos")
                 .select("numero")
                 .eq("sorteo_id", sorteoId)
-                .in("numero", NUMEROS_BENDECIDOS);
+                .order("numero", { ascending: true });
 
-            if (error) {
-                console.error("Error cargando bendecidos:", error);
-                setItems(
-                    NUMEROS_BENDECIDOS.map((n) => ({ numero: n, entregado: false }))
-                );
+            if (bendError) {
+                console.error("Error cargando numeros_bendecidos:", bendError);
+                setItems([]);
                 setLoading(false);
                 return;
             }
 
+            if (!bendecidos || bendecidos.length === 0) {
+                // No hay números bendecidos aún para este sorteo
+                setItems([]);
+                setLoading(false);
+                return;
+            }
+
+            const listaNumeros = bendecidos.map((b) => b.numero as number);
+
+            // 2️⃣ Ver cuáles de esos números YA fueron asignados a alguien
+            const { data: asignados, error: asigError } = await supabase
+                .from("numeros_asignados")
+                .select("numero")
+                .eq("sorteo_id", sorteoId)
+                .in("numero", listaNumeros);
+
+            if (asigError) {
+                console.error("Error cargando numeros_asignados:", asigError);
+            }
+
             const entregadosSet = new Set<number>(
-                (data || []).map((r: any) => r.numero as number)
+                (asignados || []).map((a) => a.numero as number)
             );
 
-            const lista = NUMEROS_BENDECIDOS.map((n) => ({
+            const lista: Bendecido[] = listaNumeros.map((n) => ({
                 numero: n,
                 entregado: entregadosSet.has(n),
             }));
@@ -80,12 +88,16 @@ export function NumerosBendecidos({ sorteoId }: Props) {
                 </h2>
 
                 <p className="mt-3 text-sm md:text-base text-gray-600 max-w-3xl mx-auto">
-                    ¡Hay 10 números bendecidos con premios en efectivo! Realiza tu compra
-                    y revisa si tienes uno de los siguientes números:
+                    ¡Hay números bendecidos con premios en efectivo! Realiza tu compra y
+                    revisa si tienes uno de los siguientes números:
                 </p>
 
                 {loading ? (
                     <p className="mt-6 text-sm text-gray-500">Cargando...</p>
+                ) : items.length === 0 ? (
+                    <p className="mt-6 text-sm text-gray-500">
+                        Los números bendecidos de esta actividad aún no han sido generados.
+                    </p>
                 ) : (
                     <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-x-10 gap-y-6">
                         {items.map((item) => {
@@ -95,8 +107,8 @@ export function NumerosBendecidos({ sorteoId }: Props) {
                                 <div key={item.numero} className="space-y-1">
                                     <p
                                         className={`${anton.className} text-xl md:text-xl tracking-[0.10em] text-gray-600${item.entregado
-                                                ? " underline decoration-2 underline-offset-4"
-                                                : ""
+                                            ? " underline decoration-2 underline-offset-4"
+                                            : ""
                                             }`}
                                     >
                                         {num}
