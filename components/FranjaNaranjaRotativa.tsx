@@ -4,7 +4,7 @@
 import { useEffect, useState } from "react";
 
 const FRASES = [
-    "JUEGA KTM DUKE 200",
+    "JUEGA KTM DUKE 390",
     "+DUCATTI MODEL 150",
     "+GO KART 90 CC",
     "¡VÁLIDO PARA TODO EL ECUADOR!",
@@ -28,7 +28,7 @@ export function FranjaNaranjaRotativa() {
             }, 9000); // el fade-out dura 900ms
 
             return () => clearTimeout(timeoutCambio);
-        }, 6000); // cambia de frase cada 6s
+        }, 4000); // cambia de frase cada 4s
 
         return () => clearInterval(intervalo);
     }, []);

@@ -5,8 +5,8 @@ import { FranjaNaranjaRotativa } from "../components/FranjaNaranjaRotativa";
 import Image from "next/image";
 
 export const metadata: Metadata = {
-  title: "Sorteo Go Kart 0km",
-  description: "Plataforma de sorteos estilo Proyectos Flores",
+  title: "Casa Bikers",
+  description: "Plataforma de Casa Bikers",
 };
 
 export default function RootLayout({
