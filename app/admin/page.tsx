@@ -16,7 +16,7 @@ export default function AdminHomePage() {
                 <p
                     className={`${anton.className} text-xs uppercase tracking-[0.25em] text-[#ff9933]`}
                 >
-                    Sorteopro • Admin
+                    Casa bikers • Admin
                 </p>
                 <h1
                     className={`${anton.className} mt-2 text-2xl md:text-3xl uppercase tracking-[0.18em] text-slate-100`}
