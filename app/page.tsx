@@ -134,10 +134,37 @@ export default function HomePage() {
     e.preventDefault();
     setOrderError(null);
 
-    if (!nombreCliente.trim() || !telefonoCliente.trim()) {
-      setOrderError("Completa al menos nombre y número de WhatsApp.");
+    // Validación estricta de datos
+    if (!nombreCliente.trim()) {
+      setOrderError("El nombre completo es obligatorio.");
       return;
     }
+
+    if (!telefonoCliente.trim()) {
+      setOrderError("El número de WhatsApp es obligatorio.");
+      return;
+    }
+
+    // Validación teléfono ecuatoriano
+    const telefonoValido = /^09\d{8}$/.test(telefonoCliente.trim());
+    if (!telefonoValido) {
+      setOrderError("Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx).");
+      return;
+    }
+
+    if (!correoCliente.trim()) {
+      setOrderError("El correo electrónico es obligatorio para ver tus números asignados.");
+      return;
+    }
+
+    // Validación correo formateado
+    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoCliente.trim());
+    if (!correoValido) {
+      setOrderError("Ingresa un correo electrónico válido.");
+      return;
+    }
+
+
 
     if (selectedCantidad == null) {
       setOrderError("No se detectó el paquete seleccionado.");
