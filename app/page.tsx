@@ -96,7 +96,7 @@ export default function HomePage() {
     .map((p: string) => p.trim())
     .filter(Boolean);
 
-  const paquetes = [3, 6, 10, 20, 30, 50];
+  const paquetes = [5, 9, 12, 20, 30, 50];
 
   // 👉 imagen principal del hero, tomada de la BD
   const imagenHero: string | null = sorteo.imagen_url ?? null;
@@ -635,7 +635,7 @@ export default function HomePage() {
 
                   <div className="space-y-1">
                     <label className="text-xs text-slate-300">
-                      Correo electrónico (opcional)
+                      Correo electrónico
                     </label>
                     <input
                       type="email"
