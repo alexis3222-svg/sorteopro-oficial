@@ -1,8 +1,8 @@
 // app/layout.tsx
 import type { Metadata } from "next";
 import "./globals.css";
-import { FranjaNaranjaRotativa } from "../components/FranjaNaranjaRotativa";
-import Image from "next/image";
+import { SiteHeader } from "../components/SiteHeader";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
   title: "Casa Bikers",
@@ -12,7 +12,7 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
   return (
     <html lang="es">
@@ -20,27 +20,7 @@ export default function RootLayout({
         <div className="min-h-screen flex flex-col bg-white">
 
           {/* ────────────── HEADER FIJO ────────────── */}
-          <header className="fixed top-0 left-0 w-full z-50">
-            {/* Franja naranja rotativa arriba */}
-            <FranjaNaranjaRotativa />
-
-            {/* Banda negra estilo KTM: sólida, delgada, sin blur */}
-            <div className="w-full bg-black/35">
-              <div className="mx-auto flex max-w-6xl items-center px-0 py-0">
-
-                <Image
-                  src="/logo-bikers.svg"
-                  alt="Bikers Motors"
-                  width={300}
-                  height={80}
-                  className="w-[260px] h-auto md:w-[320px]"
-                  priority
-                />
-
-              </div>
-            </div>
-          </header>
-
+          <SiteHeader />
 
           {/* ────────────── MAIN ────────────── */}
           <main className="flex-1 bg-white pt-[110px] md:pt-[120px]">

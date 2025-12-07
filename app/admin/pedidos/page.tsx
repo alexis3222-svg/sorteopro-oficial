@@ -1,5 +1,6 @@
 // app/admin/pedidos/page.tsx
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
@@ -433,7 +434,7 @@ export default function AdminPedidosPage() {
 
                     <Link
                         href="/admin"
-                        className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 hover:bg:white/10 hover:bg-white/10"
+                        className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 hover:bg-white/10"
                     >
                         ← Volver al panel
                     </Link>
@@ -496,7 +497,7 @@ export default function AdminPedidosPage() {
                     </div>
                 ) : (
                     <table className="min-w-full text-left text-xs md:text-sm text-slate-200">
-                        <thead className="border-b border:white/10 border-b border-white/10 text-[11px] uppercase tracking-[0.18em] text-slate-400">
+                        <thead className="border-b border-white/10 text-[11px] uppercase tracking-[0.18em] text-slate-400">
                             <tr>
                                 <th className="px-3 py-3">ID</th>
                                 <th className="px-3 py-3">Fecha</th>

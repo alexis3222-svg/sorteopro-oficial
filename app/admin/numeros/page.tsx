@@ -3,11 +3,11 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-
 import { useEffect, useState } from "react";
 import { supabase } from "../../../lib/supabaseClient";
 import { Anton } from "next/font/google";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 
 const anton = Anton({
     subsets: ["latin"],
@@ -27,8 +27,9 @@ type PedidoRow = {
 type NumeroRow = {
     id: number;
     numero: number;
-    sorteo_id: number;
-    pedido: PedidoRow[]; // 👈 array
+    sorteo_id: string;
+    pedido_id: number | null;      // 👈 importante
+    pedido: PedidoRow[];           // 👈 lo seguimos usando como array[0]
 };
 
 type FiltroActividad = "todas" | number;
@@ -36,7 +37,6 @@ type FiltroEstado = "todos" | "pagado" | "pendiente" | "cancelado";
 
 export default function AdminNumerosPage() {
     const [numeros, setNumeros] = useState<NumeroRow[]>([]);
-
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -51,14 +51,47 @@ export default function AdminNumerosPage() {
             setLoading(true);
             setError(null);
 
-            const { data, error } = await supabase
+            // 1️⃣ Traemos solo los números, sin embed
+            const { data: numerosData, error: errorNumeros } = await supabase
                 .from("numeros_asignados")
-                .select(
-                    `
+                .select(`
           id,
           numero,
           sorteo_id,
-          pedido:pedido_id (
+          pedido_id
+        `)
+                .order("numero", { ascending: true });
+
+            if (errorNumeros) {
+                console.error("Error cargando números:", errorNumeros.message);
+                setError("No se pudieron cargar los números.");
+                setLoading(false);
+                return;
+            }
+
+            const numerosList = (numerosData || []) as {
+                id: number;
+                numero: number;
+                sorteo_id: string;
+                pedido_id: number | null;
+            }[];
+
+            // 2️⃣ Sacamos los pedido_id únicos
+            const pedidoIds = Array.from(
+                new Set(
+                    numerosList
+                        .map((n) => n.pedido_id)
+                        .filter((v): v is number => v !== null)
+                )
+            );
+
+            // 3️⃣ Mapa de pedidos por id
+            const pedidosMap: Record<number, PedidoRow> = {};
+
+            if (pedidoIds.length > 0) {
+                const { data: pedidosData, error: errorPedidos } = await supabase
+                    .from("pedidos")
+                    .select(`
             id,
             created_at,
             actividad_numero,
@@ -66,20 +99,28 @@ export default function AdminNumerosPage() {
             telefono,
             estado,
             metodo_pago
-          )
-        `
-                )
-                .order("numero", { ascending: true });
+          `)
+                    .in("id", pedidoIds);
 
-            if (error) {
-                console.error("Error cargando números:", error.message);
-                setError("No se pudieron cargar los números.");
-            } else {
-                // 👇 casteo doble para callar a TS
-                setNumeros((data || []) as unknown as NumeroRow[]);
-
+                if (errorPedidos) {
+                    console.error("Error cargando pedidos para números:", errorPedidos.message);
+                } else {
+                    (pedidosData || []).forEach((p: any) => {
+                        pedidosMap[p.id] = p as PedidoRow;
+                    });
+                }
             }
 
+            // 4️⃣ Armamos la estructura NumeroRow con pedido: [pedido]
+            const withPedidos: NumeroRow[] = numerosList.map((n) => {
+                const pedido = n.pedido_id ? pedidosMap[n.pedido_id] : undefined;
+                return {
+                    ...n,
+                    pedido: pedido ? [pedido] : [],    // 👈 así no rompemos el resto del código
+                };
+            });
+
+            setNumeros(withPedidos);
             setLoading(false);
         };
 
@@ -312,7 +353,7 @@ export default function AdminNumerosPage() {
 
                         <tbody>
                             {numerosFiltrados.map((row, idx) => {
-                                const pedido = row.pedido[0]; // 👈 primero
+                                const pedido = row.pedido[0];
                                 const fecha = pedido?.created_at
                                     ? new Date(pedido.created_at)
                                     : null;
@@ -367,8 +408,18 @@ export default function AdminNumerosPage() {
                                             {actividadLabel}
                                         </td>
                                         <td className="px-3 py-3 text-[11px] md:text-xs">
-                                            #{pedido?.id ?? "-"}
+                                            {pedido?.id ? (
+                                                <Link
+                                                    href={`/admin/pedidos?pedido=${pedido.id}`}
+                                                    className="underline underline-offset-2 hover:no-underline text-slate-100"
+                                                >
+                                                    #{pedido.id}
+                                                </Link>
+                                            ) : (
+                                                "-"
+                                            )}
                                         </td>
+
                                         <td className="px-3 py-3 text-[11px] md:text-xs">
                                             {clienteLabel}
                                         </td>
