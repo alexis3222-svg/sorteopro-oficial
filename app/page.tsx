@@ -8,7 +8,6 @@ import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
 import { NumerosBendecidos } from "../components/NumerosBendecidos";
 
-
 const anton = Anton({
   subsets: ["latin"],
   weight: "400",
@@ -98,6 +97,15 @@ export default function HomePage() {
     .filter(Boolean);
 
   const paquetes = [3, 6, 10, 20, 30, 50];
+
+  // 👉 imagen principal del hero, tomada de la BD
+  const imagenHero: string | null = sorteo.imagen_url ?? null;
+
+  // 👉 galería de imágenes del sorteo (jsonb en la BD)
+  const galeriaHero: string[] = Array.isArray(sorteo.galeria_urls)
+    ? sorteo.galeria_urls
+    : [];
+
 
   const handleComprarClick = (cantidad: number) => {
     setSelectedCantidad(cantidad);
@@ -314,7 +322,24 @@ export default function HomePage() {
 
       {/* SECCIÓN HERO / ENCABEZADO */}
       <section className="space-y-6">
-        <SorteoCarousel />
+        {/* Prioridad:
+      1) Si hay galería (1 o más imágenes) -> carrusel dinámico
+      2) Si no hay galería pero sí imagen_url -> imagen fija
+      3) Si no hay nada -> carrusel por defecto (gokart-1,2,3)
+  */}
+        {galeriaHero.length > 0 ? (
+          <SorteoCarousel images={galeriaHero} titulo={sorteo.titulo} />
+        ) : imagenHero ? (
+          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/5">
+            <img
+              src={imagenHero}
+              alt={sorteo.titulo ?? "Imagen del sorteo"}
+              className="h-auto w-full object-cover"
+            />
+          </div>
+        ) : (
+          <SorteoCarousel />
+        )}
 
         <div className="space-y-4 py-3">
           <p
@@ -331,6 +356,7 @@ export default function HomePage() {
           </p>
         </div>
       </section>
+
 
       {/* SECCIÓN: ADQUIERE TUS NÚMEROS */}
       <section className="space-y-3">
@@ -652,4 +678,3 @@ export default function HomePage() {
     </div>
   );
 }
-

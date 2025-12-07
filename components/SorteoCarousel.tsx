@@ -1,6 +1,5 @@
 "use client";
 
-import Image from "next/image";
 import { useEffect, useState } from "react";
 
 type Slide = {
@@ -9,86 +8,61 @@ type Slide = {
     alt: string;
 };
 
-const slides: Slide[] = [
+interface SorteoCarouselProps {
+    images?: string[];   // 👉 urls dinámicas desde Supabase
+    titulo?: string;     // para el alt dinámico
+}
+
+// slides por defecto (las que ya tenías en /public)
+const defaultSlides: Slide[] = [
     { id: 1, src: "/gokart-1.jpg", alt: "Go Kart vista 1" },
+    { id: 2, src: "/gokart-2.jpg", alt: "Go Kart vista 2" },
     { id: 3, src: "/gokart-3.jpg", alt: "Go Kart vista 3" },
 ];
 
+export function SorteoCarousel({ images, titulo }: SorteoCarouselProps) {
+    // Si vienen imágenes desde props, las usamos; si no, usamos las default
+    const slides: Slide[] =
+        images && images.length > 0
+            ? images.map((src, index) => ({
+                id: index + 1,
+                src,
+                alt: titulo ? `${titulo} - Imagen ${index + 1}` : `Imagen ${index + 1}`,
+            }))
+            : defaultSlides;
 
-export function SorteoCarousel() {
     const [current, setCurrent] = useState(0);
 
     // cambio automático
     useEffect(() => {
         const id = setInterval(() => {
             setCurrent((prev) => (prev + 1) % slides.length);
-        }, 5000);
+        }, 4000);
         return () => clearInterval(id);
-    }, []);
+    }, [slides.length]);
 
-    const active = slides[current];
-
-    const prev = () =>
-        setCurrent((curr) => (curr - 1 + slides.length) % slides.length);
-
-    const next = () =>
-        setCurrent((curr) => (curr + 1) % slides.length);
+    if (slides.length === 0) return null;
 
     return (
-        // contenedor sin tarjeta, solo imagen
-        <div className="relative w-full overflow-hidden">
-            {/* Imagen en formato “faixa” como PF */}
-            <div className="relative w-full h-[520px] md:h-[720px] lg:h-[520px]">
-                <Image
-                    src={active.src}
-                    alt={active.alt}
-                    fill
-                    priority
-                    className="object-cover"
+        <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/5">
+            <div className="relative h-[220px] w-full md:h-[280px]">
+                <img
+                    key={slides[current].id}
+                    src={slides[current].src}
+                    alt={slides[current].alt}
+                    className="h-full w-full object-cover"
                 />
             </div>
 
-            {/* Flecha izquierda estilo PF */}
-            <button
-                type="button"
-                onClick={prev}
-                className="
-          absolute left-4 top-1/2 -translate-y-1/2
-          flex h-9 w-9 items-center justify-center
-          rounded-full bg-black/30 text-white
-          hover:bg-black/45
-          transition
-        "
-            >
-                <span className="text-2xl leading-none">‹</span>
-            </button>
-
-            {/* Flecha derecha estilo PF */}
-            <button
-                type="button"
-                onClick={next}
-                className="
-          absolute right-4 top-1/2 -translate-y-1/2
-          flex h-9 w-9 items-center justify-center
-          rounded-full bg-black/30 text-white
-          hover:bg-black/45
-          transition
-        "
-            >
-                <span className="text-2xl leading-none">›</span>
-            </button>
-
-            {/* Puntos inferiores */}
-            <div className="absolute bottom-3 left-0 right-0 flex justify-center gap-2">
+            {/* Puntos indicadores */}
+            <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
                 {slides.map((slide, index) => (
                     <button
                         key={slide.id}
-                        type="button"
-                        onClick={() => setCurrent(index)}
-                        className={`h-2 rounded-full transition-all ${index === current
-                            ? "w-6 bg-[#FF7F00]"
-                            : "w-2 bg-white/60"
+                        className={`h-2 w-2 rounded-full transition ${index === current ? "bg-white" : "bg-white/40"
                             }`}
+                        onClick={() => setCurrent(index)}
+                        aria-label={`Ir a la imagen ${index + 1}`}
                     />
                 ))}
             </div>
