@@ -134,7 +134,7 @@ export default function HomePage() {
     e.preventDefault();
     setOrderError(null);
 
-    // Validación estricta de datos
+    // 🔒 Validaciones de campos
     if (!nombreCliente.trim()) {
       setOrderError("El nombre completo es obligatorio.");
       return;
@@ -145,26 +145,28 @@ export default function HomePage() {
       return;
     }
 
-    // Validación teléfono ecuatoriano
     const telefonoValido = /^09\d{8}$/.test(telefonoCliente.trim());
     if (!telefonoValido) {
-      setOrderError("Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx).");
+      setOrderError(
+        "Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx)."
+      );
       return;
     }
 
     if (!correoCliente.trim()) {
-      setOrderError("El correo electrónico es obligatorio para ver tus números asignados.");
+      setOrderError(
+        "El correo electrónico es obligatorio para ver tus números asignados."
+      );
       return;
     }
 
-    // Validación correo formateado
-    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoCliente.trim());
+    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+      correoCliente.trim()
+    );
     if (!correoValido) {
       setOrderError("Ingresa un correo electrónico válido.");
       return;
     }
-
-
 
     if (selectedCantidad == null) {
       setOrderError("No se detectó el paquete seleccionado.");
@@ -173,13 +175,13 @@ export default function HomePage() {
 
     setSavingOrder(true);
 
-    // 👉 ID único de transacción para PayPhone (máx ~15 chars está bien)
+    // 👉 ID único de transacción para PayPhone
     const clientTransactionId = `P-${numeroActividad}-${Date.now()
       .toString()
       .slice(-8)}`;
 
     try {
-      // 1) Insertar pedido y obtener el registro
+      // 1) Insertar pedido en Supabase
       const { data: inserted, error } = await supabase
         .from("pedidos")
         .insert({
@@ -191,10 +193,10 @@ export default function HomePage() {
           metodo_pago: metodoPago,
           nombre: nombreCliente.trim(),
           telefono: telefonoCliente.trim(),
-          correo: correoCliente.trim() || null,
-          // Siempre pendiente al inicio; luego PayPhone lo pondrá en "pagado".
+          correo: correoCliente.trim(),
+          // Siempre pendiente al inicio
           estado: "pendiente",
-          // 👉 Guardamos el ID de transacción SOLO si es PayPhone
+          // Solo para PayPhone
           payphone_client_transaction_id:
             metodoPago === "payphone" ? clientTransactionId : null,
         })
@@ -227,8 +229,50 @@ export default function HomePage() {
           )}`
         );
       } else {
-        // Transferencia o tarjeta manual → mostrar pantalla de OK
+        // 🧾 Transferencia o tarjeta manual
         setModalStep("ok");
+
+        // ---------------------------------------------------------
+        // 🎯 ASIGNAR NÚMEROS ALEATORIOS AUTOMÁTICAMENTE (TRANSFERENCIA)
+        // ---------------------------------------------------------
+        try {
+          const cantidad = inserted.cantidad_numeros;
+
+          // 1) Obtener números ya asignados para este sorteo
+          const { data: usadosData } = await supabase
+            .from("numeros_asignados")
+            .select("numero")
+            .eq("sorteo_id", sorteo.id);
+
+          const usados = new Set(
+            (usadosData ?? []).map((n) => Number(n.numero))
+          );
+
+          const nuevos: number[] = [];
+
+          // 2) Generar números aleatorios sin repetir
+          while (nuevos.length < cantidad) {
+            const random =
+              Math.floor(Math.random() * sorteo.total_numeros) + 1;
+            if (!usados.has(random)) {
+              usados.add(random);
+              nuevos.push(random);
+            }
+          }
+
+          // 3) Guardar los números asignados en Supabase
+          const registros = nuevos.map((num) => ({
+            sorteo_id: sorteo.id,
+            pedido_id: inserted.id,
+            numero: num,
+          }));
+
+          await supabase.from("numeros_asignados").insert(registros);
+
+          console.log("Números asignados (transferencia):", nuevos);
+        } catch (err) {
+          console.error("❌ Error asignando números aleatorios:", err);
+        }
       }
     } catch (err: any) {
       console.error("Error registrando pedido:", err);
@@ -240,6 +284,7 @@ export default function HomePage() {
       setSavingOrder(false);
     }
   };
+
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
