@@ -41,13 +41,12 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 3) Reiniciar contadores del sorteo
+        // 3) Reiniciar solo lo que EXISTE en la tabla 'sorteos'
+        // en tu caso: ultimo_numero_asignado
         const { error: errorSorteo } = await supabaseAdmin
             .from("sorteos")
             .update({
-                numeros_vendidos: 0,
                 ultimo_numero_asignado: 0,
-                recaudado: 0,
             })
             .eq("id", sorteoId);
 
