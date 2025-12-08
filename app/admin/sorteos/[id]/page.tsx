@@ -30,6 +30,7 @@ export default function EditSorteoPage() {
         null
     );
     const [recaudadoReal, setRecaudadoReal] = useState<number | null>(null);
+    const [resetting, setResetting] = useState(false);
 
     useEffect(() => {
         if (!id) return;
@@ -117,6 +118,46 @@ export default function EditSorteoPage() {
     const progreso =
         totalNumeros > 0 ? (numerosVendidos / totalNumeros) * 100 : 0;
 
+    const handleResetSorteo = async () => {
+        if (!sorteo) return;
+
+        const confirmar = window.confirm(
+            "¿Seguro que quieres resetear este sorteo?\n\nSe borrarán TODOS los pedidos y números asignados de esta actividad. Esta acción es solo para pruebas."
+        );
+
+        if (!confirmar) return;
+
+        try {
+            setResetting(true);
+
+            const res = await fetch("/api/admin/reset-sorteo", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ sorteoId: sorteo.id }),
+            });
+
+            const data = await res.json();
+
+            if (!res.ok || !data.ok) {
+                alert(
+                    "No se pudo resetear el sorteo: " +
+                    (data?.error || res.statusText || "Error desconocido")
+                );
+                return;
+            }
+
+            alert(
+                "Sorteo reseteado correctamente. Se borraron pedidos y números asignados."
+            );
+            window.location.reload();
+        } catch (e) {
+            console.error("Error reseteando sorteo:", e);
+            alert("Ocurrió un error al resetear el sorteo.");
+        } finally {
+            setResetting(false);
+        }
+    };
+
     if (loading) {
         return (
             <main className="min-h-screen bg-[#050608] text-slate-50">
@@ -141,17 +182,27 @@ export default function EditSorteoPage() {
         <main className="min-h-screen bg-[#050608] text-slate-50">
             <div className="mx-auto max-w-5xl px-4 py-8 md:py-10 space-y-6">
                 {/* Encabezado similar al dashboard */}
-                <header className="space-y-3">
-                    <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
-                        Casa Bikers • Admin
+                <header className="space-y-3 md:space-y-0 md:flex md:items-center md:justify-between">
+                    <div>
+                        <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
+                            Casa Bikers • Admin
+                        </div>
+                        <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">
+                            Editar sorteo
+                        </h1>
+                        <p className="max-w-2xl text-sm text-slate-400">
+                            Actualiza la información del sorteo activo en la plataforma
+                            SorteoPro / Casa Bikers.
+                        </p>
                     </div>
-                    <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">
-                        Editar sorteo
-                    </h1>
-                    <p className="max-w-2xl text-sm text-slate-400">
-                        Actualiza la información del sorteo activo en la plataforma SorteoPro
-                        / Casa Bikers.
-                    </p>
+
+                    <button
+                        onClick={handleResetSorteo}
+                        disabled={resetting}
+                        className="mt-3 md:mt-0 rounded-full border border-red-500/60 bg-red-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/20 disabled:opacity-40"
+                    >
+                        {resetting ? "Reseteando..." : "Resetear sorteo (pruebas)"}
+                    </button>
                 </header>
 
                 {/* Resumen del sorteo (cards) */}
@@ -216,9 +267,10 @@ export default function EditSorteoPage() {
                 {/* Formulario completo */}
                 <EditSorteoForm
                     sorteo={sorteo as any}
-                    galeriaInicial={Array.isArray(sorteo.galeria_urls) ? sorteo.galeria_urls : []}
+                    galeriaInicial={
+                        Array.isArray(sorteo.galeria_urls) ? sorteo.galeria_urls : []
+                    }
                 />
-
             </div>
         </main>
     );
