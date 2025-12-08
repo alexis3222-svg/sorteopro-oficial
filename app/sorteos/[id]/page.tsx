@@ -12,9 +12,13 @@ interface Sorteo {
     descripcion: string | null;
     imagen_url: string | null;
     total_numeros: number;
-    numeros_vendidos: number;
     precio_numero: number;
     estado: EstadoSorteo;
+
+    // 🔥 Campos reales que vienen desde la vista:
+    numeros_vendidos_reales: number;
+    ultimo_numero_asignado_real: number;
+    porcentaje_vendido: number;
 }
 
 export default function PublicSorteoPage() {
@@ -33,16 +37,15 @@ export default function PublicSorteoPage() {
             setErrorMsg(null);
 
             try {
+                // 🔥 OBTENER DELA VISTA, NO DE LA TABLA
                 const { data, error } = await supabase
-                    .from("sorteos")
+                    .from("sorteos_con_estadisticas")
                     .select("*")
                     .eq("id", id)
                     .single();
 
                 if (error || !data) {
-                    setErrorMsg(
-                        error?.message || "No se encontró este sorteo."
-                    );
+                    setErrorMsg(error?.message || "No se encontró este sorteo.");
                     setSorteo(null);
                 } else {
                     setSorteo(data as Sorteo);
@@ -78,9 +81,10 @@ export default function PublicSorteoPage() {
         );
     }
 
-    const vendidos = sorteo.numeros_vendidos;
+    // 🔥 Ahora usamos los datos REALES desde la vista
+    const vendidos = sorteo.numeros_vendidos_reales;
     const total = sorteo.total_numeros;
-    const progreso = total > 0 ? Math.round((vendidos / total) * 100) : 0;
+    const progreso = sorteo.porcentaje_vendido;
 
     return (
         <div className="min-h-screen bg-neutral-950 text-white">
@@ -170,7 +174,7 @@ export default function PublicSorteoPage() {
                             </span>
                         </div>
 
-                        {/* CTA – por ahora solo visual */}
+                        {/* CTA */}
                         <button
                             disabled={sorteo.estado !== "activo"}
                             className="mt-4 w-full rounded-lg bg-orange-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-400 disabled:cursor-not-allowed disabled:bg-neutral-700 disabled:text-neutral-400"
@@ -181,8 +185,7 @@ export default function PublicSorteoPage() {
                         </button>
 
                         <p className="text-[11px] text-neutral-500">
-                            Próximo paso: aquí conectaremos la selección de números y el pago
-                            (PayPhone, Stripe, etc.).
+                            Próximo paso: integración de selección de números y pago.
                         </p>
                     </div>
                 </section>
