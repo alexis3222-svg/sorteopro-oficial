@@ -12,9 +12,13 @@ type SorteoRow = {
     actividad_numero: number | null;
     estado: string | null;
     total_numeros: number | null;
-    numeros_vendidos: number | null;
     precio_numero: number | null;
     galeria_urls?: string[] | null;
+
+    // 🔥 Campos que vienen de la vista sorteos_con_estadisticas
+    numeros_vendidos_reales: number;
+    ultimo_numero_asignado_real: number;
+    porcentaje_vendido: number;
 };
 
 export default function EditSorteoPage() {
@@ -25,10 +29,7 @@ export default function EditSorteoPage() {
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    // stats calculadas desde la BD real
-    const [numerosVendidosReal, setNumerosVendidosReal] = useState<number | null>(
-        null
-    );
+    // recaudación real desde pedidos
     const [recaudadoReal, setRecaudadoReal] = useState<number | null>(null);
     const [resetting, setResetting] = useState(false);
 
@@ -39,9 +40,9 @@ export default function EditSorteoPage() {
             setLoading(true);
             setErrorMsg(null);
 
-            // 1) leer el sorteo
+            // 1) leer el sorteo DESDE LA VISTA con stats reales
             const { data: sorteoData, error: sorteoError } = await supabase
-                .from("sorteos")
+                .from("sorteos_con_estadisticas") // 👈 vista, no la tabla sorteos
                 .select("*")
                 .eq("id", id)
                 .single();
@@ -55,19 +56,7 @@ export default function EditSorteoPage() {
 
             setSorteo(sorteoData as SorteoRow);
 
-            // 2) contar números vendidos reales (numeros_asignados)
-            const { count: vendidosCount, error: vendidosError } = await supabase
-                .from("numeros_asignados")
-                .select("*", { count: "exact", head: true })
-                .eq("sorteo_id", id);
-
-            if (vendidosError) {
-                console.error("Error contando numeros_asignados:", vendidosError);
-            } else {
-                setNumerosVendidosReal(vendidosCount ?? 0);
-            }
-
-            // 3) sumar recaudado real desde pedidos pagados
+            // 2) sumar recaudado real desde pedidos pagados/confirmados
             const { data: pedidosPagados, error: pedidosError } = await supabase
                 .from("pedidos")
                 .select("total")
@@ -97,11 +86,14 @@ export default function EditSorteoPage() {
         [sorteo]
     );
 
-    // preferimos el valor real; si no hay, usamos el de la tabla sorteos
-    const numerosVendidos = useMemo(() => {
-        if (numerosVendidosReal != null) return numerosVendidosReal;
-        return sorteo?.numeros_vendidos ? Number(sorteo.numeros_vendidos) : 0;
-    }, [numerosVendidosReal, sorteo]);
+    // 🔥 Siempre usamos el valor real que viene de la vista
+    const numerosVendidos = useMemo(
+        () =>
+            sorteo?.numeros_vendidos_reales != null
+                ? Number(sorteo.numeros_vendidos_reales)
+                : 0,
+        [sorteo]
+    );
 
     const precioNumero = useMemo(
         () => (sorteo?.precio_numero ? Number(sorteo.precio_numero) : 0),
