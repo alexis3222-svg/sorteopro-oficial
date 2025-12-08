@@ -6,52 +6,114 @@ import { useParams } from "next/navigation";
 import { EditSorteoForm } from "@/components/EditSorteoForm";
 import { supabase } from "@/lib/supabaseClient";
 
+type SorteoRow = {
+    id: string;
+    titulo: string | null;
+    actividad_numero: number | null;
+    estado: string | null;
+    total_numeros: number | null;
+    numeros_vendidos: number | null;
+    precio_numero: number | null;
+    galeria_urls?: string[] | null;
+};
+
 export default function EditSorteoPage() {
     const params = useParams<{ id: string }>();
     const id = params?.id;
 
-    const [sorteo, setSorteo] = useState<any | null>(null);
+    const [sorteo, setSorteo] = useState<SorteoRow | null>(null);
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+    // stats calculadas desde la BD real
+    const [numerosVendidosReal, setNumerosVendidosReal] = useState<number | null>(
+        null
+    );
+    const [recaudadoReal, setRecaudadoReal] = useState<number | null>(null);
 
     useEffect(() => {
         if (!id) return;
 
-        const fetchSorteo = async () => {
-            const { data, error } = await supabase
+        const fetchAll = async () => {
+            setLoading(true);
+            setErrorMsg(null);
+
+            // 1) leer el sorteo
+            const { data: sorteoData, error: sorteoError } = await supabase
                 .from("sorteos")
                 .select("*")
                 .eq("id", id)
                 .single();
 
-            if (error || !data) {
-                console.error(error);
+            if (sorteoError || !sorteoData) {
+                console.error("Error cargando sorteo:", sorteoError);
                 setErrorMsg("No se pudo cargar la información del sorteo.");
-            } else {
-                setSorteo(data);
+                setLoading(false);
+                return;
             }
+
+            setSorteo(sorteoData as SorteoRow);
+
+            // 2) contar números vendidos reales (numeros_asignados)
+            const { count: vendidosCount, error: vendidosError } = await supabase
+                .from("numeros_asignados")
+                .select("*", { count: "exact", head: true })
+                .eq("sorteo_id", id);
+
+            if (vendidosError) {
+                console.error("Error contando numeros_asignados:", vendidosError);
+            } else {
+                setNumerosVendidosReal(vendidosCount ?? 0);
+            }
+
+            // 3) sumar recaudado real desde pedidos pagados
+            const { data: pedidosPagados, error: pedidosError } = await supabase
+                .from("pedidos")
+                .select("total")
+                .eq("sorteo_id", id)
+                .in("estado", ["pagado", "confirmado"]);
+
+            if (pedidosError) {
+                console.error("Error leyendo pedidos pagados:", pedidosError);
+            } else {
+                const totalRecaudado =
+                    pedidosPagados?.reduce(
+                        (acc: number, p: any) => acc + (p.total ?? 0),
+                        0
+                    ) ?? 0;
+                setRecaudadoReal(totalRecaudado);
+            }
+
             setLoading(false);
         };
 
-        fetchSorteo();
+        fetchAll();
     }, [id]);
 
-    // Stats del sorteo actual (solo para mostrar, no se guarda aquí)
+    // Stats del sorteo actual (mostradas en las cards)
     const totalNumeros = useMemo(
         () => (sorteo?.total_numeros ? Number(sorteo.total_numeros) : 0),
         [sorteo]
     );
-    const numerosVendidos = useMemo(
-        () => (sorteo?.numeros_vendidos ? Number(sorteo.numeros_vendidos) : 0),
-        [sorteo]
-    );
+
+    // preferimos el valor real; si no hay, usamos el de la tabla sorteos
+    const numerosVendidos = useMemo(() => {
+        if (numerosVendidosReal != null) return numerosVendidosReal;
+        return sorteo?.numeros_vendidos ? Number(sorteo.numeros_vendidos) : 0;
+    }, [numerosVendidosReal, sorteo]);
+
     const precioNumero = useMemo(
         () => (sorteo?.precio_numero ? Number(sorteo.precio_numero) : 0),
         [sorteo]
     );
 
+    // recaudado real (o calculado como respaldo)
+    const recaudado = useMemo(() => {
+        if (recaudadoReal != null) return recaudadoReal;
+        return numerosVendidos * precioNumero;
+    }, [recaudadoReal, numerosVendidos, precioNumero]);
+
     const numerosRestantes = Math.max(totalNumeros - numerosVendidos, 0);
-    const recaudado = numerosVendidos * precioNumero;
     const progreso =
         totalNumeros > 0 ? (numerosVendidos / totalNumeros) * 100 : 0;
 
@@ -87,8 +149,8 @@ export default function EditSorteoPage() {
                         Editar sorteo
                     </h1>
                     <p className="max-w-2xl text-sm text-slate-400">
-                        Actualiza la información del sorteo activo en la plataforma
-                        SorteoPro / Casa Bikers.
+                        Actualiza la información del sorteo activo en la plataforma SorteoPro
+                        / Casa Bikers.
                     </p>
                 </header>
 
@@ -151,12 +213,10 @@ export default function EditSorteoPage() {
                     </div>
                 </section>
 
-                {/* Formulario completo (el que ya tienes mejorado) */}
+                {/* Formulario completo */}
                 <EditSorteoForm
-                    sorteo={sorteo}
-                    galeriaInicial={
-                        Array.isArray(sorteo.galeria_urls) ? sorteo.galeria_urls : []
-                    }
+                    sorteo={sorteo as any}
+                    galeriaInicial={Array.isArray(sorteo.galeria_urls) ? sorteo.galeria_urls : []}
                 />
 
             </div>

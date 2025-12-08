@@ -96,6 +96,7 @@ export default function AdminPedidosPage() {
 
         const cantidad = pedidoActual.cantidad_numeros ?? 0;
 
+        // delta solo para actualizar numeros_vendidos
         let delta = 0;
         if (!wasPagado && willPagado) {
             delta = cantidad;
@@ -143,7 +144,7 @@ export default function AdminPedidosPage() {
 
                 const { data: sorteoData, error: errorSorteo } = await supabase
                     .from("sorteos")
-                    .select("id, numeros_vendidos, ultimo_numero_asignado")
+                    .select("id, numeros_vendidos, total_numeros")
                     .eq("id", sorteoId)
                     .single();
 
@@ -154,47 +155,94 @@ export default function AdminPedidosPage() {
                     alert("No se pudo leer el sorteo: " + errorSorteo.message);
                 } else if (sorteoData) {
                     let numerosVendidosActuales = sorteoData.numeros_vendidos ?? 0;
-                    let ultimoNumeroActual = sorteoData.ultimo_numero_asignado ?? 0;
+                    const totalNumeros = sorteoData.total_numeros ?? 0;
 
-                    if (delta !== 0) {
-                        numerosVendidosActuales = Math.max(
-                            0,
-                            numerosVendidosActuales + delta
-                        );
-                    }
-
-                    // pasa a PAGADO → asignar números
+                    // 🔸 PASO A PAGADO → asignar números evitando duplicados
                     if (!wasPagado && willPagado && cantidad > 0) {
-                        const lista = generarNumeros(ultimoNumeroActual, cantidad);
-
-                        const registros = lista.map((num) => ({
-                            sorteo_id: sorteoId,
-                            pedido_id: pedidoActual.id,
-                            numero: num,
-                        }));
-
-                        const { error: errorInsert } = await supabase
+                        // 2.1 leer todos los números ya usados en el sorteo
+                        const { data: usados, error: usadosError } = await supabase
                             .from("numeros_asignados")
-                            .insert(registros);
+                            .select("numero")
+                            .eq("sorteo_id", sorteoId);
 
-                        console.log("INSERT numeros_asignados:", {
-                            registros,
-                            errorInsert,
-                        });
+                        console.log("USADOS sorteo:", { usados, usadosError });
 
-                        if (errorInsert) {
-                            console.error("Error asignando números:", errorInsert.message);
+                        if (usadosError) {
+                            console.error(
+                                "Error consultando números usados:",
+                                usadosError.message
+                            );
                             alert(
-                                "No se pudieron asignar los números del pedido: " +
-                                errorInsert.message
+                                "No se pudieron consultar los números del sorteo: " +
+                                usadosError.message
                             );
                         } else {
-                            ultimoNumeroActual = ultimoNumeroActual + cantidad;
+                            const usadosSet = new Set<number>(
+                                (usados || []).map((n: any) => n.numero as number)
+                            );
+
+                            // 2.2 construir la lista de disponibles 1..totalNumeros
+                            const disponibles: number[] = [];
+                            for (let i = 1; i <= totalNumeros; i++) {
+                                if (!usadosSet.has(i)) disponibles.push(i);
+                            }
+
+                            if (disponibles.length < cantidad) {
+                                console.error(
+                                    "No hay suficientes números disponibles para este pedido.",
+                                    { disponibles: disponibles.length, cantidad }
+                                );
+                                alert(
+                                    "No hay suficientes números disponibles en el sorteo para este pedido."
+                                );
+                            } else {
+                                // 2.3 mezclar y elegir aleatoriamente
+                                for (let i = disponibles.length - 1; i > 0; i--) {
+                                    const j = Math.floor(Math.random() * (i + 1));
+                                    [disponibles[i], disponibles[j]] = [
+                                        disponibles[j],
+                                        disponibles[i],
+                                    ];
+                                }
+
+                                const seleccionados = disponibles.slice(0, cantidad);
+
+                                const registros = seleccionados.map((num) => ({
+                                    sorteo_id: sorteoId,
+                                    pedido_id: pedidoActual.id,
+                                    numero: num,
+                                }));
+
+                                const { error: errorInsert } = await supabase
+                                    .from("numeros_asignados")
+                                    .insert(registros);
+
+                                console.log("INSERT numeros_asignados (admin):", {
+                                    registros,
+                                    errorInsert,
+                                });
+
+                                if (errorInsert) {
+                                    console.error(
+                                        "Error asignando números (admin):",
+                                        errorInsert.message
+                                    );
+                                    alert(
+                                        "No se pudieron asignar los números del pedido: " +
+                                        errorInsert.message
+                                    );
+                                } else {
+                                    numerosVendidosActuales = Math.max(
+                                        0,
+                                        numerosVendidosActuales + cantidad
+                                    );
+                                }
+                            }
                         }
                     }
 
-                    // deja de ser PAGADO → eliminar números de ese pedido
-                    if (wasPagado && !willPagado) {
+                    // 🔸 deja de ser PAGADO → eliminar números de ese pedido
+                    if (wasPagado && !willPagado && cantidad > 0) {
                         const { error: errorDeleteNums } = await supabase
                             .from("numeros_asignados")
                             .delete()
@@ -214,20 +262,24 @@ export default function AdminPedidosPage() {
                                 "No se pudieron liberar los números del pedido: " +
                                 errorDeleteNums.message
                             );
+                        } else {
+                            numerosVendidosActuales = Math.max(
+                                0,
+                                numerosVendidosActuales - cantidad
+                            );
                         }
                     }
 
+                    // 2.4 actualizar contador del sorteo
                     const { error: errorUpdateSorteo } = await supabase
                         .from("sorteos")
                         .update({
                             numeros_vendidos: numerosVendidosActuales,
-                            ultimo_numero_asignado: ultimoNumeroActual,
                         })
                         .eq("id", sorteoId);
 
                     console.log("UPDATE sorteo:", {
                         numerosVendidosActuales,
-                        ultimoNumeroActual,
                         errorUpdateSorteo,
                     });
 
@@ -237,7 +289,7 @@ export default function AdminPedidosPage() {
                             errorUpdateSorteo.message
                         );
                         alert(
-                            "No se pudo actualizar los datos del sorteo: " +
+                            "No se pudieron actualizar los datos del sorteo: " +
                             errorUpdateSorteo.message
                         );
                     }
@@ -261,6 +313,7 @@ export default function AdminPedidosPage() {
             setUpdatingId(null);
         }
     };
+
 
     // copiar números para WhatsApp
     const copiarNumerosPedido = async (pedido: PedidoRow) => {

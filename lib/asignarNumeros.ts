@@ -60,13 +60,22 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
 
     // 2️⃣ Marcar como pagado (si no lo está)
     if (pedido.estado !== "pagado") {
-      await supabaseAdmin
+      const { error: updateError } = await supabaseAdmin
         .from("pedidos")
         .update({ estado: "pagado" })
         .eq("id", pedido.id);
+
+      if (updateError) {
+        console.error("Error actualizando estado del pedido:", updateError);
+        return {
+          ok: false,
+          code: "INTERNAL",
+          error: "No se pudo actualizar el estado del pedido",
+        };
+      }
     }
 
-    // 3️⃣ ¿Ya tiene números?
+    // 3️⃣ ¿Ya tiene números? → NO volvemos a asignar
     const { data: existentes, error: existentesError } = await supabaseAdmin
       .from("numeros_asignados")
       .select("numero")
@@ -90,7 +99,6 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
     }
 
     // 4️⃣ Traer la config del sorteo
-    // AJUSTA 'total_numeros' si tu columna tiene otro nombre
     const { data: sorteo, error: sorteoError } = await supabaseAdmin
       .from("sorteos")
       .select("id, total_numeros")
@@ -159,19 +167,34 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
     const mezclados = shuffle(disponibles);
     const seleccionados = mezclados.slice(0, cantidad);
 
-    // 8️⃣ Insertar
+    // 8️⃣ Insertar en numeros_asignados
     const rows = seleccionados.map((num) => ({
       sorteo_id: pedido.sorteo_id,
       pedido_id: pedido.id,
       numero: num,
     }));
 
-    const { error: insertError } = await supabaseAdmin
+    const { data: inserted, error: insertError } = await supabaseAdmin
       .from("numeros_asignados")
-      .insert(rows);
+      .insert(rows)
+      .select("numero");
 
     if (insertError) {
       console.error("Error insertando numeros_asignados:", insertError);
+
+      // 🔒 Si existe la constraint UNIQUE (sorteo_id, numero)
+      // y dos pedidos chocan por concurrencia, caerá aquí con código 23505
+      const pgError = insertError as any;
+
+      if (pgError.code === "23505") {
+        return {
+          ok: false,
+          code: "NO_STOCK",
+          error:
+            "Hubo un conflicto al asignar los números. Intenta nuevamente o contacta soporte.",
+        };
+      }
+
       return {
         ok: false,
         code: "INTERNAL",
@@ -179,12 +202,17 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
+    // 9️⃣ Por si acaso, devolvemos lo que realmente quedó en BD
+    const numerosFinales = (inserted ?? []).map(
+      (n: any) => n.numero as number
+    );
+
     return {
       ok: true,
       alreadyAssigned: false,
-      numeros: seleccionados,
+      numeros: numerosFinales,
     };
-  } catch (e) {
+  } catch (e: any) {
     console.error("Error inesperado en asignarNumerosPorTx:", e);
     return {
       ok: false,
