@@ -2,7 +2,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 
@@ -20,24 +20,37 @@ type PedidoInfo = {
 };
 
 export default function AdminNumerosPage() {
-    const searchParams = useSearchParams();
     const router = useRouter();
-    const pedidoIdParam = searchParams.get("pedido");
-    const pedidoId = pedidoIdParam ? Number(pedidoIdParam) : null;
 
+    const [pedidoId, setPedidoId] = useState<number | null>(null);
     const [loading, setLoading] = useState(true);
     const [pedido, setPedido] = useState<PedidoInfo | null>(null);
     const [numeros, setNumeros] = useState<NumeroAsignado[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!pedidoId) {
+        // Leer ?pedido= desde la URL en el cliente (sin useSearchParams)
+        if (typeof window === "undefined") return;
+
+        const params = new URLSearchParams(window.location.search);
+        const pedidoParam = params.get("pedido");
+
+        if (!pedidoParam) {
             setError("Falta el ID de pedido en la URL.");
             setLoading(false);
             return;
         }
 
-        async function load() {
+        const id = Number(pedidoParam);
+        if (!id || Number.isNaN(id)) {
+            setError("El ID de pedido en la URL no es válido.");
+            setLoading(false);
+            return;
+        }
+
+        setPedidoId(id);
+
+        async function load(idNum: number) {
             try {
                 setLoading(true);
                 setError(null);
@@ -48,7 +61,7 @@ export default function AdminNumerosPage() {
                     .select(
                         "id, nombre, telefono, actividad_numero, cantidad_numeros, estado"
                     )
-                    .eq("id", pedidoId)
+                    .eq("id", idNum)
                     .single();
 
                 if (pedidoError || !pedidoData) {
@@ -60,11 +73,11 @@ export default function AdminNumerosPage() {
 
                 setPedido(pedidoData as PedidoInfo);
 
-                // 2) Traer números YA asignados (NO se asigna nada aquí)
+                // 2) Traer números YA asignados (solo lectura)
                 const { data: nums, error: numsError } = await supabase
                     .from("numeros_asignados")
                     .select("numero")
-                    .eq("pedido_id", pedidoId)
+                    .eq("pedido_id", idNum)
                     .order("numero", { ascending: true });
 
                 if (numsError) {
@@ -77,30 +90,22 @@ export default function AdminNumerosPage() {
                 setNumeros((nums || []) as NumeroAsignado[]);
             } catch (err: any) {
                 console.error("Error inesperado en /admin/numeros:", err);
-                setError(err?.message || "Error inesperado al cargar los números.");
+                setError(
+                    err?.message || "Error inesperado al cargar los números."
+                );
             } finally {
                 setLoading(false);
             }
         }
 
-        load();
-    }, [pedidoId]);
-
-    if (!pedidoId) {
-        return (
-            <div className="mx-auto max-w-3xl px-4 py-8 text-center text-sm text-slate-200">
-                <p>Falta el parámetro <code>pedido</code> en la URL.</p>
-                <Link href="/admin/pedidos" className="mt-4 inline-block text-[#ff9933] underline">
-                    ← Volver a pedidos
-                </Link>
-            </div>
-        );
-    }
+        load(id);
+    }, []);
 
     if (loading) {
         return (
             <div className="mx-auto max-w-3xl px-4 py-8 text-center text-sm text-slate-200">
-                Cargando números del pedido #{pedidoId}...
+                Cargando números del pedido{" "}
+                {pedidoId ? `#${pedidoId}` : "..."}...
             </div>
         );
     }
@@ -109,7 +114,10 @@ export default function AdminNumerosPage() {
         return (
             <div className="mx-auto max-w-3xl px-4 py-8 text-center text-sm text-red-400">
                 <p>{error}</p>
-                <Link href="/admin/pedidos" className="mt-4 inline-block text-[#ff9933] underline">
+                <Link
+                    href="/admin/pedidos"
+                    className="mt-4 inline-block text-[#ff9933] underline"
+                >
                     ← Volver a pedidos
                 </Link>
             </div>
@@ -129,15 +137,21 @@ export default function AdminNumerosPage() {
                     ← Volver
                 </button>
 
-                <h1 className="text-xl font-bold">Números del pedido #{pedido?.id}</h1>
+                <h1 className="text-xl font-bold">
+                    Números del pedido #{pedido?.id}
+                </h1>
                 <p className="text-sm text-slate-400 mt-1">
                     Cliente: {pedido?.nombre || "Sin nombre"} · Teléfono:{" "}
                     {pedido?.telefono || "-"}
                 </p>
                 <p className="text-sm text-slate-400">
-                    Actividad #{pedido?.actividad_numero || "-"} · Cantidad de números:{" "}
-                    {pedido?.cantidad_numeros ?? "-"} · Estado:{" "}
-                    <span className={isPagado ? "text-emerald-300" : "text-yellow-300"}>
+                    Actividad #{pedido?.actividad_numero || "-"} · Cantidad de
+                    números: {pedido?.cantidad_numeros ?? "-"} · Estado:{" "}
+                    <span
+                        className={
+                            isPagado ? "text-emerald-300" : "text-yellow-300"
+                        }
+                    >
                         {estado.toUpperCase()}
                     </span>
                 </p>
