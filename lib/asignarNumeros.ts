@@ -13,8 +13,15 @@ type ResultadoAsignacion =
     error: string;
   };
 
-// Asigna números a partir del tx de PayPhone usando SOLO la función de BD
-export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignacion> {
+/**
+ * Asigna números a partir del tx de PayPhone usando SOLO la función de BD.
+ * - Solo funciona para pedidos con método de pago "payphone".
+ * - Si el pedido ya tiene números asignados, NO vuelve a asignar.
+ * - Si asigna, también marca el pedido como "pagado".
+ */
+export async function asignarNumerosPorTx(
+  tx: string
+): Promise<ResultadoAsignacion> {
   try {
     if (!tx) {
       return {
@@ -24,10 +31,12 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
-    // 1️⃣ Buscar el pedido por tx
+    // 1) Buscar el pedido por tx
     const { data: pedido, error: pedidoError } = await supabaseAdmin
       .from("pedidos")
-      .select("*")
+      .select(
+        "id, sorteo_id, cantidad_numeros, estado, metodo_pago, payphone_client_transaction_id"
+      )
       .eq("payphone_client_transaction_id", tx)
       .single();
 
@@ -37,6 +46,15 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
         ok: false,
         code: "NOT_FOUND",
         error: "Pedido no encontrado para ese tx",
+      };
+    }
+
+    // Aseguramos que este helper solo se use para PayPhone
+    if (pedido.metodo_pago !== "payphone") {
+      return {
+        ok: false,
+        code: "BAD_REQUEST",
+        error: "El pedido no corresponde a un pago PayPhone",
       };
     }
 
@@ -57,7 +75,7 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
-    // 2️⃣ ¿Ya tiene números asignados este pedido?
+    // 2) ¿Ya tiene números asignados este pedido?
     const { data: existentes, error: existentesError } = await supabaseAdmin
       .from("numeros_asignados")
       .select("numero")
@@ -82,7 +100,7 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
-    // 3️⃣ Llamar a la función de BD para asignar (secuencial, segura)
+    // 3) Llamar a la función de BD para asignar (secuencial, segura)
     const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
       "asignar_numeros_sorteo",
       {
@@ -95,7 +113,6 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
 
     if (rpcError) {
       console.error("Error en asignar_numeros_sorteo:", rpcError);
-      // Si viene de falta de stock u otro error de negocio
       return {
         ok: false,
         code: "NO_STOCK",
@@ -109,7 +126,7 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       (n: any) => n.numero as number
     );
 
-    // 4️⃣ Marcar pedido como pagado (si no lo está)
+    // 4) Marcar pedido como pagado (si no lo está)
     if (pedido.estado !== "pagado") {
       const { error: updateError } = await supabaseAdmin
         .from("pedidos")
