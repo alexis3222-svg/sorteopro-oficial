@@ -1,11 +1,14 @@
 // app/admin/numeros/page.tsx
 "use client";
 
+export const dynamic = "force-dynamic";
+export const fetchCache = "force-no-store";
+// opcional: export const revalidate = 0;
+
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
-
 type NumeroAsignado = {
     numero: number;
 };
@@ -28,161 +31,158 @@ export default function AdminNumerosPage() {
     const [numeros, setNumeros] = useState<NumeroAsignado[]>([]);
     const [error, setError] = useState<string | null>(null);
 
+    // 🔹 Leer el ?pedido= desde el navegador, sin useSearchParams
     useEffect(() => {
-        // Leer ?pedido= desde la URL en el cliente (sin useSearchParams)
         if (typeof window === "undefined") return;
 
         const params = new URLSearchParams(window.location.search);
-        const pedidoParam = params.get("pedido");
+        const pedidoIdParam = params.get("pedido");
 
-        if (!pedidoParam) {
-            setError("Falta el ID de pedido en la URL.");
+        if (!pedidoIdParam) {
+            setError("Falta el parámetro ?pedido en la URL");
             setLoading(false);
             return;
         }
 
-        const id = Number(pedidoParam);
-        if (!id || Number.isNaN(id)) {
-            setError("El ID de pedido en la URL no es válido.");
+        const idNum = Number(pedidoIdParam);
+        if (Number.isNaN(idNum)) {
+            setError("El parámetro ?pedido no es un número válido");
             setLoading(false);
             return;
         }
 
-        setPedidoId(id);
-
-        async function load(idNum: number) {
-            try {
-                setLoading(true);
-                setError(null);
-
-                // 1) Traer datos del pedido (solo lectura)
-                const { data: pedidoData, error: pedidoError } = await supabase
-                    .from("pedidos")
-                    .select(
-                        "id, nombre, telefono, actividad_numero, cantidad_numeros, estado"
-                    )
-                    .eq("id", idNum)
-                    .single();
-
-                if (pedidoError || !pedidoData) {
-                    console.error("Error leyendo pedido:", pedidoError);
-                    setError("No se encontró el pedido.");
-                    setLoading(false);
-                    return;
-                }
-
-                setPedido(pedidoData as PedidoInfo);
-
-                // 2) Traer números YA asignados (solo lectura)
-                const { data: nums, error: numsError } = await supabase
-                    .from("numeros_asignados")
-                    .select("numero")
-                    .eq("pedido_id", idNum)
-                    .order("numero", { ascending: true });
-
-                if (numsError) {
-                    console.error("Error leyendo numeros_asignados:", numsError);
-                    setError("Error leyendo los números asignados.");
-                    setLoading(false);
-                    return;
-                }
-
-                setNumeros((nums || []) as NumeroAsignado[]);
-            } catch (err: any) {
-                console.error("Error inesperado en /admin/numeros:", err);
-                setError(
-                    err?.message || "Error inesperado al cargar los números."
-                );
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        load(id);
+        setPedidoId(idNum);
     }, []);
 
+    // 🔹 Cargar info del pedido + números asignados
+    useEffect(() => {
+        if (pedidoId == null) return;
+
+        const cargarDatos = async () => {
+            setLoading(true);
+            setError(null);
+
+            // 1) Info del pedido
+            const { data: pedidoData, error: pedidoError } = await supabase
+                .from("pedidos")
+                .select("id, nombre, telefono, actividad_numero, cantidad_numeros, estado")
+                .eq("id", pedidoId)
+                .maybeSingle();
+
+            if (pedidoError || !pedidoData) {
+                console.error("Error cargando pedido:", pedidoError);
+                setError("No se encontró el pedido");
+                setLoading(false);
+                return;
+            }
+
+            setPedido(pedidoData);
+
+            // 2) Números ya asignados
+            const { data: numerosData, error: numerosError } = await supabase
+                .from("numeros")
+                .select("numero")
+                .eq("pedido_id", pedidoId)
+                .order("numero", { ascending: true });
+
+            if (numerosError) {
+                console.error("Error cargando números:", numerosError);
+                setError("Error cargando números asignados");
+                setLoading(false);
+                return;
+            }
+
+            setNumeros(numerosData || []);
+            setLoading(false);
+        };
+
+        cargarDatos();
+    }, [pedidoId]);
+
     if (loading) {
-        return (
-            <div className="mx-auto max-w-3xl px-4 py-8 text-center text-sm text-slate-200">
-                Cargando números del pedido{" "}
-                {pedidoId ? `#${pedidoId}` : "..."}...
-            </div>
-        );
+        return <p className="p-4">Cargando...</p>;
     }
 
     if (error) {
         return (
-            <div className="mx-auto max-w-3xl px-4 py-8 text-center text-sm text-red-400">
-                <p>{error}</p>
-                <Link
-                    href="/admin/pedidos"
-                    className="mt-4 inline-block text-[#ff9933] underline"
-                >
-                    ← Volver a pedidos
+            <main className="p-4">
+                <p className="text-red-600 mb-4">{error}</p>
+                <Link href="/admin/pedidos" className="text-blue-600 hover:underline">
+                    Volver a pedidos
                 </Link>
-            </div>
+            </main>
         );
     }
 
-    const estado = (pedido?.estado || "pendiente").toLowerCase();
-    const isPagado = estado === "pagado" || estado === "confirmado";
+    if (!pedido) {
+        return (
+            <main className="p-4">
+                <p className="mb-4">Pedido no encontrado.</p>
+                <Link href="/admin/pedidos" className="text-blue-600 hover:underline">
+                    Volver a pedidos
+                </Link>
+            </main>
+        );
+    }
 
     return (
-        <div className="mx-auto max-w-3xl px-4 py-8 text-slate-100">
-            <div className="mb-4">
-                <button
-                    onClick={() => router.back()}
-                    className="mb-4 rounded-full border border-white/30 px-3 py-1 text-[11px] uppercase tracking-[0.15em] text-slate-100 hover:bg-white/10"
+        <main className="p-4 space-y-4">
+            <div className="flex items-center justify-between">
+                <h1 className="text-xl font-bold">Números del pedido #{pedido.id}</h1>
+                <Link
+                    href="/admin/pedidos"
+                    className="text-sm text-blue-600 hover:underline"
                 >
-                    ← Volver
-                </button>
+                    Volver a pedidos
+                </Link>
+            </div>
 
-                <h1 className="text-xl font-bold">
-                    Números del pedido #{pedido?.id}
-                </h1>
-                <p className="text-sm text-slate-400 mt-1">
-                    Cliente: {pedido?.nombre || "Sin nombre"} · Teléfono:{" "}
-                    {pedido?.telefono || "-"}
+            <section className="border rounded-lg p-4 space-y-2 bg-white shadow">
+                <p>
+                    <strong>Nombre:</strong> {pedido.nombre}
                 </p>
-                <p className="text-sm text-slate-400">
-                    Actividad #{pedido?.actividad_numero || "-"} · Cantidad de
-                    números: {pedido?.cantidad_numeros ?? "-"} · Estado:{" "}
+                <p>
+                    <strong>Teléfono:</strong> {pedido.telefono}
+                </p>
+                <p>
+                    <strong>Actividad:</strong> {pedido.actividad_numero}
+                </p>
+                <p>
+                    <strong>Cantidad de números:</strong> {pedido.cantidad_numeros}
+                </p>
+                <p>
+                    <strong>Estado:</strong>{" "}
                     <span
                         className={
-                            isPagado ? "text-emerald-300" : "text-yellow-300"
+                            pedido.estado === "pagado"
+                                ? "text-green-600 font-semibold"
+                                : "text-orange-600 font-semibold"
                         }
                     >
-                        {estado.toUpperCase()}
+                        {pedido.estado}
                     </span>
                 </p>
-            </div>
+            </section>
 
-            <div className="rounded-2xl border border-white/10 bg-[#14151c] p-4">
+            <section className="border rounded-lg p-4 bg-white shadow">
+                <h2 className="font-semibold mb-2">Números asignados</h2>
                 {numeros.length === 0 ? (
-                    <p className="text-sm text-slate-400">
-                        Este pedido aún no tiene números asignados.
-                        {isPagado
-                            ? " Revisa que la asignación se haya ejecutado correctamente en el botón PAGADO."
-                            : " Marca el pedido como PAGADO en la tabla de pedidos para asignarlos."}
+                    <p className="text-gray-500 text-sm">
+                        Aún no hay números asignados a este pedido.
                     </p>
                 ) : (
-                    <>
-                        <p className="text-sm text-slate-400 mb-2">
-                            Números asignados ({numeros.length}):
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                            {numeros.map((n) => (
-                                <span
-                                    key={n.numero}
-                                    className="px-3 py-1 rounded-full bg-[#fff1e6] text-[#ff6600] font-semibold border border-[#ff6600]/40 shadow-sm text-sm"
-                                >
-                                    #{n.numero}
-                                </span>
-                            ))}
-                        </div>
-                    </>
+                    <div className="flex flex-wrap gap-2">
+                        {numeros.map((n) => (
+                            <span
+                                key={n.numero}
+                                className="inline-flex items-center justify-center px-3 py-1 rounded-full border text-sm"
+                            >
+                                {n.numero}
+                            </span>
+                        ))}
+                    </div>
                 )}
-            </div>
-        </div>
+            </section>
+        </main>
     );
 }
