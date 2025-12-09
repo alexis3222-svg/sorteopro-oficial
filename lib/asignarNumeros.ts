@@ -13,17 +13,7 @@ type ResultadoAsignacion =
     error: string;
   };
 
-// Mezcla un array (Fisher–Yates)
-function shuffle<T>(array: T[]): T[] {
-  const a = [...array];
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-
-// 👇 Función central que usará tanto /pago-exitoso como el webhook
+// Asigna números a partir del tx de PayPhone usando SOLO la función de BD
 export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignacion> {
   try {
     if (!tx) {
@@ -34,7 +24,7 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
-    // 1️⃣ Buscar el pedido
+    // 1️⃣ Buscar el pedido por tx
     const { data: pedido, error: pedidoError } = await supabaseAdmin
       .from("pedidos")
       .select("*")
@@ -58,28 +48,21 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
-    // 2️⃣ Marcar como pagado (si no lo está)
-    if (pedido.estado !== "pagado") {
-      const { error: updateError } = await supabaseAdmin
-        .from("pedidos")
-        .update({ estado: "pagado" })
-        .eq("id", pedido.id);
-
-      if (updateError) {
-        console.error("Error actualizando estado del pedido:", updateError);
-        return {
-          ok: false,
-          code: "INTERNAL",
-          error: "No se pudo actualizar el estado del pedido",
-        };
-      }
+    const cantidad = (pedido.cantidad_numeros as number) || 0;
+    if (cantidad <= 0) {
+      return {
+        ok: false,
+        code: "BAD_REQUEST",
+        error: "El pedido no tiene cantidad_numeros válida",
+      };
     }
 
-    // 3️⃣ ¿Ya tiene números? → NO volvemos a asignar
+    // 2️⃣ ¿Ya tiene números asignados este pedido?
     const { data: existentes, error: existentesError } = await supabaseAdmin
       .from("numeros_asignados")
       .select("numero")
-      .eq("pedido_id", pedido.id);
+      .eq("pedido_id", pedido.id)
+      .order("numero", { ascending: true });
 
     if (existentesError) {
       console.error("Error consultando numeros_asignados:", existentesError);
@@ -91,6 +74,7 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
     }
 
     if (existentes && existentes.length > 0) {
+      // Ya tenía números → no volvemos a asignar
       return {
         ok: true,
         alreadyAssigned: true,
@@ -98,114 +82,45 @@ export async function asignarNumerosPorTx(tx: string): Promise<ResultadoAsignaci
       };
     }
 
-    // 4️⃣ Traer la config del sorteo
-    const { data: sorteo, error: sorteoError } = await supabaseAdmin
-      .from("sorteos")
-      .select("id, total_numeros")
-      .eq("id", pedido.sorteo_id)
-      .single();
+    // 3️⃣ Llamar a la función de BD para asignar (secuencial, segura)
+    const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
+      "asignar_numeros_sorteo",
+      {
+        p_sorteo_id: pedido.sorteo_id,
+        p_pedido_id: pedido.id,
+        p_cantidad: cantidad,
+        p_estado: "pagado",
+      }
+    );
 
-    if (sorteoError || !sorteo) {
-      console.error("Error obteniendo sorteo:", sorteoError);
-      return {
-        ok: false,
-        code: "INTERNAL",
-        error: "No se pudo obtener la configuración del sorteo",
-      };
-    }
-
-    const totalNumeros = sorteo.total_numeros as number;
-    if (!totalNumeros || totalNumeros <= 0) {
-      return {
-        ok: false,
-        code: "INTERNAL",
-        error: "El sorteo no tiene total_numeros configurado",
-      };
-    }
-
-    const cantidad = (pedido.cantidad_numeros as number) || 0;
-    if (cantidad <= 0) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "El pedido no tiene cantidad_numeros válida",
-      };
-    }
-
-    // 5️⃣ Números ya usados en el sorteo
-    const { data: usados, error: usadosError } = await supabaseAdmin
-      .from("numeros_asignados")
-      .select("numero")
-      .eq("sorteo_id", pedido.sorteo_id);
-
-    if (usadosError) {
-      console.error("Error consultando números usados:", usadosError);
-      return {
-        ok: false,
-        code: "INTERNAL",
-        error: "Error consultando números usados",
-      };
-    }
-
-    const usadosSet = new Set<number>((usados || []).map((n: any) => n.numero));
-
-    // 6️⃣ Lista de disponibles 1..totalNumeros
-    const disponibles: number[] = [];
-    for (let i = 1; i <= totalNumeros; i++) {
-      if (!usadosSet.has(i)) disponibles.push(i);
-    }
-
-    if (disponibles.length < cantidad) {
+    if (rpcError) {
+      console.error("Error en asignar_numeros_sorteo:", rpcError);
+      // Si viene de falta de stock u otro error de negocio
       return {
         ok: false,
         code: "NO_STOCK",
-        error: "No hay suficientes números disponibles en el sorteo",
+        error:
+          rpcError.message ||
+          "No se pudieron asignar los números (sin stock o error de BD)",
       };
     }
 
-    // 7️⃣ Elegir aleatorios
-    const mezclados = shuffle(disponibles);
-    const seleccionados = mezclados.slice(0, cantidad);
-
-    // 8️⃣ Insertar en numeros_asignados
-    const rows = seleccionados.map((num) => ({
-      sorteo_id: pedido.sorteo_id,
-      pedido_id: pedido.id,
-      numero: num,
-    }));
-
-    const { data: inserted, error: insertError } = await supabaseAdmin
-      .from("numeros_asignados")
-      .insert(rows)
-      .select("numero");
-
-    if (insertError) {
-      console.error("Error insertando numeros_asignados:", insertError);
-
-      // 🔒 Si existe la constraint UNIQUE (sorteo_id, numero)
-      // y dos pedidos chocan por concurrencia, caerá aquí con código 23505
-      const pgError = insertError as any;
-
-      if (pgError.code === "23505") {
-        return {
-          ok: false,
-          code: "NO_STOCK",
-          error:
-            "Hubo un conflicto al asignar los números. Intenta nuevamente o contacta soporte.",
-        };
-      }
-
-      return {
-        ok: false,
-        code: "INTERNAL",
-        error: "No se pudieron asignar los números",
-      };
-    }
-
-    // 9️⃣ Por si acaso, devolvemos lo que realmente quedó en BD
-    const numerosFinales = (inserted ?? []).map(
+    const numerosFinales: number[] = (asignados ?? []).map(
       (n: any) => n.numero as number
     );
+
+    // 4️⃣ Marcar pedido como pagado (si no lo está)
+    if (pedido.estado !== "pagado") {
+      const { error: updateError } = await supabaseAdmin
+        .from("pedidos")
+        .update({ estado: "pagado" })
+        .eq("id", pedido.id);
+
+      if (updateError) {
+        console.error("Error actualizando estado del pedido:", updateError);
+        // No rompemos la asignación, solo avisamos
+      }
+    }
 
     return {
       ok: true,

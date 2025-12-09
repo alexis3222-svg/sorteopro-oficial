@@ -15,7 +15,7 @@ const anton = Anton({
 type PedidoRow = {
     id: number;
     created_at: string | null;
-    sorteo_id: string | null;          // uuid
+    sorteo_id: string | null; // uuid
     actividad_numero: number | null;
     cantidad_numeros: number | null;
     precio_unitario: number | null;
@@ -27,15 +27,6 @@ type PedidoRow = {
 };
 
 type EstadoPedido = "pendiente" | "pagado" | "cancelado";
-
-// helper para generar números secuenciales
-function generarNumeros(inicio: number, cantidad: number): number[] {
-    const lista: number[] = [];
-    for (let i = 1; i <= cantidad; i++) {
-        lista.push(inicio + i);
-    }
-    return lista;
-}
 
 export default function AdminPedidosPage() {
     const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
@@ -86,219 +77,71 @@ export default function AdminPedidosPage() {
         const pedidoActual = pedidos.find((p) => p.id === id);
         if (!pedidoActual) return;
 
-        const estadoActual = (pedidoActual.estado || "pendiente").toLowerCase();
-
+        const estadoActual = (pedidoActual.estado || "pendiente").toLowerCase() as EstadoPedido;
         if (estadoActual === nuevoEstado) return;
 
         const wasPagado =
             estadoActual === "pagado" || estadoActual === "confirmado";
-        const willPagado = nuevoEstado === "pagado";
-
-        const cantidad = pedidoActual.cantidad_numeros ?? 0;
-
-        // delta solo para actualizar numeros_vendidos
-        let delta = 0;
-        if (!wasPagado && willPagado) {
-            delta = cantidad;
-        } else if (wasPagado && !willPagado) {
-            delta = -cantidad;
-        } else {
-            delta = 0;
-        }
-
-        console.log("CAMBIO ESTADO", {
-            id,
-            estadoActual,
-            nuevoEstado,
-            wasPagado,
-            willPagado,
-            cantidad,
-            delta,
-            sorteo_id: pedidoActual.sorteo_id,
-        });
 
         try {
             setUpdatingId(id);
 
-            // 1) actualizar el pedido
-            const { error: errorPedido, data: dataPedido } = await supabase
-                .from("pedidos")
-                .update({ estado: nuevoEstado })
-                .eq("id", id)
-                .select();
+            // 🔹 Si queremos marcar como PAGADO → usamos el endpoint central
+            if (nuevoEstado === "pagado") {
+                const res = await fetch("/api/admin/pedidos/marcar-pagado", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pedidoId: id }),
+                });
 
-            console.log("UPDATE pedido:", { dataPedido, errorPedido });
+                const data = await res.json().catch(() => null);
 
-            if (errorPedido) {
-                console.error("Error actualizando estado:", errorPedido.message);
-                alert(
-                    "No se pudo actualizar el estado del pedido: " +
-                    errorPedido.message
-                );
-                return;
-            }
-
-            // 2) actualizar sorteo: numeros_vendidos + asignar/liberar números
-            if (pedidoActual.sorteo_id) {
-                const sorteoId = pedidoActual.sorteo_id;
-
-                const { data: sorteoData, error: errorSorteo } = await supabase
-                    .from("sorteos")
-                    .select("id, numeros_vendidos, total_numeros")
-                    .eq("id", sorteoId)
-                    .single();
-
-                console.log("SELECT sorteo:", { sorteoData, errorSorteo });
-
-                if (errorSorteo) {
-                    console.error("Error leyendo sorteo:", errorSorteo.message);
-                    alert("No se pudo leer el sorteo: " + errorSorteo.message);
-                } else if (sorteoData) {
-                    let numerosVendidosActuales = sorteoData.numeros_vendidos ?? 0;
-                    const totalNumeros = sorteoData.total_numeros ?? 0;
-
-                    // 🔸 PASO A PAGADO → asignar números evitando duplicados
-                    if (!wasPagado && willPagado && cantidad > 0) {
-                        // 2.1 leer todos los números ya usados en el sorteo
-                        const { data: usados, error: usadosError } = await supabase
-                            .from("numeros_asignados")
-                            .select("numero")
-                            .eq("sorteo_id", sorteoId);
-
-                        console.log("USADOS sorteo:", { usados, usadosError });
-
-                        if (usadosError) {
-                            console.error(
-                                "Error consultando números usados:",
-                                usadosError.message
-                            );
-                            alert(
-                                "No se pudieron consultar los números del sorteo: " +
-                                usadosError.message
-                            );
-                        } else {
-                            const usadosSet = new Set<number>(
-                                (usados || []).map((n: any) => n.numero as number)
-                            );
-
-                            // 2.2 construir la lista de disponibles 1..totalNumeros
-                            const disponibles: number[] = [];
-                            for (let i = 1; i <= totalNumeros; i++) {
-                                if (!usadosSet.has(i)) disponibles.push(i);
-                            }
-
-                            if (disponibles.length < cantidad) {
-                                console.error(
-                                    "No hay suficientes números disponibles para este pedido.",
-                                    { disponibles: disponibles.length, cantidad }
-                                );
-                                alert(
-                                    "No hay suficientes números disponibles en el sorteo para este pedido."
-                                );
-                            } else {
-                                // 2.3 mezclar y elegir aleatoriamente
-                                for (let i = disponibles.length - 1; i > 0; i--) {
-                                    const j = Math.floor(Math.random() * (i + 1));
-                                    [disponibles[i], disponibles[j]] = [
-                                        disponibles[j],
-                                        disponibles[i],
-                                    ];
-                                }
-
-                                const seleccionados = disponibles.slice(0, cantidad);
-
-                                const registros = seleccionados.map((num) => ({
-                                    sorteo_id: sorteoId,
-                                    pedido_id: pedidoActual.id,
-                                    numero: num,
-                                }));
-
-                                const { error: errorInsert } = await supabase
-                                    .from("numeros_asignados")
-                                    .insert(registros);
-
-                                console.log("INSERT numeros_asignados (admin):", {
-                                    registros,
-                                    errorInsert,
-                                });
-
-                                if (errorInsert) {
-                                    console.error(
-                                        "Error asignando números (admin):",
-                                        errorInsert.message
-                                    );
-                                    alert(
-                                        "No se pudieron asignar los números del pedido: " +
-                                        errorInsert.message
-                                    );
-                                } else {
-                                    numerosVendidosActuales = Math.max(
-                                        0,
-                                        numerosVendidosActuales + cantidad
-                                    );
-                                }
-                            }
-                        }
-                    }
-
-                    // 🔸 deja de ser PAGADO → eliminar números de ese pedido
-                    if (wasPagado && !willPagado && cantidad > 0) {
-                        const { error: errorDeleteNums } = await supabase
-                            .from("numeros_asignados")
-                            .delete()
-                            .eq("pedido_id", pedidoActual.id);
-
-                        console.log("DELETE numeros_asignados pedido:", {
-                            pedido_id: pedidoActual.id,
-                            errorDeleteNums,
-                        });
-
-                        if (errorDeleteNums) {
-                            console.error(
-                                "Error liberando números:",
-                                errorDeleteNums.message
-                            );
-                            alert(
-                                "No se pudieron liberar los números del pedido: " +
-                                errorDeleteNums.message
-                            );
-                        } else {
-                            numerosVendidosActuales = Math.max(
-                                0,
-                                numerosVendidosActuales - cantidad
-                            );
-                        }
-                    }
-
-                    // 2.4 actualizar contador del sorteo
-                    const { error: errorUpdateSorteo } = await supabase
-                        .from("sorteos")
-                        .update({
-                            numeros_vendidos: numerosVendidosActuales,
-                        })
-                        .eq("id", sorteoId);
-
-                    console.log("UPDATE sorteo:", {
-                        numerosVendidosActuales,
-                        errorUpdateSorteo,
-                    });
-
-                    if (errorUpdateSorteo) {
-                        console.error(
-                            "Error actualizando sorteo:",
-                            errorUpdateSorteo.message
-                        );
-                        alert(
-                            "No se pudieron actualizar los datos del sorteo: " +
-                            errorUpdateSorteo.message
-                        );
-                    }
+                if (!res.ok || !data?.ok) {
+                    console.error("Error marcar-pagado:", data);
+                    alert(
+                        "No se pudo marcar el pedido como pagado: " +
+                        (data?.error || res.statusText || "Error desconocido")
+                    );
+                    return;
                 }
             } else {
-                console.log("Pedido sin sorteo_id, no se toca sorteo ni números.");
+                // 🔹 Cambios a pendiente / cancelado → solo actualizamos el pedido
+                const { error: errorPedido } = await supabase
+                    .from("pedidos")
+                    .update({ estado: nuevoEstado })
+                    .eq("id", id);
+
+                if (errorPedido) {
+                    console.error("Error actualizando estado:", errorPedido.message);
+                    alert(
+                        "No se pudo actualizar el estado del pedido: " +
+                        errorPedido.message
+                    );
+                    return;
+                }
+
+                // Si estaba pagado y se pasa a pendiente/cancelado → liberamos números
+                if (wasPagado && nuevoEstado !== "pagado") {
+                    const { error: errorDeleteNums } = await supabase
+                        .from("numeros_asignados")
+                        .delete()
+                        .eq("pedido_id", pedidoActual.id);
+
+                    if (errorDeleteNums) {
+                        console.error(
+                            "Error liberando números:",
+                            errorDeleteNums.message
+                        );
+                        alert(
+                            "No se pudieron liberar los números del pedido: " +
+                            errorDeleteNums.message
+                        );
+                        // pero no revertimos el cambio de estado
+                    }
+                }
             }
 
-            // 3) actualizar en memoria
+            // Actualizar en memoria
             setPedidos((prev) =>
                 prev.map((p) =>
                     p.id === id
@@ -313,7 +156,6 @@ export default function AdminPedidosPage() {
             setUpdatingId(null);
         }
     };
-
 
     // copiar números para WhatsApp
     const copiarNumerosPedido = async (pedido: PedidoRow) => {
