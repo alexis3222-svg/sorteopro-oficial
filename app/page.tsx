@@ -180,7 +180,7 @@ export default function HomePage() {
       .slice(-8)}`;
 
     try {
-      // 1) Insertar pedido en Supabase (SIEMPRE pendiente al inicio)
+      // 1) Insertar pedido en Supabase (SIEMPRE estado 'pendiente')
       const { data: inserted, error } = await supabase
         .from("pedidos")
         .insert({
@@ -193,7 +193,7 @@ export default function HomePage() {
           nombre: nombreCliente.trim(),
           telefono: telefonoCliente.trim(),
           correo: correoCliente.trim(),
-          estado: "pendiente", // Siempre pendiente
+          estado: "pendiente",
           payphone_client_transaction_id:
             metodoPago === "payphone" ? clientTransactionId : null,
         })
@@ -226,8 +226,7 @@ export default function HomePage() {
         );
       } else {
         // 🧾 Transferencia o tarjeta manual:
-        // Solo se registra el pedido como PENDIENTE.
-        // Los números se asignan luego en el panel admin al marcar PAGADO.
+        // 👉 SOLO dejamos el pedido en pendiente, SIN asignar números aquí
         setModalStep("ok");
       }
     } catch (err: any) {
@@ -240,6 +239,7 @@ export default function HomePage() {
       setSavingOrder(false);
     }
   };
+
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
