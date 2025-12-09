@@ -6,7 +6,6 @@ import { SorteoCarousel } from "../components/SorteoCarousel";
 import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
-import { NumerosBendecidos } from "../components/NumerosBendecidos";
 
 const anton = Anton({
   subsets: ["latin"],
