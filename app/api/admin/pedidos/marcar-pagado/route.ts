@@ -8,21 +8,18 @@ export async function POST(req: Request) {
         console.log("[marcar-pagado] llamado con pedidoId =", pedidoId);
 
         if (!pedidoId) {
-            console.error("[marcar-pagado] Falta pedidoId");
             return NextResponse.json(
                 { ok: false, error: "Falta el pedidoId" },
                 { status: 400 }
             );
         }
 
-        // 1) Obtener el pedido
+        // 1) Traer el pedido
         const { data: pedido, error: pedidoError } = await supabaseAdmin
             .from("pedidos")
             .select("id, sorteo_id, cantidad_numeros, estado")
             .eq("id", pedidoId)
             .single();
-
-        console.log("[marcar-pagado] pedido cargado =", pedido);
 
         if (pedidoError || !pedido) {
             console.error("[marcar-pagado] Pedido no encontrado:", pedidoError);
@@ -33,9 +30,7 @@ export async function POST(req: Request) {
         }
 
         if (pedido.estado === "pagado") {
-            console.warn(
-                "[marcar-pagado] Pedido ya estaba pagado, no se asignan números"
-            );
+            // Si ya estaba pagado, no reasignamos nada
             return NextResponse.json(
                 { ok: false, error: "El pedido ya está pagado" },
                 { status: 400 }
@@ -43,7 +38,6 @@ export async function POST(req: Request) {
         }
 
         if (!pedido.sorteo_id || !pedido.cantidad_numeros) {
-            console.error("[marcar-pagado] Pedido inválido para asignar números");
             return NextResponse.json(
                 {
                     ok: false,
@@ -53,114 +47,148 @@ export async function POST(req: Request) {
             );
         }
 
-        // 2) Verificar si YA tiene números asignados este pedido
-        const { data: existentes, error: existentesError } = await supabaseAdmin
+        // 2) Traer el sorteo para saber hasta qué número se ha asignado
+        const { data: sorteo, error: sorteoError } = await supabaseAdmin
+            .from("sorteos")
+            .select("id, total_numeros, ultimo_numero_asignado")
+            .eq("id", pedido.sorteo_id)
+            .single();
+
+        if (sorteoError || !sorteo) {
+            console.error("[marcar-pagado] Sorteo no encontrado:", sorteoError);
+            return NextResponse.json(
+                { ok: false, error: "Sorteo no encontrado" },
+                { status: 400 }
+            );
+        }
+
+        const totalNumeros: number = sorteo.total_numeros;
+        const ultimo = (sorteo.ultimo_numero_asignado as number) || 0;
+        const cantidad = pedido.cantidad_numeros as number;
+
+        const inicio = ultimo + 1;
+        const fin = inicio + cantidad - 1;
+
+        // 3) Validar stock
+        if (fin > totalNumeros) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "No hay suficientes números disponibles para completar este pedido.",
+                },
+                { status: 400 }
+            );
+        }
+
+        // 4) Construir el bloque de números a asignar
+        const nuevosNumeros = [];
+        for (let n = inicio; n <= fin; n++) {
+            nuevosNumeros.push({
+                sorteo_id: pedido.sorteo_id,
+                pedido_id: pedido.id,
+                numero: n,
+                estado: "pagado", // directo pagado
+            });
+        }
+
+        // 5) BORRAR cualquier número previo de este pedido (reservado, duplicado, etc.)
+        const { error: deleteError } = await supabaseAdmin
             .from("numeros_asignados")
-            .select("id, numero, estado")
-            .eq("pedido_id", pedido.id)
-            .order("numero", { ascending: true });
+            .delete()
+            .eq("pedido_id", pedido.id);
 
-        console.log(
-            "[marcar-pagado] numeros existentes para pedido",
-            pedido.id,
-            "=>",
-            existentes
-        );
-
-        if (existentesError) {
+        if (deleteError) {
             console.error(
-                "[marcar-pagado] Error consultando numeros_asignados:",
-                existentesError
+                "[marcar-pagado] Error borrando numeros previos del pedido:",
+                deleteError
             );
             return NextResponse.json(
-                { ok: false, error: "Error consultando números asignados" },
+                {
+                    ok: false,
+                    error:
+                        deleteError.message ||
+                        "Error borrando números previos del pedido.",
+                },
                 { status: 500 }
             );
         }
 
-        let asignados = existentes ?? [];
-        const yaTieneNumeros = asignados.length > 0;
+        // 6) Insertar los nuevos números
+        const { data: insertData, error: insertError } = await supabaseAdmin
+            .from("numeros_asignados")
+            .insert(nuevosNumeros)
+            .select("numero");
 
-        // 3) Si YA tiene números (generalmente 'reservado') -> SOLO actualizamos estado a 'pagado'
-        if (yaTieneNumeros) {
-            console.log(
-                "[marcar-pagado] Ya tenía números (probable 'reservado'), se marcan como 'pagado'"
+        if (insertError) {
+            console.error(
+                "[marcar-pagado] Error insertando nuevos numeros:",
+                insertError
             );
-
-            const { error: updateNumsError } = await supabaseAdmin
-                .from("numeros_asignados")
-                .update({ estado: "pagado" })
-                .eq("pedido_id", pedido.id);
-
-            if (updateNumsError) {
-                console.error(
-                    "[marcar-pagado] Error actualizando estado de numeros_asignados:",
-                    updateNumsError
-                );
-                return NextResponse.json(
-                    {
-                        ok: false,
-                        error:
-                            updateNumsError.message ||
-                            "Error actualizando estado de los números",
-                    },
-                    { status: 500 }
-                );
-            }
-        } else {
-            // 4) Si NO tiene números todavía → llamamos al RPC para asignarlos
-            console.log(
-                "[marcar-pagado] NO tenía números, llamando RPC asignar_numeros_sorteo"
-            );
-            const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
-                "asignar_numeros_sorteo",
+            return NextResponse.json(
                 {
-                    p_sorteo_id: pedido.sorteo_id,
-                    p_pedido_id: pedido.id,
-                    p_cantidad: pedido.cantidad_numeros,
-                    p_estado: "pagado",
-                }
+                    ok: false,
+                    error: insertError.message || "Error asignando nuevos números.",
+                },
+                { status: 500 }
             );
-
-            if (rpcError) {
-                console.error(
-                    "[marcar-pagado] Error asignando números (RPC):",
-                    rpcError
-                );
-                return NextResponse.json(
-                    { ok: false, error: rpcError.message },
-                    { status: 400 }
-                );
-            }
-
-            console.log(
-                "[marcar-pagado] RPC respondió con asignados =>",
-                rpcData
-            );
-            asignados = rpcData || [];
         }
 
-        // 5) Actualizar estado del pedido a 'pagado'
-        const { error: updateError } = await supabaseAdmin
+        // 7) Actualizar el sorteo con el último número asignado
+        const { error: updateSorteoError } = await supabaseAdmin
+            .from("sorteos")
+            .update({ ultimo_numero_asignado: fin })
+            .eq("id", sorteo.id);
+
+        if (updateSorteoError) {
+            console.error(
+                "[marcar-pagado] Error actualizando sorteo:",
+                updateSorteoError
+            );
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        updateSorteoError.message ||
+                        "Error actualizando datos del sorteo.",
+                },
+                { status: 500 }
+            );
+        }
+
+        // 8) Marcar el pedido como pagado
+        const { error: updatePedidoError } = await supabaseAdmin
             .from("pedidos")
             .update({ estado: "pagado" })
             .eq("id", pedido.id);
 
-        if (updateError) {
-            console.error("[marcar-pagado] Error actualizando pedido:", updateError);
+        if (updatePedidoError) {
+            console.error(
+                "[marcar-pagado] Error actualizando pedido:",
+                updatePedidoError
+            );
             return NextResponse.json(
-                { ok: false, error: updateError.message },
+                {
+                    ok: false,
+                    error:
+                        updatePedidoError.message ||
+                        "Error actualizando estado del pedido.",
+                },
                 { status: 500 }
             );
         }
 
         console.log(
-            "[marcar-pagado] FIN OK para pedido",
+            "[marcar-pagado] FIN OK pedido",
             pedido.id,
-            "asignados =>",
-            asignados
+            "nuevos numeros =>",
+            insertData
         );
-        return NextResponse.json({ ok: true, asignados });
+
+        return NextResponse.json({
+            ok: true,
+            asignados: insertData || [],
+        });
     } catch (e: any) {
         console.error("Error inesperado en marcar-pagado:", e);
         return NextResponse.json(
