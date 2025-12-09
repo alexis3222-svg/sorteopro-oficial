@@ -1,4 +1,3 @@
-// app/admin/pedidos/page.tsx
 "use client";
 export const dynamic = "force-dynamic";
 
@@ -36,15 +35,14 @@ export default function AdminPedidosPage() {
     const [copyingId, setCopyingId] = useState<number | null>(null);
 
     // Cargar pedidos
-    useEffect(() => {
-        const fetchPedidos = async () => {
-            setLoading(true);
-            setError(null);
+    const fetchPedidos = async () => {
+        setLoading(true);
+        setError(null);
 
-            const { data, error } = await supabase
-                .from("pedidos")
-                .select(
-                    `
+        const { data, error } = await supabase
+            .from("pedidos")
+            .select(
+                `
           id,
           created_at,
           sorteo_id,
@@ -57,22 +55,24 @@ export default function AdminPedidosPage() {
           nombre,
           telefono
         `
-                )
-                .order("id", { ascending: false });
+            )
+            .order("id", { ascending: false });
 
-            if (error) {
-                console.error("Error cargando pedidos:", error.message);
-                setError("No se pudieron cargar los pedidos.");
-            } else {
-                setPedidos((data || []) as PedidoRow[]);
-            }
+        if (error) {
+            console.error("Error cargando pedidos:", error.message);
+            setError("No se pudieron cargar los pedidos.");
+        } else {
+            setPedidos((data || []) as PedidoRow[]);
+        }
 
-            setLoading(false);
-        };
+        setLoading(false);
+    };
 
+    useEffect(() => {
         fetchPedidos();
     }, []);
 
+    // 👉 CAMBIAR ESTADO (ya no toca numeros_asignados)
     const cambiarEstado = async (id: number, nuevoEstado: EstadoPedido) => {
         const pedidoActual = pedidos.find((p) => p.id === id);
         if (!pedidoActual) return;
@@ -80,13 +80,10 @@ export default function AdminPedidosPage() {
         const estadoActual = (pedidoActual.estado || "pendiente").toLowerCase() as EstadoPedido;
         if (estadoActual === nuevoEstado) return;
 
-        const wasPagado =
-            estadoActual === "pagado" || estadoActual === "confirmado";
-
         try {
             setUpdatingId(id);
 
-            // 👉 Si queremos marcar como PAGADO → usamos SOLO el endpoint backend
+            // 1️⃣ Si lo marcamos PAGADO → usamos nuestro endpoint central
             if (nuevoEstado === "pagado") {
                 const res = await fetch("/api/admin/pedidos/marcar-pagado", {
                     method: "POST",
@@ -97,40 +94,25 @@ export default function AdminPedidosPage() {
                 const data = await res.json();
 
                 if (!res.ok || !data.ok) {
-                    throw new Error(
-                        data?.error || "No se pudo marcar el pedido como pagado"
-                    );
+                    console.error("Error marcar-pagado:", data);
+                    alert(data.error || "No se pudo marcar como pagado ni asignar números.");
+                    return;
                 }
             } else {
-                // 👉 Pasar a PENDIENTE o CANCELADO
-                // 1) Actualizar estado del pedido
+                // 2️⃣ Pendiente / Cancelado → solo actualizar la columna estado del pedido
                 const { error: errorPedido } = await supabase
                     .from("pedidos")
                     .update({ estado: nuevoEstado })
                     .eq("id", id);
 
                 if (errorPedido) {
-                    throw new Error(errorPedido.message);
-                }
-
-                // 2) Si antes estaba pagado → liberar números
-                if (wasPagado) {
-                    const { error: errorDeleteNums } = await supabase
-                        .from("numeros_asignados")
-                        .delete()
-                        .eq("pedido_id", id);
-
-                    if (errorDeleteNums) {
-                        console.error(
-                            "Error liberando números del pedido:",
-                            errorDeleteNums.message
-                        );
-                        // no rompo el flujo, solo aviso en consola
-                    }
+                    console.error("Error actualizando estado:", errorPedido.message);
+                    alert("No se pudo actualizar el estado del pedido: " + errorPedido.message);
+                    return;
                 }
             }
 
-            // 👉 Actualizar en memoria
+            // 3️⃣ Refrescar en memoria
             setPedidos((prev) =>
                 prev.map((p) =>
                     p.id === id
@@ -141,15 +123,12 @@ export default function AdminPedidosPage() {
                         : p
                 )
             );
-        } catch (e: any) {
-            console.error("Error cambiando estado del pedido:", e);
-            alert(e?.message || "No se pudo actualizar el estado del pedido.");
         } finally {
             setUpdatingId(null);
         }
     };
 
-    // copiar números para WhatsApp
+    // copiar números para WhatsApp (SOLO LEE, no asigna)
     const copiarNumerosPedido = async (pedido: PedidoRow) => {
         setCopyingId(pedido.id);
         try {
@@ -223,7 +202,7 @@ export default function AdminPedidosPage() {
         return acc;
     }, 0);
 
-    // Exportar CSV (pedidos)
+    // Exportar CSV (igual que antes)
     const handleExportCSV = () => {
         if (!pedidos.length) {
             alert("No hay pedidos para exportar.");
@@ -321,7 +300,7 @@ export default function AdminPedidosPage() {
 
                     <Link
                         href="/admin"
-                        className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 hover:bg-white/10"
+                        className="rounded-full border border-white/20 px-4 py-2 text-xs font-semibold uppercase tracking-[0.18em] text-slate-100 hover:bg:white/10"
                     >
                         ← Volver al panel
                     </Link>
@@ -330,7 +309,7 @@ export default function AdminPedidosPage() {
 
             {!loading && !error && (
                 <section className="grid gap-3 md:grid-cols-4">
-                    <div className="rounded-2xl border border-white/10 bg-[#191b22] px-4 py-3">
+                    <div className="rounded-2xl border border:white/10 bg-[#191b22] px-4 py-3">
                         <p className="text-[11px] uppercase tracking-[0.18em] text-slate-400">
                             Total pedidos
                         </p>
