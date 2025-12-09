@@ -56,8 +56,9 @@ export async function POST(req: Request) {
         // 2) Verificar si YA tiene números asignados este pedido
         const { data: existentes, error: existentesError } = await supabaseAdmin
             .from("numeros_asignados")
-            .select("numero")
-            .eq("pedido_id", pedido.id);
+            .select("id, numero, estado")
+            .eq("pedido_id", pedido.id)
+            .order("numero", { ascending: true });
 
         console.log(
             "[marcar-pagado] numeros existentes para pedido",
@@ -77,11 +78,37 @@ export async function POST(req: Request) {
             );
         }
 
-        const yaTieneNumeros = (existentes?.length ?? 0) > 0;
         let asignados = existentes ?? [];
+        const yaTieneNumeros = asignados.length > 0;
 
-        // 3) Si NO tiene números todavía → llamamos al RPC para asignarlos
-        if (!yaTieneNumeros) {
+        // 3) Si YA tiene números (generalmente 'reservado') -> SOLO actualizamos estado a 'pagado'
+        if (yaTieneNumeros) {
+            console.log(
+                "[marcar-pagado] Ya tenía números (probable 'reservado'), se marcan como 'pagado'"
+            );
+
+            const { error: updateNumsError } = await supabaseAdmin
+                .from("numeros_asignados")
+                .update({ estado: "pagado" })
+                .eq("pedido_id", pedido.id);
+
+            if (updateNumsError) {
+                console.error(
+                    "[marcar-pagado] Error actualizando estado de numeros_asignados:",
+                    updateNumsError
+                );
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            updateNumsError.message ||
+                            "Error actualizando estado de los números",
+                    },
+                    { status: 500 }
+                );
+            }
+        } else {
+            // 4) Si NO tiene números todavía → llamamos al RPC para asignarlos
             console.log(
                 "[marcar-pagado] NO tenía números, llamando RPC asignar_numeros_sorteo"
             );
@@ -111,13 +138,9 @@ export async function POST(req: Request) {
                 rpcData
             );
             asignados = rpcData || [];
-        } else {
-            console.log(
-                "[marcar-pagado] Ya tenía números, NO se llama al RPC"
-            );
         }
 
-        // 4) Actualizar estado del pedido a 'pagado'
+        // 5) Actualizar estado del pedido a 'pagado'
         const { error: updateError } = await supabaseAdmin
             .from("pedidos")
             .update({ estado: "pagado" })
