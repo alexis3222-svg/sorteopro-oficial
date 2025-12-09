@@ -28,7 +28,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 2️⃣ PAYPHONE → asignar por tx (usa tu helper)
+        // 2️⃣ PAYPHONE → usar helper central (ya marca pagado y asigna solo 1 vez)
         if (pedido.metodo_pago === "payphone") {
             if (!pedido.payphone_client_transaction_id) {
                 return NextResponse.json(
@@ -54,9 +54,9 @@ export async function POST(req: Request) {
             });
         }
 
-        // 3️⃣ TRANSFERENCIA → asignar usando RPC directamente
+        // 3️⃣ TRANSFERENCIA → aquí es donde se asigna AL MARCAR PAGADO
         if (pedido.metodo_pago === "transferencia") {
-            // Verificar si ya tiene números
+            // 3.1 Ver si ya tiene números este pedido
             const { data: existentes, error: existErr } = await supabaseAdmin
                 .from("numeros_asignados")
                 .select("numero")
@@ -69,46 +69,47 @@ export async function POST(req: Request) {
                 );
             }
 
-            if (existentes && existentes.length > 0) {
-                // Ya tenía números → solo marcar pagado
-                await supabaseAdmin
-                    .from("pedidos")
-                    .update({ estado: "pagado" })
-                    .eq("id", pedido.id);
+            const yaTieneNumeros = (existentes?.length ?? 0) > 0;
+            let numerosAsignados = existentes?.map((n: any) => n.numero) ?? [];
 
-                return NextResponse.json({
-                    ok: true,
-                    asignados: existentes.map((n: any) => n.numero),
-                });
-            }
-
-            // Asignar por RPC
-            const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
-                "asignar_numeros_sorteo",
-                {
-                    p_sorteo_id: pedido.sorteo_id,
-                    p_pedido_id: pedido.id,
-                    p_cantidad: pedido.cantidad_numeros,
-                    p_estado: "pagado",
-                }
-            );
-
-            if (rpcError) {
-                return NextResponse.json(
-                    { ok: false, error: rpcError.message },
-                    { status: 400 }
+            // 3.2 Si NO tiene números → asignar ahora con el RPC
+            if (!yaTieneNumeros) {
+                const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
+                    "asignar_numeros_sorteo",
+                    {
+                        p_sorteo_id: pedido.sorteo_id,
+                        p_pedido_id: pedido.id,
+                        p_cantidad: pedido.cantidad_numeros,
+                        p_estado: "pagado",
+                    }
                 );
+
+                if (rpcError) {
+                    return NextResponse.json(
+                        { ok: false, error: rpcError.message },
+                        { status: 400 }
+                    );
+                }
+
+                numerosAsignados = asignados?.map((n: any) => n.numero) ?? [];
             }
 
-            // Marcar pedido como pagado
-            await supabaseAdmin
+            // 3.3 Marcar pedido como pagado
+            const { error: updateError } = await supabaseAdmin
                 .from("pedidos")
                 .update({ estado: "pagado" })
                 .eq("id", pedido.id);
 
+            if (updateError) {
+                return NextResponse.json(
+                    { ok: false, error: updateError.message },
+                    { status: 400 }
+                );
+            }
+
             return NextResponse.json({
                 ok: true,
-                asignados: asignados?.map((n: any) => n.numero) ?? [],
+                asignados: numerosAsignados,
             });
         }
 

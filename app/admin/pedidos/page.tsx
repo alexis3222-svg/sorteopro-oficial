@@ -15,7 +15,7 @@ const anton = Anton({
 type PedidoRow = {
     id: number;
     created_at: string | null;
-    sorteo_id: string | null; // uuid
+    sorteo_id: string | null;          // uuid
     actividad_numero: number | null;
     cantidad_numeros: number | null;
     precio_unitario: number | null;
@@ -86,7 +86,7 @@ export default function AdminPedidosPage() {
         try {
             setUpdatingId(id);
 
-            // 🔹 Si queremos marcar como PAGADO → usamos el endpoint central
+            // 👉 Si queremos marcar como PAGADO → usamos SOLO el endpoint backend
             if (nuevoEstado === "pagado") {
                 const res = await fetch("/api/admin/pedidos/marcar-pagado", {
                     method: "POST",
@@ -94,54 +94,43 @@ export default function AdminPedidosPage() {
                     body: JSON.stringify({ pedidoId: id }),
                 });
 
-                const data = await res.json().catch(() => null);
+                const data = await res.json();
 
-                if (!res.ok || !data?.ok) {
-                    console.error("Error marcar-pagado:", data);
-                    alert(
-                        "No se pudo marcar el pedido como pagado: " +
-                        (data?.error || res.statusText || "Error desconocido")
+                if (!res.ok || !data.ok) {
+                    throw new Error(
+                        data?.error || "No se pudo marcar el pedido como pagado"
                     );
-                    return;
                 }
             } else {
-                // 🔹 Cambios a pendiente / cancelado → solo actualizamos el pedido
+                // 👉 Pasar a PENDIENTE o CANCELADO
+                // 1) Actualizar estado del pedido
                 const { error: errorPedido } = await supabase
                     .from("pedidos")
                     .update({ estado: nuevoEstado })
                     .eq("id", id);
 
                 if (errorPedido) {
-                    console.error("Error actualizando estado:", errorPedido.message);
-                    alert(
-                        "No se pudo actualizar el estado del pedido: " +
-                        errorPedido.message
-                    );
-                    return;
+                    throw new Error(errorPedido.message);
                 }
 
-                // Si estaba pagado y se pasa a pendiente/cancelado → liberamos números
-                if (wasPagado && nuevoEstado !== "pagado") {
+                // 2) Si antes estaba pagado → liberar números
+                if (wasPagado) {
                     const { error: errorDeleteNums } = await supabase
                         .from("numeros_asignados")
                         .delete()
-                        .eq("pedido_id", pedidoActual.id);
+                        .eq("pedido_id", id);
 
                     if (errorDeleteNums) {
                         console.error(
-                            "Error liberando números:",
+                            "Error liberando números del pedido:",
                             errorDeleteNums.message
                         );
-                        alert(
-                            "No se pudieron liberar los números del pedido: " +
-                            errorDeleteNums.message
-                        );
-                        // pero no revertimos el cambio de estado
+                        // no rompo el flujo, solo aviso en consola
                     }
                 }
             }
 
-            // Actualizar en memoria
+            // 👉 Actualizar en memoria
             setPedidos((prev) =>
                 prev.map((p) =>
                     p.id === id
@@ -152,6 +141,9 @@ export default function AdminPedidosPage() {
                         : p
                 )
             );
+        } catch (e: any) {
+            console.error("Error cambiando estado del pedido:", e);
+            alert(e?.message || "No se pudo actualizar el estado del pedido.");
         } finally {
             setUpdatingId(null);
         }

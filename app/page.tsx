@@ -106,7 +106,6 @@ export default function HomePage() {
     ? sorteo.galeria_urls
     : [];
 
-
   const handleComprarClick = (cantidad: number) => {
     setSelectedCantidad(cantidad);
     setModalStep("resumen");
@@ -181,7 +180,7 @@ export default function HomePage() {
       .slice(-8)}`;
 
     try {
-      // 1) Insertar pedido en Supabase
+      // 1) Insertar pedido en Supabase (SIEMPRE pendiente al inicio)
       const { data: inserted, error } = await supabase
         .from("pedidos")
         .insert({
@@ -194,9 +193,7 @@ export default function HomePage() {
           nombre: nombreCliente.trim(),
           telefono: telefonoCliente.trim(),
           correo: correoCliente.trim(),
-          // Siempre pendiente al inicio
-          estado: "pendiente",
-          // Solo para PayPhone
+          estado: "pendiente", // Siempre pendiente
           payphone_client_transaction_id:
             metodoPago === "payphone" ? clientTransactionId : null,
         })
@@ -220,7 +217,6 @@ export default function HomePage() {
         const totalStr = Number(totalPaquete).toFixed(2);
         const ref = `Sorteo ${numeroActividad} - Pedido ${inserted.id}`;
 
-        // 👉 Enviamos también el clientTransactionId en la URL (&tx=...)
         router.push(
           `/pago-payphone?amount=${encodeURIComponent(
             totalStr
@@ -229,50 +225,10 @@ export default function HomePage() {
           )}`
         );
       } else {
-        // 🧾 Transferencia o tarjeta manual
+        // 🧾 Transferencia o tarjeta manual:
+        // Solo se registra el pedido como PENDIENTE.
+        // Los números se asignan luego en el panel admin al marcar PAGADO.
         setModalStep("ok");
-
-        // ---------------------------------------------------------
-        // 🎯 ASIGNAR NÚMEROS ALEATORIOS AUTOMÁTICAMENTE (TRANSFERENCIA)
-        // ---------------------------------------------------------
-        try {
-          const cantidad = inserted.cantidad_numeros;
-
-          // 1) Obtener números ya asignados para este sorteo
-          const { data: usadosData } = await supabase
-            .from("numeros_asignados")
-            .select("numero")
-            .eq("sorteo_id", sorteo.id);
-
-          const usados = new Set(
-            (usadosData ?? []).map((n) => Number(n.numero))
-          );
-
-          const nuevos: number[] = [];
-
-          // 2) Generar números aleatorios sin repetir
-          while (nuevos.length < cantidad) {
-            const random =
-              Math.floor(Math.random() * sorteo.total_numeros) + 1;
-            if (!usados.has(random)) {
-              usados.add(random);
-              nuevos.push(random);
-            }
-          }
-
-          // 3) Guardar los números asignados en Supabase
-          const registros = nuevos.map((num) => ({
-            sorteo_id: sorteo.id,
-            pedido_id: inserted.id,
-            numero: num,
-          }));
-
-          await supabase.from("numeros_asignados").insert(registros);
-
-          console.log("Números asignados (transferencia):", nuevos);
-        } catch (err) {
-          console.error("❌ Error asignando números aleatorios:", err);
-        }
       }
     } catch (err: any) {
       console.error("Error registrando pedido:", err);
@@ -284,7 +240,6 @@ export default function HomePage() {
       setSavingOrder(false);
     }
   };
-
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
@@ -394,11 +349,6 @@ export default function HomePage() {
 
       {/* SECCIÓN HERO / ENCABEZADO */}
       <section className="space-y-6">
-        {/* Prioridad:
-      1) Si hay galería (1 o más imágenes) -> carrusel dinámico
-      2) Si no hay galería pero sí imagen_url -> imagen fija
-      3) Si no hay nada -> carrusel por defecto (gokart-1,2,3)
-  */}
         {galeriaHero.length > 0 ? (
           <SorteoCarousel images={galeriaHero} titulo={sorteo.titulo} />
         ) : imagenHero ? (
@@ -428,7 +378,6 @@ export default function HomePage() {
           </p>
         </div>
       </section>
-
 
       {/* SECCIÓN: ADQUIERE TUS NÚMEROS */}
       <section className="space-y-3">
