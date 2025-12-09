@@ -17,40 +17,13 @@ type PedidoInfo = {
     estado: string | null;
 };
 
-export default function AdminNumerosClient() {
-    const [pedidoId, setPedidoId] = useState<number | null>(null);
+export default function AdminNumerosClient({ pedidoId }: { pedidoId: number }) {
     const [loading, setLoading] = useState(true);
     const [pedido, setPedido] = useState<PedidoInfo | null>(null);
     const [numeros, setNumeros] = useState<NumeroAsignado[]>([]);
     const [error, setError] = useState<string | null>(null);
 
-    // 🔹 Leer ?pedido= desde window.location, SIN useSearchParams
     useEffect(() => {
-        if (typeof window === "undefined") return;
-
-        const params = new URLSearchParams(window.location.search);
-        const pedidoIdParam = params.get("pedido");
-
-        if (!pedidoIdParam) {
-            setError("Falta el parámetro ?pedido en la URL");
-            setLoading(false);
-            return;
-        }
-
-        const idNum = Number(pedidoIdParam);
-        if (Number.isNaN(idNum)) {
-            setError("El parámetro ?pedido no es un número válido");
-            setLoading(false);
-            return;
-        }
-
-        setPedidoId(idNum);
-    }, []);
-
-    // 🔹 Cargar info del pedido + números asignados
-    useEffect(() => {
-        if (pedidoId == null) return;
-
         const cargarDatos = async () => {
             setLoading(true);
             setError(null);
