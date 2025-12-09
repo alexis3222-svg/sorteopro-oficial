@@ -417,7 +417,8 @@ export default function HomePage() {
       </section>
 
       {/* PREMIOS INSTANTÁNEOS (DINÁMICO) */}
-      <NumerosBendecidos sorteoId={sorteo.id} />
+      {/* <NumerosBendecidos sorteoId={sorteo.id} /> */}
+
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
