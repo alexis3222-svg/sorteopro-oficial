@@ -92,9 +92,14 @@ function PagoPayphoneInner() {
             try {
                 const amountInCents = Math.round(total! * 100);
 
+                // ID único de transacción que usaremos como tx
                 const clientTransactionId =
                     (txParam && txParam.length > 0 ? txParam : null) ||
                     `WEB-${Date.now().toString().slice(-10)}`.slice(0, 15);
+
+                // URL base del sitio (prod o local)
+                const baseUrl =
+                    process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;
 
                 const ppb = new window.PPaymentButtonBox({
                     token: TOKEN,
@@ -109,8 +114,13 @@ function PagoPayphoneInner() {
                     storeId: STORE_ID,
                     reference: referencia,
                     lang: "es",
-                    defaultMethod: "card",
                     timeZone: -5,
+
+                    // 👇👇 LO IMPORTANTE: forzamos que PayPhone regrese con el tx
+                    responseUrl: `${baseUrl}/pago-exitoso?tx=${encodeURIComponent(
+                        clientTransactionId
+                    )}`,
+                    cancellationUrl: `${baseUrl}/pago-error`,
                 });
 
                 ppb.render("pp-button");
