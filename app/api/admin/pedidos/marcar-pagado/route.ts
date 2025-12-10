@@ -36,6 +36,7 @@ export async function POST(req: Request) {
         }
 
         // 2) Asignar números usando la función de BD ALEATORIA
+        //    La función debe ser: asignar_numeros_para_pedido(p_pedido_id int)
         const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
             "asignar_numeros_para_pedido",
             { p_pedido_id: pedido.id }
@@ -66,25 +67,27 @@ export async function POST(req: Request) {
                 );
             }
 
+            if (msg.includes("TOTAL_INVALIDO")) {
+                return NextResponse.json(
+                    { ok: false, error: "El sorteo no tiene total_numeros válido" },
+                    { status: 400 }
+                );
+            }
+
             return NextResponse.json(
                 { ok: false, error: `RPC: ${msg}` },
                 { status: 500 }
             );
         }
 
-        // Normalizar y tipar la respuesta
-        const numerosSource = (rpcData ?? []) as any[];
+        const numeros = (rpcData ?? []) as any[];
 
-        const numeros: number[] = numerosSource
-            .map((n: any) => {
-                if (typeof n === "number") return n;
-                if (typeof n?.numero === "number") return n.numero;
-                if (typeof n?.numero_asignado === "number") return n.numero_asignado;
-                return NaN;
-            })
-            .filter((x: number) => !Number.isNaN(x));
-
+        // Si la función no devolvió nada, algo está mal
         if (!numeros.length) {
+            console.error(
+                "asignar_numeros_para_pedido no devolvió filas para pedido:",
+                pedido.id
+            );
             return NextResponse.json(
                 {
                     ok: false,
@@ -104,11 +107,15 @@ export async function POST(req: Request) {
 
             if (updateError) {
                 console.error("Error actualizando pedido:", updateError);
-                // No rompemos la respuesta (ya tiene números), sólo avisamos
+                // No rompemos la respuesta (ya tiene números), sólo avisamos en logs
             }
         }
 
-        return NextResponse.json({ ok: true, numeros });
+        // 4) Devolver ok; el frontend solo necesita saber si salió bien
+        return NextResponse.json({
+            ok: true,
+            numeros, // por si en el futuro quieres ver qué devolvió
+        });
     } catch (e: any) {
         console.error("Error inesperado en marcar-pagado:", e);
         return NextResponse.json(
