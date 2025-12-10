@@ -19,10 +19,9 @@ type ResultadoAsignacion =
  * - Si el pedido ya tiene números asignados, NO vuelve a asignar.
  * - Si asigna, también marca el pedido como "pagado".
  *
- * ⚠️ IMPORTANTE:
- * La lógica de que los números sean ALEATORIOS está en la función
- * de BD `asignar_numeros_para_pedido(p_pedido_id integer)` que debe
- * hacer `ORDER BY random()` al escoger los números disponibles.
+ * En esta versión se usa la función de BD:
+ *   asignar_numeros_sorteo(p_sorteo_id uuid, p_pedido_id int, p_cantidad int, p_estado text)
+ * que realiza la asignación en la base de datos (estilo secuencial/seguro).
  */
 export async function asignarNumerosPorTx(
   tx: string
@@ -112,20 +111,19 @@ export async function asignarNumerosPorTx(
       };
     }
 
-    // 3) Llamar a la función de BD para asignar ALEATORIO
-    //    Esta función debe implementar la lógica:
-    //    - leer actividad, cantidad y total de números
-    //    - elegir entre los disponibles con ORDER BY random()
-    //    - insertar en numeros_asignados y devolver los números
+    // 3) Llamar a la función de BD para asignar (secuencial, segura)
     const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
-      "asignar_numeros_para_pedido",
+      "asignar_numeros_sorteo",
       {
+        p_sorteo_id: pedido.sorteo_id,
         p_pedido_id: pedido.id,
+        p_cantidad: cantidad,
+        p_estado: "pagado",
       }
     );
 
     if (rpcError) {
-      console.error("Error en asignar_numeros_para_pedido:", rpcError);
+      console.error("Error en asignar_numeros_sorteo:", rpcError);
       return {
         ok: false,
         code: "NO_STOCK",
@@ -135,8 +133,8 @@ export async function asignarNumerosPorTx(
       };
     }
 
-    const numerosFinales: number[] = (asignados ?? []).map(
-      (n: any) => n.numero as number
+    const numerosFinales: number[] = (asignados ?? []).map((n: any) =>
+      typeof n === "number" ? (n as number) : (n.numero as number)
     );
 
     // Seguridad extra: si por alguna razón la función no devolvió nada
