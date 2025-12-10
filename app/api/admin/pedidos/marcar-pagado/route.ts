@@ -51,17 +51,20 @@ export async function POST(req: Request) {
             }
         }
 
-        // 3) Asignar números usando la función PRO (idempotente)
+        // 3) Asignar números usando la función de BD ALEATORIA
+        //    Debes tener en Supabase algo como:
+        //    create or replace function asignar_numeros_para_pedido(p_pedido_id integer) ...
         const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
-            "asignar_numeros_pedido",
+            "asignar_numeros_para_pedido",
             { p_pedido_id: pedido.id }
         );
 
         if (rpcError) {
-            console.error("Error RPC asignar_numeros_pedido:", rpcError);
+            console.error("Error RPC asignar_numeros_para_pedido:", rpcError);
 
             const msg = rpcError.message || "";
 
+            // Si en tu función de BD utilizas RAISE EXCEPTION 'SIN_NUMEROS_DISPONIBLES';
             if (msg.includes("SIN_NUMEROS_DISPONIBLES")) {
                 return NextResponse.json(
                     { ok: false, error: "No hay números disponibles" },
@@ -69,6 +72,7 @@ export async function POST(req: Request) {
                 );
             }
 
+            // Si en la función validas que el pedido esté pagado
             if (msg.includes("PEDIDO_NO_PAGADO")) {
                 return NextResponse.json(
                     { ok: false, error: "El pedido aún no está pagado en BD" },
@@ -76,14 +80,31 @@ export async function POST(req: Request) {
                 );
             }
 
-            // 🔥 TEMPORAL: devolvemos el mensaje crudo para depurar
+            // Fallback genérico
             return NextResponse.json(
                 { ok: false, error: `RPC: ${msg}` },
                 { status: 500 }
             );
         }
 
-        const numeros: number[] = rpcData || [];
+        // La RPC debería devolver algo tipo: [{ numero: 123 }, { numero: 456 }] ó [{ numero_asignado: 123 }, ...]
+        const numeros: number[] = (rpcData || []).map((n: any) => {
+            if (typeof n === "number") return n;
+            if (typeof n?.numero === "number") return n.numero;
+            if (typeof n?.numero_asignado === "number") return n.numero_asignado;
+            return NaN;
+        }).filter((x) => !Number.isNaN(x));
+
+        if (!numeros.length) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "La función de asignación no devolvió números. Verifica la lógica en la BD.",
+                },
+                { status: 500 }
+            );
+        }
 
         return NextResponse.json({ ok: true, numeros });
     } catch (e: any) {
