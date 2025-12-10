@@ -2,7 +2,7 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
@@ -26,7 +26,8 @@ type PedidoInfo = {
     estado: string | null;
 };
 
-export default function AdminNumerosPage() {
+// 🔹 Componente que usa hooks y searchParams
+function AdminNumerosContent() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
@@ -273,5 +274,22 @@ export default function AdminNumerosPage() {
                 </div>
             </div>
         </main>
+    );
+}
+
+// 🔹 Componente que envuelve todo en Suspense para cumplir con Next
+export default function AdminNumerosPage() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center">
+                    <p className="text-xs text-slate-400">
+                        Cargando detalle del pedido...
+                    </p>
+                </main>
+            }
+        >
+            <AdminNumerosContent />
+        </Suspense>
     );
 }
