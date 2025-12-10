@@ -35,23 +35,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 2) Marcar como pagado (si no lo está ya)
-        if (pedido.estado !== "pagado") {
-            const { error: updateError } = await supabaseAdmin
-                .from("pedidos")
-                .update({ estado: "pagado" })
-                .eq("id", pedido.id);
-
-            if (updateError) {
-                console.error("Error actualizando pedido:", updateError);
-                return NextResponse.json(
-                    { ok: false, error: "No se pudo marcar como pagado" },
-                    { status: 500 }
-                );
-            }
-        }
-
-        // 3) Asignar números usando la función de BD ALEATORIA
+        // 2) Asignar números usando la función de BD ALEATORIA
         const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
             "asignar_numeros_para_pedido",
             { p_pedido_id: pedido.id }
@@ -59,7 +43,6 @@ export async function POST(req: Request) {
 
         if (rpcError) {
             console.error("Error RPC asignar_numeros_para_pedido:", rpcError);
-
             const msg = rpcError.message || "";
 
             if (msg.includes("SIN_NUMEROS_DISPONIBLES")) {
@@ -69,9 +52,16 @@ export async function POST(req: Request) {
                 );
             }
 
-            if (msg.includes("PEDIDO_NO_PAGADO")) {
+            if (msg.includes("PEDIDO_SIN_ACTIVIDAD")) {
                 return NextResponse.json(
-                    { ok: false, error: "El pedido aún no está pagado en BD" },
+                    { ok: false, error: "El pedido no tiene actividad asociada" },
+                    { status: 400 }
+                );
+            }
+
+            if (msg.includes("CANTIDAD_INVALIDA")) {
+                return NextResponse.json(
+                    { ok: false, error: "La cantidad de números es inválida" },
                     { status: 400 }
                 );
             }
@@ -92,7 +82,7 @@ export async function POST(req: Request) {
                 if (typeof n?.numero_asignado === "number") return n.numero_asignado;
                 return NaN;
             })
-            .filter((x: number) => !Number.isNaN(x)); // <- AQUÍ se tipa x
+            .filter((x: number) => !Number.isNaN(x));
 
         if (!numeros.length) {
             return NextResponse.json(
@@ -103,6 +93,19 @@ export async function POST(req: Request) {
                 },
                 { status: 500 }
             );
+        }
+
+        // 3) Marcar pedido como pagado (si no lo está ya)
+        if (pedido.estado !== "pagado") {
+            const { error: updateError } = await supabaseAdmin
+                .from("pedidos")
+                .update({ estado: "pagado" })
+                .eq("id", pedido.id);
+
+            if (updateError) {
+                console.error("Error actualizando pedido:", updateError);
+                // No rompemos la respuesta (ya tiene números), sólo avisamos
+            }
         }
 
         return NextResponse.json({ ok: true, numeros });
