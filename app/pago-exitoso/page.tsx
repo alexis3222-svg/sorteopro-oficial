@@ -1,20 +1,36 @@
 "use client";
 
-import { useSearchParams, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
+
+type Entry = [string, string];
 
 export default function PagoExitosoPage() {
-    const searchParams = useSearchParams();
     const router = useRouter();
 
-    // Aceptar todas las variantes posibles de PayPhone
-    const tx =
-        searchParams.get("clientTransactionId") ||
-        searchParams.get("id") ||
-        searchParams.get("transactionId") ||
-        searchParams.get("clientTxId") ||
-        searchParams.get("tx");
+    const [tx, setTx] = useState<string | null>(null);
+    const [params, setParams] = useState<Entry[]>([]);
+    const [ready, setReady] = useState(false);
 
-    const entries = Array.from(searchParams.entries());
+    useEffect(() => {
+        if (typeof window === "undefined") return;
+
+        const search = window.location.search || "";
+        const usp = new URLSearchParams(search);
+
+        const entries = Array.from(usp.entries());
+        setParams(entries);
+
+        const foundTx =
+            usp.get("clientTransactionId") ||
+            usp.get("tx") ||
+            usp.get("id") ||
+            usp.get("transactionId") ||
+            usp.get("clientTxId");
+
+        setTx(foundTx);
+        setReady(true);
+    }, []);
 
     const tieneTx = Boolean(tx);
 
@@ -25,7 +41,11 @@ export default function PagoExitosoPage() {
                     ¡Pago realizado con éxito!
                 </h1>
 
-                {tieneTx ? (
+                {!ready ? (
+                    <p className="text-center text-gray-500 text-sm mb-2">
+                        Leyendo información de la compra...
+                    </p>
+                ) : tieneTx ? (
                     <p className="text-center text-gray-700 mb-2">
                         Hemos recibido tu pago correctamente.
                     </p>
@@ -36,29 +56,33 @@ export default function PagoExitosoPage() {
                 )}
 
                 {/* DEBUG: ver exactamente qué llega en la URL */}
-                <div className="mt-3 text-xs text-gray-600 border-t pt-3">
-                    <p className="font-semibold mb-1 text-center">
-                        Parámetros recibidos:
-                    </p>
-                    {entries.length === 0 ? (
-                        <p className="text-center text-gray-400">
-                            No llegó ningún parámetro.
+                {ready && (
+                    <div className="mt-3 text-xs text-gray-600 border-t pt-3">
+                        <p className="font-semibold mb-1 text-center">
+                            Parámetros recibidos:
                         </p>
-                    ) : (
-                        <ul className="list-disc list-inside space-y-0.5">
-                            {entries.map(([k, v]) => (
-                                <li key={k}>
-                                    <strong>{k}</strong>: {v}
-                                </li>
-                            ))}
-                        </ul>
-                    )}
-                </div>
+                        {params.length === 0 ? (
+                            <p className="text-center text-gray-400">
+                                No llegó ningún parámetro.
+                            </p>
+                        ) : (
+                            <ul className="list-disc list-inside space-y-0.5">
+                                {params.map(([k, v]) => (
+                                    <li key={k}>
+                                        <strong>{k}</strong>: {v}
+                                    </li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
 
                 <button
                     disabled={!tieneTx}
                     className="mt-5 w-full rounded-full bg-orange-500 text-white font-semibold py-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                    onClick={() => tx && router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`)}
+                    onClick={() =>
+                        tx && router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`)
+                    }
                 >
                     Ver mi compra
                 </button>
