@@ -1,94 +1,117 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-
-type Entry = [string, string];
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { supabase } from "@/lib/supabaseClient";
 
 export default function PagoExitosoPage() {
+    return (
+        <Suspense fallback={<div>Cargando...</div>}>
+            <PagoExitosoInner />
+        </Suspense>
+    );
+}
+
+function PagoExitosoInner() {
+    const searchParams = useSearchParams();
     const router = useRouter();
 
-    const [tx, setTx] = useState<string | null>(null);
-    const [params, setParams] = useState<Entry[]>([]);
-    const [ready, setReady] = useState(false);
+    const tx =
+        searchParams.get("clientTransactionId") ||
+        searchParams.get("tx") ||
+        searchParams.get("id");
 
+    const [loading, setLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [pedidoId, setPedidoId] = useState<number | null>(null);
+
+    // 🔥 Aquí insertamos la asignación automática
     useEffect(() => {
-        if (typeof window === "undefined") return;
+        if (!tx) {
+            setErrorMsg("No se recibió el código de transacción en la URL.");
+            setLoading(false);
+            return;
+        }
 
-        const search = window.location.search || "";
-        const usp = new URLSearchParams(search);
+        async function procesarPago() {
+            try {
+                // 1️⃣ Buscar el pedido por tx
+                const { data: pedido, error: pedidoError } = await supabase
+                    .from("pedidos")
+                    .select("id, estado")
+                    .eq("payphone_client_transaction_id", tx)
+                    .maybeSingle();
 
-        const entries = Array.from(usp.entries());
-        setParams(entries);
+                if (pedidoError || !pedido) {
+                    setErrorMsg("No se encontró el pedido asociado a esta transacción.");
+                    setLoading(false);
+                    return;
+                }
 
-        const foundTx =
-            usp.get("clientTransactionId") ||
-            usp.get("tx") ||
-            usp.get("id") ||
-            usp.get("transactionId") ||
-            usp.get("clientTxId");
+                setPedidoId(pedido.id);
 
-        setTx(foundTx);
-        setReady(true);
-    }, []);
+                // 2️⃣ Llamar al endpoint que marca como pagado y asigna números
+                const res = await fetch("/api/admin/pedidos/marcar-pagado", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pedidoId: pedido.id })
+                });
 
-    const tieneTx = Boolean(tx);
+                const result = await res.json();
+
+                if (!result.ok) {
+                    console.error("Error asignando números:", result);
+                    setErrorMsg("El pago fue recibido, pero no se pudieron asignar los números.");
+                }
+            } catch (err) {
+                console.error(err);
+                setErrorMsg("Ocurrió un error procesando la compra.");
+            }
+
+            setLoading(false);
+        }
+
+        procesarPago();
+    }, [tx]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                Procesando pedido...
+            </div>
+        );
+    }
 
     return (
-        <main className="min-h-screen flex items-center justify-center bg-[#f5f6f8] px-4">
-            <div className="w-full max-w-md rounded-3xl bg-white shadow-lg border border-orange-200 p-6">
-                <h1 className="text-2xl font-bold text-orange-600 text-center mb-2">
+        <main className="min-h-screen flex items-center justify-center">
+            <div className="p-6 max-w-md bg-white rounded-xl shadow">
+
+                <h1 className="text-xl font-bold text-orange-600">
                     ¡Pago realizado con éxito!
                 </h1>
 
-                {!ready ? (
-                    <p className="text-center text-gray-500 text-sm mb-2">
-                        Leyendo información de la compra...
-                    </p>
-                ) : tieneTx ? (
-                    <p className="text-center text-gray-700 mb-2">
-                        Hemos recibido tu pago correctamente.
-                    </p>
-                ) : (
-                    <p className="text-center text-red-600 text-sm mb-2">
-                        No se recibió el código de transacción en la URL.
-                    </p>
+                <p className="mt-2">Hemos recibido tu pago correctamente.</p>
+
+                {errorMsg && (
+                    <p className="mt-2 text-red-500 text-sm">{errorMsg}</p>
                 )}
 
-                {/* DEBUG: ver exactamente qué llega en la URL */}
-                {ready && (
-                    <div className="mt-3 text-xs text-gray-600 border-t pt-3">
-                        <p className="font-semibold mb-1 text-center">
-                            Parámetros recibidos:
-                        </p>
-                        {params.length === 0 ? (
-                            <p className="text-center text-gray-400">
-                                No llegó ningún parámetro.
-                            </p>
-                        ) : (
-                            <ul className="list-disc list-inside space-y-0.5">
-                                {params.map(([k, v]) => (
-                                    <li key={k}>
-                                        <strong>{k}</strong>: {v}
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </div>
+                {pedidoId && (
+                    <ul className="mt-4 text-sm text-slate-600">
+                        <li><strong>clientTransactionId:</strong> {tx}</li>
+                        <li><strong>Pedido ID:</strong> {pedidoId}</li>
+                    </ul>
                 )}
 
                 <button
-                    disabled={!tieneTx}
-                    className="mt-5 w-full rounded-full bg-orange-500 text-white font-semibold py-2 disabled:opacity-40 disabled:cursor-not-allowed"
-                    onClick={() =>
-                        tx && router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`)
-                    }
+                    className="mt-4 bg-orange-500 text-white px-4 py-2 rounded w-full"
+                    onClick={() => router.push(`/mi-compra?tx=${tx}`)}
                 >
                     Ver mi compra
                 </button>
 
                 <button
-                    className="mt-2 w-full rounded-full bg-gray-100 text-gray-800 font-medium py-2 border border-gray-200"
+                    className="mt-3 bg-gray-200 px-4 py-2 rounded w-full"
                     onClick={() => router.push("/")}
                 >
                     Regresar al inicio
