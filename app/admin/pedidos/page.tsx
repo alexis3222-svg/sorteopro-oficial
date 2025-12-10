@@ -72,7 +72,7 @@ export default function AdminPedidosPage() {
         fetchPedidos();
     }, []);
 
-    // 👉 CAMBIAR ESTADO (ya no toca numeros_asignados)
+    // 👉 CAMBIAR ESTADO (usa endpoints para asignar / liberar números)
     const cambiarEstado = async (id: number, nuevoEstado: EstadoPedido) => {
         const pedidoActual = pedidos.find((p) => p.id === id);
         if (!pedidoActual) return;
@@ -83,8 +83,8 @@ export default function AdminPedidosPage() {
         try {
             setUpdatingId(id);
 
-            // 1️⃣ Si lo marcamos PAGADO → usamos nuestro endpoint central
             if (nuevoEstado === "pagado") {
+                // 🔵 PAGADO → asignar números vía API
                 const res = await fetch("/api/admin/pedidos/marcar-pagado", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
@@ -99,17 +99,22 @@ export default function AdminPedidosPage() {
                     return;
                 }
             } else {
-                // 2️⃣ Pendiente / Cancelado → solo actualizar la columna estado del pedido
-                const { error: errorPedido } = await supabase
-                    .from("pedidos")
-                    .update({ estado: nuevoEstado })
-                    .eq("id", id);
+                // 🟠 PENDIENTE o CANCELADO → liberar números + actualizar estado vía API
+                const res = await fetch("/api/admin/pedidos/cancelar", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ pedidoId: id, nuevoEstado }),
+                });
 
-                if (errorPedido) {
-                    console.error("Error actualizando estado:", errorPedido.message);
-                    alert("No se pudo actualizar el estado del pedido: " + errorPedido.message);
+                const data = await res.json();
+
+                if (!res.ok || !data.ok) {
+                    console.error("Error al liberar / cambiar estado:", data);
+                    alert(data.error || "No se pudo actualizar el estado del pedido.");
                     return;
                 }
+
+                console.log(`Números liberados para pedido ${id}:`, data.liberados);
             }
 
             // 3️⃣ Refrescar en memoria
@@ -279,7 +284,7 @@ export default function AdminPedidosPage() {
 
     return (
         <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-            {/* ... header y resumen iguales ... */}
+            {/* Aquí iría tu header y resumen usando totalPedidos, totalPagados, etc. */}
 
             <section className="overflow-x-auto rounded-2xl bg-[#14151c] p-4 shadow-lg border border-white/10">
                 {loading ? (
@@ -291,7 +296,18 @@ export default function AdminPedidosPage() {
                 ) : (
                     <table className="min-w-full text-left text-xs md:text-sm text-slate-200">
                         <thead className="border-b border-white/10 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                            {/* ... encabezados iguales ... */}
+                            {/* Encabezados de tu tabla */}
+                            <tr>
+                                <th className="px-3 py-2">ID</th>
+                                <th className="px-3 py-2">Fecha</th>
+                                <th className="px-3 py-2">Actividad</th>
+                                <th className="px-3 py-2">Cliente</th>
+                                <th className="px-3 py-2">Contacto</th>
+                                <th className="px-3 py-2">Paquete</th>
+                                <th className="px-3 py-2">Total</th>
+                                <th className="px-3 py-2">Estado</th>
+                                <th className="px-3 py-2">Acciones</th>
+                            </tr>
                         </thead>
 
                         <tbody>
@@ -354,7 +370,13 @@ export default function AdminPedidosPage() {
                                         key={pedido.id}
                                         className="border-b border-white/5 hover:bg-white/5"
                                     >
-                                        {/* ... celdas de datos iguales ... */}
+                                        <td className="px-3 py-3 text-xs">{pedido.id}</td>
+                                        <td className="px-3 py-3 text-xs">{fechaLabel}</td>
+                                        <td className="px-3 py-3 text-xs">{actividadLabel}</td>
+                                        <td className="px-3 py-3 text-xs">{clienteLabel}</td>
+                                        <td className="px-3 py-3 text-xs">{contactoLabel}</td>
+                                        <td className="px-3 py-3 text-xs">{paqueteLabel}</td>
+                                        <td className="px-3 py-3 text-xs">{totalLabel}</td>
 
                                         <td className="px-3 py-3 text-center">
                                             <span
@@ -369,9 +391,7 @@ export default function AdminPedidosPage() {
                                                 {estado !== "pagado" && (
                                                     <button
                                                         disabled={disabled}
-                                                        onClick={() =>
-                                                            cambiarEstado(pedido.id, "pagado")
-                                                        }
+                                                        onClick={() => cambiarEstado(pedido.id, "pagado")}
                                                         className="rounded-full bg-emerald-500/80 px-3 py-1 font-semibold text-[10px] uppercase tracking-[0.12em] hover:bg-emerald-500 disabled:opacity-40"
                                                     >
                                                         Pagado
