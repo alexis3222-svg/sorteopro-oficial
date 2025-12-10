@@ -35,15 +35,31 @@ export async function POST(req: Request) {
             );
         }
 
-        // 2) Asignar números usando la función de BD ALEATORIA
-        //    La función debe ser: asignar_numeros_para_pedido(p_pedido_id int)
+        // 2) Marcar como pagado (si no lo está ya)
+        if (pedido.estado !== "pagado") {
+            const { error: updateError } = await supabaseAdmin
+                .from("pedidos")
+                .update({ estado: "pagado" })
+                .eq("id", pedido.id);
+
+            if (updateError) {
+                console.error("Error actualizando pedido:", updateError);
+                return NextResponse.json(
+                    { ok: false, error: "No se pudo marcar como pagado" },
+                    { status: 500 }
+                );
+            }
+        }
+
+        // 3) Asignar números usando la función PRO (idempotente)
         const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
-            "asignar_numeros_para_pedido",
+            "asignar_numeros_pedido",
             { p_pedido_id: pedido.id }
         );
 
         if (rpcError) {
-            console.error("Error RPC asignar_numeros_para_pedido:", rpcError);
+            console.error("Error RPC asignar_numeros_pedido:", rpcError);
+
             const msg = rpcError.message || "";
 
             if (msg.includes("SIN_NUMEROS_DISPONIBLES")) {
@@ -53,69 +69,23 @@ export async function POST(req: Request) {
                 );
             }
 
-            if (msg.includes("PEDIDO_SIN_ACTIVIDAD")) {
+            if (msg.includes("PEDIDO_NO_PAGADO")) {
                 return NextResponse.json(
-                    { ok: false, error: "El pedido no tiene actividad asociada" },
+                    { ok: false, error: "El pedido aún no está pagado en BD" },
                     { status: 400 }
                 );
             }
 
-            if (msg.includes("CANTIDAD_INVALIDA")) {
-                return NextResponse.json(
-                    { ok: false, error: "La cantidad de números es inválida" },
-                    { status: 400 }
-                );
-            }
-
-            if (msg.includes("TOTAL_INVALIDO")) {
-                return NextResponse.json(
-                    { ok: false, error: "El sorteo no tiene total_numeros válido" },
-                    { status: 400 }
-                );
-            }
-
+            // TEMPORAL: mensaje crudo para depurar
             return NextResponse.json(
                 { ok: false, error: `RPC: ${msg}` },
                 { status: 500 }
             );
         }
 
-        const numeros = (rpcData ?? []) as any[];
+        const numeros: number[] = rpcData || [];
 
-        // Si la función no devolvió nada, algo está mal
-        if (!numeros.length) {
-            console.error(
-                "asignar_numeros_para_pedido no devolvió filas para pedido:",
-                pedido.id
-            );
-            return NextResponse.json(
-                {
-                    ok: false,
-                    error:
-                        "La función de asignación no devolvió números. Verifica la lógica en la BD.",
-                },
-                { status: 500 }
-            );
-        }
-
-        // 3) Marcar pedido como pagado (si no lo está ya)
-        if (pedido.estado !== "pagado") {
-            const { error: updateError } = await supabaseAdmin
-                .from("pedidos")
-                .update({ estado: "pagado" })
-                .eq("id", pedido.id);
-
-            if (updateError) {
-                console.error("Error actualizando pedido:", updateError);
-                // No rompemos la respuesta (ya tiene números), sólo avisamos en logs
-            }
-        }
-
-        // 4) Devolver ok; el frontend solo necesita saber si salió bien
-        return NextResponse.json({
-            ok: true,
-            numeros, // por si en el futuro quieres ver qué devolvió
-        });
+        return NextResponse.json({ ok: true, numeros });
     } catch (e: any) {
         console.error("Error inesperado en marcar-pagado:", e);
         return NextResponse.json(
