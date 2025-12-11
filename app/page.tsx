@@ -393,6 +393,12 @@ export default function HomePage() {
             ¡ADQUIERE TUS NÚMEROS!
           </p>
 
+          {/* PREMIOS INSTANTÁNEOS (DINÁMICO) */}
+          <section className="w-full py-6">
+            <NumerosBendecidos sorteoId={sorteo.id} />
+          </section>
+
+
           <p className="text-[13px] font-extrabold text-slate-700">
             Valor de la unidad:{" "}
             <span className="font-extrabold text-slate-700">
