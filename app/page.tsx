@@ -724,7 +724,7 @@ export default function HomePage() {
                   </p>
 
                   <a
-                    href={`https://wa.me/593999999999?text=${encodeURIComponent(
+                    href={`https://wa.me/593980966034?text=${encodeURIComponent(
                       `Hola, te envío el comprobante del pedido del paquete x${selectedCantidad} por $${totalPaquete.toFixed(
                         2
                       )}.`
