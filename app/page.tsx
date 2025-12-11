@@ -703,6 +703,13 @@ export default function HomePage() {
                     </span>
                   </div>
 
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Whatsapp:</span>
+                    <span className="font-mono text-slate-100">
+                      0980966034
+                    </span>
+                  </div>
+
                   <div className="flex justify-between pt-2 border-t border-white/10">
                     <span className="text-slate-400">Monto a pagar:</span>
                     <span className="font-bold text-[#FF7F00]">
