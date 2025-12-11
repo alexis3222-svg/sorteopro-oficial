@@ -14,11 +14,6 @@ type SorteoRow = {
     total_numeros: number | null;
     precio_numero: number | null;
     galeria_urls?: string[] | null;
-
-    // 🔥 Campos que vienen de la vista sorteos_con_estadisticas
-    numeros_vendidos_reales: number;
-    ultimo_numero_asignado_real: number;
-    porcentaje_vendido: number;
 };
 
 export default function EditSorteoPage() {
@@ -33,6 +28,9 @@ export default function EditSorteoPage() {
     const [recaudadoReal, setRecaudadoReal] = useState<number | null>(null);
     const [resetting, setResetting] = useState(false);
 
+    // 🔥 nuevo: números vendidos calculados desde numeros_asignados
+    const [numerosVendidosReal, setNumerosVendidosReal] = useState<number>(0);
+
     useEffect(() => {
         if (!id) return;
 
@@ -40,9 +38,9 @@ export default function EditSorteoPage() {
             setLoading(true);
             setErrorMsg(null);
 
-            // 1) leer el sorteo DESDE LA VISTA con stats reales
+            // 1) leer el sorteo desde la tabla principal
             const { data: sorteoData, error: sorteoError } = await supabase
-                .from("sorteos_con_estadisticas") // 👈 vista, no la tabla sorteos
+                .from("sorteos")
                 .select("*")
                 .eq("id", id)
                 .single();
@@ -74,6 +72,19 @@ export default function EditSorteoPage() {
                 setRecaudadoReal(totalRecaudado);
             }
 
+            // 3) contar números vendidos reales desde numeros_asignados
+            const { count, error: countError } = await supabase
+                .from("numeros_asignados")
+                .select("*", { count: "exact", head: true })
+                .eq("sorteo_id", id)
+                .eq("estado", "asignado");
+
+            if (countError) {
+                console.error("Error contando numeros_asignados:", countError);
+            } else {
+                setNumerosVendidosReal(count ?? 0);
+            }
+
             setLoading(false);
         };
 
@@ -86,14 +97,8 @@ export default function EditSorteoPage() {
         [sorteo]
     );
 
-    // 🔥 Siempre usamos el valor real que viene de la vista
-    const numerosVendidos = useMemo(
-        () =>
-            sorteo?.numeros_vendidos_reales != null
-                ? Number(sorteo.numeros_vendidos_reales)
-                : 0,
-        [sorteo]
-    );
+    // 🔥 usamos SIEMPRE el valor real calculado
+    const numerosVendidos = numerosVendidosReal;
 
     const precioNumero = useMemo(
         () => (sorteo?.precio_numero ? Number(sorteo.precio_numero) : 0),
@@ -197,7 +202,7 @@ export default function EditSorteoPage() {
                     </button>
                 </header>
 
-                {/* Resumen del sorteo (card grande + card lateral) */}
+                {/* Resumen del sorteo (cards) */}
                 <section className="grid gap-4 md:grid-cols-3">
                     {/* Info principal */}
                     <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-4">
@@ -230,40 +235,28 @@ export default function EditSorteoPage() {
                         )}
                     </div>
 
-                    {/* Tarjeta lateral con KPIs (una sola card) */}
-                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-4 flex flex-col justify-between">
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-2">
-                            Resumen de números
-                        </p>
-
-                        <div className="space-y-3 text-sm">
-                            <div className="flex items-baseline justify-between">
-                                <span className="text-slate-400 text-xs">
-                                    Números vendidos
+                    {/* KPIs del sorteo */}
+                    <div className="space-y-3">
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
+                            <p className="text-[11px] text-slate-400">Números vendidos</p>
+                            <p className="mt-1 text-xl font-semibold">
+                                {numerosVendidos}{" "}
+                                <span className="text-xs text-slate-400">
+                                    / {totalNumeros || "—"}
                                 </span>
-                                <span className="font-semibold text-base">
-                                    {numerosVendidos}{" "}
-                                    <span className="text-xs text-slate-400">
-                                        / {totalNumeros || "—"}
-                                    </span>
-                                </span>
-                            </div>
-
-                            <div className="flex items-baseline justify-between">
-                                <span className="text-slate-400 text-xs">
-                                    Números restantes
-                                </span>
-                                <span className="font-semibold text-base">
-                                    {numerosRestantes}
-                                </span>
-                            </div>
-
-                            <div className="flex items-baseline justify-between">
-                                <span className="text-slate-400 text-xs">Recaudado</span>
-                                <span className="font-semibold text-base">
-                                    ${recaudado.toFixed(2)}
-                                </span>
-                            </div>
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
+                            <p className="text-[11px] text-slate-400">Números restantes</p>
+                            <p className="mt-1 text-xl font-semibold">
+                                {numerosRestantes}
+                            </p>
+                        </div>
+                        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
+                            <p className="text-[11px] text-slate-400">Recaudado</p>
+                            <p className="mt-1 text-xl font-semibold">
+                                ${recaudado.toFixed(2)}
+                            </p>
                         </div>
                     </div>
                 </section>
