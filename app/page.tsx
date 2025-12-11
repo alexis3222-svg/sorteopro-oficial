@@ -12,7 +12,8 @@ const anton = Anton({
   weight: "400",
 });
 
-type ModalStep = "resumen" | "pago" | "ok";
+// 👈 CAMBIO 1: agregamos "transferencia"
+type ModalStep = "resumen" | "pago" | "transferencia" | "ok";
 
 type NumeroAsignado = {
   numero: string | number;
@@ -182,8 +183,8 @@ export default function HomePage() {
       // 1) Insertar pedido en Supabase
       const estadoInicial =
         metodoPago === "payphone"
-          ? "en_proceso"   // 🔸 PayPhone → NO aparece en pendientes
-          : "pendiente";   // 🔸 Transferencia → SÍ aparece en pendientes
+          ? "en_proceso" // 🔸 PayPhone → NO aparece en pendientes
+          : "pendiente"; // 🔸 Transferencia / tarjeta → pendiente
 
       const { data: inserted, error } = await supabase
         .from("pedidos")
@@ -197,13 +198,12 @@ export default function HomePage() {
           nombre: nombreCliente.trim(),
           telefono: telefonoCliente.trim(),
           correo: correoCliente.trim(),
-          estado: estadoInicial,   // ← 👈 YA NO ES "pendiente" fijo
+          estado: estadoInicial,
           payphone_client_transaction_id:
             metodoPago === "payphone" ? clientTransactionId : null,
         })
         .select()
         .single();
-
 
       if (error || !inserted) {
         console.error("Error guardando pedido:", error);
@@ -229,9 +229,11 @@ export default function HomePage() {
             clientTransactionId
           )}`
         );
+      } else if (metodoPago === "transferencia") {
+        // 👈 CAMBIO 2: Transferencia → mostrar modal bancario
+        setModalStep("transferencia");
       } else {
-        // 🧾 Transferencia o tarjeta manual:
-        // 👉 SOLO dejamos el pedido en pendiente, SIN asignar números aquí
+        // 🧾 Tarjeta manual u otro canal:
         setModalStep("ok");
       }
     } catch (err: any) {
@@ -244,7 +246,6 @@ export default function HomePage() {
       setSavingOrder(false);
     }
   };
-
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
@@ -377,7 +378,7 @@ export default function HomePage() {
 
           <ProgressBar value={progresoMostrado} />
 
-          <p className="text-center text-[13px] md:text-[15px] font-normal text-slate-600 leading-relaxed">
+          <p className="text-center text-[13px] md:text[15px] font-normal text-slate-600 leading-relaxed">
             Los vehículos se jugarán una vez vendida la totalidad de los
             números, es decir, cuando la barra de progreso llegue al 100%.
           </p>
@@ -421,10 +422,6 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-
-      {/* PREMIOS INSTANTÁNEOS (DINÁMICO) */}
-      {/* <NumerosBendecidos sorteoId={sorteo.id} /> */}
-
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
@@ -661,6 +658,94 @@ export default function HomePage() {
                   </button>
                 </div>
               </form>
+            )}
+
+            {/* 👈 CAMBIO 3: NUEVO PASO PARA TRANSFERENCIA */}
+            {modalStep === "transferencia" && (
+              <>
+                <h3
+                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
+                >
+                  Datos para transferencia
+                </h3>
+
+                <p className="mt-3 text-xs text-slate-300 text-center">
+                  Tu pedido fue registrado correctamente. Ahora realiza la
+                  transferencia y envía el comprobante.
+                </p>
+
+                <div className="mt-5 space-y-2 rounded-xl bg-[#15161b] p-4 text-sm border border-white/10">
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Banco:</span>
+                    <span className="font-semibold text-slate-100">
+                      Banco Pichincha
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Tipo de cuenta:</span>
+                    <span className="font-semibold text-slate-100">
+                      Ahorros
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Número de cuenta:</span>
+                    <span className="font-mono text-slate-100">
+                      1234567890
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between">
+                    <span className="text-slate-400">Titular:</span>
+                    <span className="font-semibold text-slate-100">
+                      ALEXIS AMAGUAY VÁSQUEZ
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between pt-2 border-t border-white/10">
+                    <span className="text-slate-400">Monto a pagar:</span>
+                    <span className="font-bold text-[#FF7F00]">
+                      ${totalPaquete.toFixed(2)}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-4 text-center">
+                  <p className="text-xs text-slate-300 mb-2">
+                    Envía el comprobante por WhatsApp:
+                  </p>
+
+                  <a
+                    href={`https://wa.me/593999999999?text=${encodeURIComponent(
+                      `Hola, te envío el comprobante del pedido del paquete x${selectedCantidad} por $${totalPaquete.toFixed(
+                        2
+                      )}.`
+                    )}`}
+                    target="_blank"
+                    className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-black shadow hover:bg-emerald-400 transition"
+                  >
+                    📲 Enviar comprobante
+                  </a>
+                </div>
+
+                <p className="mt-4 text-[11px] text-slate-400 text-center">
+                  Una vez verificado tu pago, cambiaremos el estado de tu pedido
+                  a <span className="font-semibold text-emerald-300">
+                    PAGADO
+                  </span>{" "}
+                  y se asignarán tus números.
+                </p>
+
+                <div className="mt-5 flex flex-col gap-2">
+                  <button
+                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
+                    onClick={handleCerrarModal}
+                  >
+                    Cerrar
+                  </button>
+                </div>
+              </>
             )}
 
             {modalStep === "ok" && (
