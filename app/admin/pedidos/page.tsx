@@ -25,7 +25,8 @@ type PedidoRow = {
     telefono: string | null;
 };
 
-type EstadoPedido = "pendiente" | "pagado" | "cancelado";
+// 👇 incluimos en_proceso porque ahora existe ese estado
+type EstadoPedido = "pendiente" | "pagado" | "cancelado" | "en_proceso";
 
 export default function AdminPedidosPage() {
     const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
@@ -43,18 +44,18 @@ export default function AdminPedidosPage() {
             .from("pedidos")
             .select(
                 `
-          id,
-          created_at,
-          sorteo_id,
-          actividad_numero,
-          cantidad_numeros,
-          precio_unitario,
-          total,
-          metodo_pago,
-          estado,
-          nombre,
-          telefono
-        `
+        id,
+        created_at,
+        sorteo_id,
+        actividad_numero,
+        cantidad_numeros,
+        precio_unitario,
+        total,
+        metodo_pago,
+        estado,
+        nombre,
+        telefono
+      `
             )
             .order("id", { ascending: false });
 
@@ -80,6 +81,8 @@ export default function AdminPedidosPage() {
         const estadoActual = (
             pedidoActual.estado || "pendiente"
         ).toLowerCase() as EstadoPedido;
+
+        // Si ya está en ese estado, no hacemos nada
         if (estadoActual === nuevoEstado) return;
 
         try {
@@ -125,460 +128,270 @@ export default function AdminPedidosPage() {
                 );
             }
 
-            // 3️⃣ Refrescar en memoria
-            setPedidos((prev) =>
-                prev.map((p) =>
-                    p.id === id
-                        ? {
-                            ...p,
-                            estado: nuevoEstado,
-                        }
-                        : p
-                )
-            );
+            // 🔄 refrescar lista después de cambiar estado
+            await fetchPedidos();
+        } catch (err) {
+            console.error("Error cambiando estado del pedido:", err);
+            alert("Ocurrió un error inesperado al cambiar el estado del pedido.");
         } finally {
             setUpdatingId(null);
         }
     };
 
-    // copiar números para WhatsApp (SOLO LEE, no asigna)
-    const copiarNumerosPedido = async (pedido: PedidoRow) => {
-        const estado = (pedido.estado || "pendiente").toLowerCase();
+    // 💡 listas filtradas:
+    // Solo transferencias pendientes
+    const pendientesTransferencia = pedidos.filter(
+        (p) => p.estado === "pendiente" && p.metodo_pago === "transferencia"
+    );
 
-        // 🔒 No permitir copiar si NO está pagado
-        if (estado !== "pagado" && estado !== "confirmado") {
-            alert(
-                "Primero marca este pedido como PAGADO para poder copiar los números."
-            );
-            return;
+    // PayPhone en proceso (opcional para otro tab / métricas)
+    const payphoneEnProceso = pedidos.filter(
+        (p) => p.estado === "en_proceso" && p.metodo_pago === "payphone"
+    );
+
+    const pagados = pedidos.filter((p) => p.estado === "pagado");
+    const cancelados = pedidos.filter((p) => p.estado === "cancelado");
+
+    const totalPedidos = pedidos.length;
+    const totalPagados = pagados.length;
+    const totalPendientes = pendientesTransferencia.length;
+
+    const totalRecaudado = pagados.reduce((sum, p) => sum + (p.total || 0), 0);
+
+    // 🔹 helpers para pintar ESTADO correctamente
+    const getEstadoLabel = (estado: string | null, metodo_pago: string | null) => {
+        const e = (estado || "").toLowerCase();
+
+        if (e === "pagado") return "PAGADO";
+        if (e === "cancelado") return "CANCELADO";
+
+        if (e === "en_proceso" && metodo_pago === "payphone") {
+            return "EN PROCESO";
         }
 
-        setCopyingId(pedido.id);
+        // lo demás sí es pendiente
+        return "PENDIENTE";
+    };
+
+    const getEstadoClass = (estado: string | null, metodo_pago: string | null) => {
+        const e = (estado || "").toLowerCase();
+
+        if (e === "pagado") return "bg-emerald-900/60 text-emerald-200";
+        if (e === "cancelado") return "bg-red-900/60 text-red-200";
+
+        if (e === "en_proceso" && metodo_pago === "payphone") {
+            // puedes ajustarlo a tu paleta
+            return "bg-blue-900/60 text-blue-200";
+        }
+
+        // pendiente
+        return "bg-yellow-900/60 text-yellow-200";
+    };
+
+    const formatFecha = (iso: string | null) => {
+        if (!iso) return "-";
         try {
-            const { data, error } = await supabase
-                .from("numeros_asignados")
-                .select("numero")
-                .eq("pedido_id", pedido.id)
-                .order("numero", { ascending: true });
-
-            if (error) {
-                console.error("Error leyendo numeros_asignados:", error.message);
-                alert("No se pudieron leer los números de este pedido.");
-                return;
-            }
-
-            if (!data || data.length === 0) {
-                alert("Este pedido aún no tiene números asignados.");
-                return;
-            }
-
-            const lista = data
-                .map((n: any) => n.numero.toString().padStart(5, "0"))
-                .join(", ");
-
-            const nombre = pedido.nombre?.trim() || "participante";
-            const actividad = pedido.actividad_numero
-                ? `la Actividad #${pedido.actividad_numero}`
-                : "la actividad";
-
-            const mensaje = `Hola ${nombre}, estos son tus números para ${actividad}: ${lista}`;
-
-            if (navigator.clipboard?.writeText) {
-                await navigator.clipboard.writeText(mensaje);
-                alert("Texto copiado al portapapeles. Pégalo en WhatsApp.");
-            } else {
-                alert(mensaje);
-            }
-        } catch (err) {
-            console.error("Error copiando números:", err);
-            alert("Ocurrió un error al copiar los números.");
-        } finally {
-            setCopyingId(null);
+            return new Date(iso).toLocaleString("es-EC", {
+                day: "2-digit",
+                month: "2-digit",
+                year: "2-digit",
+                hour: "2-digit",
+                minute: "2-digit",
+            });
+        } catch {
+            return iso;
         }
     };
 
-    // RESUMEN
-    const totalPedidos = pedidos.length;
-
-    const totalPagados = pedidos.filter((p) => {
-        const e = (p.estado || "pendiente").toLowerCase();
-        return e === "pagado" || e === "confirmado";
-    }).length;
-
-    const totalPendientes = pedidos.filter((p) => {
-        const e = (p.estado || "pendiente").toLowerCase();
-        return e === "pendiente";
-    }).length;
-
-    const totalCancelados = pedidos.filter((p) => {
-        const e = (p.estado || "pendiente").toLowerCase();
-        return e === "cancelado";
-    }).length;
-
-    const totalRecaudado = pedidos.reduce((acc, p) => {
-        const e = (p.estado || "pendiente").toLowerCase();
-        if (e === "pagado" || e === "confirmado") {
-            return acc + (p.total ?? 0);
-        }
-        return acc;
-    }, 0);
-
-    // Exportar CSV
-    const handleExportCSV = () => {
-        if (!pedidos.length) {
-            alert("No hay pedidos para exportar.");
-            return;
-        }
-
-        const headers = [
-            "ID",
-            "Fecha",
-            "Actividad",
-            "Cliente",
-            "Telefono",
-            "MetodoPago",
-            "Estado",
-            "CantidadNumeros",
-            "PrecioUnitario",
-            "Total",
-            "SorteoID",
-        ];
-
-        const rows = pedidos.map((p) => {
-            const fecha = p.created_at
-                ? new Date(p.created_at).toLocaleString("es-EC")
-                : "";
-            const actividad = p.actividad_numero ?? "";
-            const cliente = (p.nombre || "").replace(/"/g, '""');
-            const telefono = (p.telefono || "").replace(/"/g, '""');
-            const metodo = (p.metodo_pago || "").replace(/"/g, '""');
-            const estado = (p.estado || "").toLowerCase();
-            const cantidad = p.cantidad_numeros ?? "";
-            const precio =
-                p.precio_unitario != null ? p.precio_unitario.toFixed(2) : "";
-            const total = p.total != null ? p.total.toFixed(2) : "";
-            const sorteoId = p.sorteo_id ?? "";
-
-            return [
-                p.id,
-                `"${fecha}"`,
-                actividad,
-                `"${cliente}"`,
-                `"${telefono}"`,
-                `"${metodo}"`,
-                `"${estado}"`,
-                cantidad,
-                precio,
-                total,
-                sorteoId,
-            ].join(";");
-        });
-
-        const csvContent = [headers.join(";"), ...rows].join("\n");
-
-        const blob = new Blob([csvContent], {
-            type: "text/csv;charset=utf-8;",
-        });
-
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement("a");
-        const today = new Date().toISOString().slice(0, 10);
-
-        link.href = url;
-        link.setAttribute("download", `pedidos_sorteopro_${today}.csv`);
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
-        URL.revokeObjectURL(url);
+    const copiarWhatsApp = (pedido: PedidoRow) => {
+        const mensaje = `Hola ${pedido.nombre || ""}, te escribimos de SorteoPro / CasaBikers sobre tu pedido #${pedido.id
+            } por $${pedido.total?.toFixed(2) || "0.00"
+            }.`;
+        navigator.clipboard.writeText(mensaje);
+        setCopyingId(pedido.id);
+        setTimeout(() => setCopyingId(null), 1200);
     };
 
     return (
-        <main className="min-h-screen bg-[#050609] text-slate-100">
-            <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
-                {/* HEADER ELEGANTE */}
-                <header className="mb-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                    <div>
-                        <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-orange-400">
-                            SORTEOPRO • ADMIN
-                        </p>
-                        <h1
-                            className={`${anton.className} mt-1 text-2xl md:text-3xl tracking-wide`}
-                        >
-                            Panel de pedidos
-                        </h1>
-                        <p className="mt-1 text-xs md:text-sm text-slate-400">
-                            Gestiona pagos, estados y números asignados de cada cliente.
-                        </p>
-                    </div>
+        <main className="min-h-screen bg-[#05060a] text-slate-50 px-6 py-8">
+            <header className="mb-8 flex items-center justify-between">
+                <div>
+                    <h1
+                        className={`${anton.className} text-3xl md:text-4xl tracking-wide`}
+                    >
+                        Panel de pedidos
+                    </h1>
+                    <p className="text-sm text-slate-400">
+                        Gestiona pagos, estados y números asignados de cada cliente.
+                    </p>
+                </div>
 
-                    <div className="flex flex-wrap items-center gap-3 justify-start md:justify-end">
-                        <Link
-                            href="/admin"
-                            className="inline-flex items-center rounded-full border border-white/15 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-100 hover:bg-white/10 transition"
-                        >
-                            <span className="mr-2 text-lg leading-none">←</span>
-                            Panel admin
-                        </Link>
+                <div className="flex gap-3">
+                    <Link
+                        href="/admin"
+                        className="rounded-full border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800 transition"
+                    >
+                        ← Panel admin
+                    </Link>
+                    <Link
+                        href="/"
+                        className="rounded-full bg-gradient-to-r from-orange-500 to-yellow-400 px-4 py-2 text-sm font-semibold text-black shadow hover:opacity-90 transition"
+                    >
+                        Ver sitio público
+                    </Link>
+                </div>
+            </header>
 
-                        <button
-                            onClick={handleExportCSV}
-                            className="inline-flex items-center rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-100 hover:bg-white/10 transition"
-                        >
-                            Exportar CSV
-                        </button>
+            {/* Tarjetas resumen */}
+            <section className="mb-6 grid gap-4 md:grid-cols-4">
+                <div className="rounded-2xl bg-slate-900/80 px-4 py-3">
+                    <p className="text-xs text-slate-400">Total pedidos</p>
+                    <p className="mt-1 text-2xl font-semibold">{totalPedidos}</p>
+                </div>
+                <div className="rounded-2xl bg-emerald-900/40 px-4 py-3">
+                    <p className="text-xs text-emerald-200/70">Pagados</p>
+                    <p className="mt-1 text-2xl font-semibold text-emerald-200">
+                        {totalPagados}
+                    </p>
+                </div>
+                <div className="rounded-2xl bg-yellow-900/40 px-4 py-3">
+                    <p className="text-xs text-yellow-200/70">Pendientes (transferencia)</p>
+                    <p className="mt-1 text-2xl font-semibold text-yellow-100">
+                        {totalPendientes}
+                    </p>
+                </div>
+                <div className="rounded-2xl bg-slate-900/80 px-4 py-3">
+                    <p className="text-xs text-slate-400">Recaudado</p>
+                    <p className="mt-1 text-2xl font-semibold">${totalRecaudado.toFixed(2)}</p>
+                </div>
+            </section>
 
-                        <Link
-                            href="/"
-                            className="inline-flex items-center rounded-full border border-orange-500/40 bg-gradient-to-r from-orange-500/80 to-yellow-400/80 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-black hover:from-orange-400 hover:to-yellow-300 transition shadow-lg shadow-orange-500/30"
-                        >
-                            Ver sitio público
-                        </Link>
-                    </div>
-                </header>
-
-                {/* RESUMEN DE MÉTRICAS */}
-                <section className="grid grid-cols-2 md:grid-cols-4 gap-3">
-                    <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-slate-400">
-                            Total pedidos
-                        </p>
-                        <p className="mt-1 text-xl font-semibold">
-                            {totalPedidos}
-                        </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-emerald-400/30 bg-emerald-500/10 px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-emerald-200">
-                            Pagados
-                        </p>
-                        <p className="mt-1 text-xl font-semibold text-emerald-100">
-                            {totalPagados}
-                        </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-yellow-400/30 bg-yellow-500/10 px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-yellow-100">
-                            Pendientes
-                        </p>
-                        <p className="mt-1 text-xl font-semibold text-yellow-50">
-                            {totalPendientes}
-                        </p>
-                    </div>
-
-                    <div className="rounded-2xl border border-red-400/30 bg-red-500/10 px-4 py-3">
-                        <p className="text-[10px] uppercase tracking-[0.18em] text-red-100">
-                            Recaudado
-                        </p>
-                        <p className="mt-1 text-xl font-semibold text-red-50">
-                            ${totalRecaudado.toFixed(2)}
-                        </p>
-                    </div>
-                </section>
-
-                {/* TABLA DE PEDIDOS */}
-                <section className="overflow-x-auto rounded-2xl bg-[#14151c] p-4 shadow-lg border border-white/10">
-                    {loading ? (
-                        <div className="py-6 text-center text-sm text-slate-400">
-                            Cargando pedidos...
-                        </div>
-                    ) : error ? (
-                        <div className="py-6 text-center text-sm text-red-400">
-                            {error}
-                        </div>
-                    ) : (
-                        <table className="min-w-full text-left text-xs md:text-sm text-slate-200">
-                            <thead className="border-b border-white/10 text-[11px] uppercase tracking-[0.18em] text-slate-400">
-                                <tr>
-                                    <th className="px-3 py-2">ID</th>
-                                    <th className="px-3 py-2">Fecha</th>
-                                    <th className="px-3 py-2">Actividad</th>
-                                    <th className="px-3 py-2">Cliente</th>
-                                    <th className="px-3 py-2">Contacto</th>
-                                    <th className="px-3 py-2">Paquete</th>
-                                    <th className="px-3 py-2">Total</th>
-                                    <th className="px-3 py-2">Estado</th>
-                                    <th className="px-3 py-2">Acciones</th>
-                                </tr>
-                            </thead>
-
-                            <tbody>
-                                {pedidos.map((pedido) => {
-                                    const fecha = pedido.created_at
-                                        ? new Date(pedido.created_at)
-                                        : null;
-
-                                    const fechaLabel = fecha
-                                        ? fecha.toLocaleString("es-EC", {
-                                            day: "2-digit",
-                                            month: "2-digit",
-                                            year: "2-digit",
-                                            hour: "2-digit",
-                                            minute: "2-digit",
-                                        })
-                                        : "-";
-
-                                    const actividadLabel = pedido.actividad_numero
-                                        ? `Act #${pedido.actividad_numero}`
-                                        : "-";
-
-                                    const paqueteLabel =
-                                        pedido.cantidad_numeros &&
-                                            pedido.precio_unitario != null
-                                            ? `x${pedido.cantidad_numeros} · $${Number(
-                                                pedido.precio_unitario
-                                            ).toFixed(2)}`
-                                            : "-";
-
-                                    const totalLabel =
-                                        pedido.total != null
-                                            ? `$${Number(pedido.total).toFixed(2)}`
-                                            : "-";
-
-                                    const clienteLabel =
-                                        pedido.nombre?.trim() || "Sin nombre";
-                                    const contactoLabel =
-                                        pedido.telefono?.trim() || "-";
-
-                                    const estado = (
-                                        pedido.estado || "pendiente"
-                                    ).toLowerCase();
-                                    const isPagado =
-                                        estado === "pagado" || estado === "confirmado";
-
-                                    const estadoColor =
-                                        estado === "pagado" || estado === "confirmado"
-                                            ? "bg-emerald-500/15 text-emerald-300 border-emerald-500/40"
-                                            : estado === "cancelado"
-                                                ? "bg-red-500/15 text-red-300 border-red-500/40"
-                                                : "bg-yellow-500/15 text-yellow-300 border-yellow-500/40";
-
-                                    const estadoTexto =
-                                        estado === "pagado" || estado === "confirmado"
-                                            ? "PAGADO"
-                                            : estado === "cancelado"
-                                                ? "CANCELADO"
-                                                : "PENDIENTE";
-
-                                    const disabled = updatingId === pedido.id;
-                                    const copying = copyingId === pedido.id;
-
-                                    return (
-                                        <tr
-                                            key={pedido.id}
-                                            className="border-b border-white/5 hover:bg-white/5"
-                                        >
-                                            <td className="px-3 py-3 text-xs">{pedido.id}</td>
-                                            <td className="px-3 py-3 text-xs">
-                                                {fechaLabel}
-                                            </td>
-                                            <td className="px-3 py-3 text-xs">
-                                                {actividadLabel}
-                                            </td>
-                                            <td className="px-3 py-3 text-xs">
-                                                {clienteLabel}
-                                            </td>
-                                            <td className="px-3 py-3 text-xs">
-                                                {contactoLabel}
-                                            </td>
-                                            <td className="px-3 py-3 text-xs">
-                                                {paqueteLabel}
-                                            </td>
-                                            <td className="px-3 py-3 text-xs">
-                                                {totalLabel}
-                                            </td>
-
-                                            <td className="px-3 py-3 text-center">
-                                                <span
-                                                    className={`inline-flex rounded-full border px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.15em] ${estadoColor}`}
-                                                >
-                                                    {estadoTexto}
-                                                </span>
-                                            </td>
-
-                                            <td className="px-3 py-3 text-[10px] md:text-xs space-y-1">
-                                                <div className="space-x-1">
-                                                    {estado !== "pagado" && (
-                                                        <button
-                                                            disabled={disabled}
-                                                            onClick={() =>
-                                                                cambiarEstado(pedido.id, "pagado")
-                                                            }
-                                                            className="rounded-full bg-emerald-500/80 px-3 py-1 font-semibold text-[10px] uppercase tracking-[0.12em] hover:bg-emerald-500 disabled:opacity-40"
-                                                        >
-                                                            Pagado
-                                                        </button>
-                                                    )}
-                                                    {estado !== "pendiente" && (
-                                                        <button
-                                                            disabled={disabled}
-                                                            onClick={() =>
-                                                                cambiarEstado(pedido.id, "pendiente")
-                                                            }
-                                                            className="rounded-full bg-yellow-500/80 px-3 py-1 font-semibold text-[10px] uppercase tracking-[0.12em] hover:bg-yellow-500 disabled:opacity-40"
-                                                        >
-                                                            Pendiente
-                                                        </button>
-                                                    )}
-                                                    {estado !== "cancelado" && (
-                                                        <button
-                                                            disabled={disabled}
-                                                            onClick={() =>
-                                                                cambiarEstado(pedido.id, "cancelado")
-                                                            }
-                                                            className="rounded-full bg-red-500/80 px-3 py-1 font-semibold text-[10px] uppercase tracking-[0.12em] hover:bg-red-500 disabled:opacity-40"
-                                                        >
-                                                            Cancelar
-                                                        </button>
-                                                    )}
-                                                </div>
-
-                                                <div className="mt-2 flex flex-wrap gap-1">
-                                                    {isPagado ? (
-                                                        <Link
-                                                            href={`/admin/numeros?pedido=${pedido.id}`}
-                                                            className="rounded-full border border-white/30 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-slate-100 hover:bg-white/10"
-                                                        >
-                                                            Ver números
-                                                        </Link>
-                                                    ) : (
-                                                        <button
-                                                            disabled
-                                                            className="rounded-full border border-gray-500/40 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-gray-500 opacity-40 cursor-not-allowed"
-                                                        >
-                                                            Ver números
-                                                        </button>
-                                                    )}
-
-                                                    <button
-                                                        disabled={copying}
-                                                        onClick={() =>
-                                                            copiarNumerosPedido(pedido)
-                                                        }
-                                                        className="rounded-full border border-[#25D366]/60 px-3 py-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[#25D366] hover:bg-[#25D366]/10 disabled:opacity-50"
-                                                    >
-                                                        {copying ? "Copiando..." : "Copiar WhatsApp"}
-                                                    </button>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    );
-                                })}
-
-                                {pedidos.length === 0 && !loading && (
-                                    <tr>
-                                        <td
-                                            colSpan={10}
-                                            className="px-3 py-6 text-center text-[12px] text-slate-400"
-                                        >
-                                            Aún no hay pedidos registrados.
-                                        </td>
-                                    </tr>
-                                )}
-                            </tbody>
-                        </table>
+            {/* Tabla de pedidos */}
+            <section className="rounded-2xl bg-slate-900/80 p-4 shadow-lg">
+                <div className="mb-3 flex items-center justify-between">
+                    <h2 className="text-lg font-semibold">Pedidos</h2>
+                    {loading && (
+                        <span className="text-xs text-slate-400">Cargando pedidos...</span>
                     )}
-                </section>
-            </div>
+                    {error && (
+                        <span className="text-xs text-red-400">{error}</span>
+                    )}
+                </div>
+
+                <div className="overflow-x-auto">
+                    <table className="min-w-full text-sm">
+                        <thead>
+                            <tr className="border-b border-slate-700/60 text-xs uppercase text-slate-400">
+                                <th className="px-3 py-2 text-left">ID</th>
+                                <th className="px-3 py-2 text-left">Fecha</th>
+                                <th className="px-3 py-2 text-left">Actividad</th>
+                                <th className="px-3 py-2 text-left">Cliente</th>
+                                <th className="px-3 py-2 text-left">Contacto</th>
+                                <th className="px-3 py-2 text-left">Cant.</th>
+                                <th className="px-3 py-2 text-left">Total</th>
+                                <th className="px-3 py-2 text-left">Método</th>
+                                <th className="px-3 py-2 text-left">Estado</th>
+                                <th className="px-3 py-2 text-left">Acciones</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {pedidos.map((pedido) => (
+                                <tr
+                                    key={pedido.id}
+                                    className="border-b border-slate-800/60 last:border-0 hover:bg-slate-800/40"
+                                >
+                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                        #{pedido.id}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                        {formatFecha(pedido.created_at)}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                        {pedido.actividad_numero
+                                            ? `Act #${pedido.actividad_numero}`
+                                            : "-"}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-100">
+                                        {pedido.nombre || "-"}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                        {pedido.telefono || "-"}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                        x{pedido.cantidad_numeros ?? "-"}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-100">
+                                        ${pedido.total?.toFixed(2) ?? "0.00"}
+                                    </td>
+                                    <td className="px-3 py-2 text-xs text-slate-300">
+                                        {pedido.metodo_pago === "payphone"
+                                            ? "PayPhone"
+                                            : pedido.metodo_pago || "-"}
+                                    </td>
+
+                                    {/* 👇 AQUÍ ESTÁ LA COLUMNA ESTADO CORREGIDA */}
+                                    <td className="px-3 py-2">
+                                        <span
+                                            className={
+                                                "inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold " +
+                                                getEstadoClass(pedido.estado, pedido.metodo_pago)
+                                            }
+                                        >
+                                            {getEstadoLabel(pedido.estado, pedido.metodo_pago)}
+                                        </span>
+                                    </td>
+
+                                    <td className="px-3 py-2">
+                                        <div className="flex flex-wrap gap-2">
+                                            <button
+                                                onClick={() => cambiarEstado(pedido.id, "pagado")}
+                                                disabled={updatingId === pedido.id}
+                                                className="rounded-full bg-emerald-700 px-3 py-1 text-xs font-semibold hover:bg-emerald-600 disabled:opacity-40"
+                                            >
+                                                PAGADO
+                                            </button>
+                                            <button
+                                                onClick={() => cambiarEstado(pedido.id, "pendiente")}
+                                                disabled={updatingId === pedido.id}
+                                                className="rounded-full bg-yellow-700 px-3 py-1 text-xs font-semibold hover:bg-yellow-600 disabled:opacity-40"
+                                            >
+                                                PENDIENTE
+                                            </button>
+                                            <button
+                                                onClick={() => cambiarEstado(pedido.id, "cancelado")}
+                                                disabled={updatingId === pedido.id}
+                                                className="rounded-full bg-red-700 px-3 py-1 text-xs font-semibold hover:bg-red-600 disabled:opacity-40"
+                                            >
+                                                CANCELAR
+                                            </button>
+                                            <button
+                                                onClick={() => copiarWhatsApp(pedido)}
+                                                disabled={copyingId === pedido.id}
+                                                className="rounded-full border border-emerald-500 px-3 py-1 text-xs font-semibold text-emerald-300 hover:bg-emerald-500/10 disabled:opacity-40"
+                                            >
+                                                {copyingId === pedido.id
+                                                    ? "COPIADO ✅"
+                                                    : "COPIAR WHATSAPP"}
+                                            </button>
+                                        </div>
+                                    </td>
+                                </tr>
+                            ))}
+
+                            {pedidos.length === 0 && !loading && (
+                                <tr>
+                                    <td
+                                        colSpan={10}
+                                        className="px-3 py-6 text-center text-xs text-slate-400"
+                                    >
+                                        No hay pedidos registrados todavía.
+                                    </td>
+                                </tr>
+                            )}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
         </main>
     );
 }
