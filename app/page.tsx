@@ -607,31 +607,23 @@ export default function HomePage() {
                       <input
                         type="radio"
                         className="h-3 w-3"
-                        checked={metodoPago === "transferencia"}
-                        onChange={() => setMetodoPago("transferencia")}
+                        checked={metodoPago === "payphone"}
+                        onChange={() => setMetodoPago("payphone")}
                       />
-                      <span>Transferencia / Depósito bancario</span>
+                      <span>Tarjeta Debito / Credito</span>
                     </label>
 
                     <label className="flex items-center gap-2 text-xs">
                       <input
                         type="radio"
                         className="h-3 w-3"
-                        checked={metodoPago === "payphone"}
-                        onChange={() => setMetodoPago("payphone")}
+                        checked={metodoPago === "transferencia"}
+                        onChange={() => setMetodoPago("transferencia")}
                       />
-                      <span>PayPhone (tarjeta / app)</span>
+                      <span>Transferencia / Depósito bancario</span>
                     </label>
 
-                    <label className="flex items-center gap-2 text-xs opacity-60">
-                      <input
-                        type="radio"
-                        className="h-3 w-3"
-                        checked={metodoPago === "tarjeta"}
-                        onChange={() => setMetodoPago("tarjeta")}
-                      />
-                      <span>Tarjeta de crédito/débito (otro canal)</span>
-                    </label>
+
                   </div>
 
                   {orderError && (
