@@ -388,17 +388,20 @@ export default function HomePage() {
 
       {/* SECCIÓN: ADQUIERE TUS NÚMEROS */}
       <section className="space-y-3">
+        {/* Título */}
         <div className="space-y-2 text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
             ¡ADQUIERE TUS NÚMEROS!
           </p>
+        </div>
 
-          {/* PREMIOS INSTANTÁNEOS (DINÁMICO) */}
-          <section className="w-full py-6">
-            <NumerosBendecidos sorteoId={sorteo.id} />
-          </section>
+        {/* ⭐ PREMIOS INSTANTÁNEOS (DINÁMICO) - CORRECTAMENTE UBICADO */}
+        <section className="w-full py-6">
+          <NumerosBendecidos sorteoId={sorteo.id} />
+        </section>
 
-
+        {/* Precio unitario */}
+        <div className="text-center">
           <p className="text-[13px] font-extrabold text-slate-700">
             Valor de la unidad:{" "}
             <span className="font-extrabold text-slate-700">
@@ -407,6 +410,7 @@ export default function HomePage() {
           </p>
         </div>
 
+        {/* Tarjetas de paquetes */}
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
           {paquetes.map((cantidad) => (
             <article
@@ -429,9 +433,6 @@ export default function HomePage() {
           ))}
         </div>
       </section>
-
-      {/* ⭐ PREMIOS INSTANTÁNEOS (DINÁMICO) */}
-      <NumerosBendecidos sorteoId={sorteo.id} />
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
