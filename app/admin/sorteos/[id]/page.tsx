@@ -197,7 +197,7 @@ export default function EditSorteoPage() {
                     </button>
                 </header>
 
-                {/* Resumen del sorteo (cards) */}
+                {/* Resumen del sorteo (card grande + card lateral) */}
                 <section className="grid gap-4 md:grid-cols-3">
                     {/* Info principal */}
                     <div className="md:col-span-2 rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-4">
@@ -230,28 +230,40 @@ export default function EditSorteoPage() {
                         )}
                     </div>
 
-                    {/* KPIs del sorteo */}
-                    <div className="space-y-3">
-                        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
-                            <p className="text-[11px] text-slate-400">Números vendidos</p>
-                            <p className="mt-1 text-xl font-semibold">
-                                {numerosVendidos}{" "}
-                                <span className="text-xs text-slate-400">
-                                    / {totalNumeros || "—"}
+                    {/* Tarjeta lateral con KPIs (una sola card) */}
+                    <div className="rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-4 flex flex-col justify-between">
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-slate-400 mb-2">
+                            Resumen de números
+                        </p>
+
+                        <div className="space-y-3 text-sm">
+                            <div className="flex items-baseline justify-between">
+                                <span className="text-slate-400 text-xs">
+                                    Números vendidos
                                 </span>
-                            </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
-                            <p className="text-[11px] text-slate-400">Números restantes</p>
-                            <p className="mt-1 text-xl font-semibold">
-                                {numerosRestantes}
-                            </p>
-                        </div>
-                        <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
-                            <p className="text-[11px] text-slate-400">Recaudado</p>
-                            <p className="mt-1 text-xl font-semibold">
-                                ${recaudado.toFixed(2)}
-                            </p>
+                                <span className="font-semibold text-base">
+                                    {numerosVendidos}{" "}
+                                    <span className="text-xs text-slate-400">
+                                        / {totalNumeros || "—"}
+                                    </span>
+                                </span>
+                            </div>
+
+                            <div className="flex items-baseline justify-between">
+                                <span className="text-slate-400 text-xs">
+                                    Números restantes
+                                </span>
+                                <span className="font-semibold text-base">
+                                    {numerosRestantes}
+                                </span>
+                            </div>
+
+                            <div className="flex items-baseline justify-between">
+                                <span className="text-slate-400 text-xs">Recaudado</span>
+                                <span className="font-semibold text-base">
+                                    ${recaudado.toFixed(2)}
+                                </span>
+                            </div>
                         </div>
                     </div>
                 </section>
