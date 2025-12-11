@@ -179,7 +179,12 @@ export default function HomePage() {
       .slice(-8)}`;
 
     try {
-      // 1) Insertar pedido en Supabase (SIEMPRE estado 'pendiente')
+      // 1) Insertar pedido en Supabase
+      const estadoInicial =
+        metodoPago === "payphone"
+          ? "en_proceso"   // 🔸 PayPhone → NO aparece en pendientes
+          : "pendiente";   // 🔸 Transferencia → SÍ aparece en pendientes
+
       const { data: inserted, error } = await supabase
         .from("pedidos")
         .insert({
@@ -192,12 +197,13 @@ export default function HomePage() {
           nombre: nombreCliente.trim(),
           telefono: telefonoCliente.trim(),
           correo: correoCliente.trim(),
-          estado: "pendiente",
+          estado: estadoInicial,   // ← 👈 YA NO ES "pendiente" fijo
           payphone_client_transaction_id:
             metodoPago === "payphone" ? clientTransactionId : null,
         })
         .select()
         .single();
+
 
       if (error || !inserted) {
         console.error("Error guardando pedido:", error);
