@@ -205,16 +205,21 @@ export default function AdminPedidosPage() {
 
     const copiarWhatsApp = (pedido: PedidoRow) => {
         const mensaje = `Hola ${pedido.nombre || ""}, te escribimos de SorteoPro / CasaBikers sobre tu pedido #${pedido.id
-            } por $${pedido.total?.toFixed(2) || "0.00"
-            }.`;
+            } por $${pedido.total?.toFixed(2) || "0.00"}.`;
         navigator.clipboard.writeText(mensaje);
         setCopyingId(pedido.id);
         setTimeout(() => setCopyingId(null), 1200);
     };
 
+    // 🔹 Exportar CSV
+    const handleExportCsv = () => {
+        window.open("/api/admin/pedidos/export-csv", "_blank");
+    };
+
     return (
         <main className="min-h-screen bg-[#05060a] text-slate-50 px-6 py-8">
-            <header className="mb-8 flex items-center justify-between">
+            {/* HEADER */}
+            <header className="mb-8 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
                     <h1
                         className={`${anton.className} text-3xl md:text-4xl tracking-wide`}
@@ -226,13 +231,22 @@ export default function AdminPedidosPage() {
                     </p>
                 </div>
 
-                <div className="flex gap-3">
+                <div className="flex flex-wrap gap-3 justify-end">
                     <Link
                         href="/admin"
                         className="rounded-full border border-slate-600 px-4 py-2 text-sm hover:bg-slate-800 transition"
                     >
                         ← Panel admin
                     </Link>
+
+                    {/* 🔹 Botón EXPORTAR CSV */}
+                    <button
+                        onClick={handleExportCsv}
+                        className="rounded-full bg-slate-900/80 border border-amber-400 px-4 py-2 text-sm font-semibold text-amber-200 shadow hover:bg-amber-500/10 hover:border-amber-300 transition"
+                    >
+                        Exportar CSV
+                    </button>
+
                     <Link
                         href="/"
                         className="rounded-full bg-gradient-to-r from-orange-500 to-yellow-400 px-4 py-2 text-sm font-semibold text-black shadow hover:opacity-90 transition"
@@ -262,7 +276,9 @@ export default function AdminPedidosPage() {
                 </div>
                 <div className="rounded-2xl bg-slate-900/80 px-4 py-3">
                     <p className="text-xs text-slate-400">Recaudado</p>
-                    <p className="mt-1 text-2xl font-semibold">${totalRecaudado.toFixed(2)}</p>
+                    <p className="mt-1 text-2xl font-semibold">
+                        ${totalRecaudado.toFixed(2)}
+                    </p>
                 </div>
             </section>
 
@@ -273,9 +289,7 @@ export default function AdminPedidosPage() {
                     {loading && (
                         <span className="text-xs text-slate-400">Cargando pedidos...</span>
                     )}
-                    {error && (
-                        <span className="text-xs text-red-400">{error}</span>
-                    )}
+                    {error && <span className="text-xs text-red-400">{error}</span>}
                 </div>
 
                 <div className="overflow-x-auto">
@@ -329,7 +343,7 @@ export default function AdminPedidosPage() {
                                             : pedido.metodo_pago || "-"}
                                     </td>
 
-                                    {/* 👇 AQUÍ ESTÁ LA COLUMNA ESTADO CORREGIDA */}
+                                    {/* ESTADO */}
                                     <td className="px-3 py-2">
                                         <span
                                             className={
@@ -341,6 +355,7 @@ export default function AdminPedidosPage() {
                                         </span>
                                     </td>
 
+                                    {/* ACCIONES */}
                                     <td className="px-3 py-2">
                                         <div className="flex flex-wrap gap-2">
                                             <button
@@ -350,6 +365,7 @@ export default function AdminPedidosPage() {
                                             >
                                                 PAGADO
                                             </button>
+
                                             <button
                                                 onClick={() => cambiarEstado(pedido.id, "pendiente")}
                                                 disabled={updatingId === pedido.id}
@@ -357,6 +373,7 @@ export default function AdminPedidosPage() {
                                             >
                                                 PENDIENTE
                                             </button>
+
                                             <button
                                                 onClick={() => cambiarEstado(pedido.id, "cancelado")}
                                                 disabled={updatingId === pedido.id}
@@ -364,6 +381,21 @@ export default function AdminPedidosPage() {
                                             >
                                                 CANCELAR
                                             </button>
+
+                                            {/* VER NÚMEROS */}
+                                            {pedido.estado === "pagado" ? (
+                                                <Link
+                                                    href={`/admin/numeros?pedido=${pedido.id}`}
+                                                    className="rounded-full border border-sky-400 px-3 py-1 text-xs font-semibold text-sky-200 hover:bg-sky-500/10 transition"
+                                                >
+                                                    VER NÚMEROS
+                                                </Link>
+                                            ) : (
+                                                <span className="rounded-full border border-slate-600 px-3 py-1 text-xs font-semibold text-slate-500 cursor-not-allowed opacity-40">
+                                                    VER NÚMEROS
+                                                </span>
+                                            )}
+
                                             <button
                                                 onClick={() => copiarWhatsApp(pedido)}
                                                 disabled={copyingId === pedido.id}
