@@ -6,13 +6,14 @@ import { SorteoCarousel } from "../components/SorteoCarousel";
 import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
+import { NumerosBendecidos } from "../components/NumerosBendecidos";
 
 const anton = Anton({
   subsets: ["latin"],
   weight: "400",
 });
 
-// 👈 CAMBIO 1: agregamos "transferencia"
+// agregamos "transferencia" al flujo del modal
 type ModalStep = "resumen" | "pago" | "transferencia" | "ok";
 
 type NumeroAsignado = {
@@ -230,10 +231,10 @@ export default function HomePage() {
           )}`
         );
       } else if (metodoPago === "transferencia") {
-        // 👈 CAMBIO 2: Transferencia → mostrar modal bancario
+        // Transferencia → mostrar modal bancario
         setModalStep("transferencia");
       } else {
-        // 🧾 Tarjeta manual u otro canal:
+        // Tarjeta/manual u otro canal
         setModalStep("ok");
       }
     } catch (err: any) {
@@ -422,6 +423,9 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
+      {/* ⭐ PREMIOS INSTANTÁNEOS (DINÁMICO) */}
+      <NumerosBendecidos sorteoId={sorteo.id} />
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
@@ -622,8 +626,6 @@ export default function HomePage() {
                       />
                       <span>Transferencia / Depósito bancario</span>
                     </label>
-
-
                   </div>
 
                   {orderError && (
@@ -652,7 +654,6 @@ export default function HomePage() {
               </form>
             )}
 
-            {/* 👈 CAMBIO 3: NUEVO PASO PARA TRANSFERENCIA */}
             {modalStep === "transferencia" && (
               <>
                 <h3
@@ -730,7 +731,8 @@ export default function HomePage() {
 
                 <p className="mt-4 text-[11px] text-slate-400 text-center">
                   Una vez verificado tu pago, cambiaremos el estado de tu pedido
-                  a <span className="font-semibold text-emerald-300">
+                  a{" "}
+                  <span className="font-semibold text-emerald-300">
                     PAGADO
                   </span>{" "}
                   y se asignarán tus números.
