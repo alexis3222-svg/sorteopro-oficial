@@ -6,7 +6,7 @@ import { SorteoCarousel } from "../components/SorteoCarousel";
 import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
-import { NumerosBendecidos } from "../components/NumerosBendecidos";
+import NumerosBendecidos from "../components/NumerosBendecidos";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -387,7 +387,8 @@ export default function HomePage() {
       </section>
 
       {/* SECCIÓN: ADQUIERE TUS NÚMEROS */}
-      <section className="space-y-3">
+      <section className="space-y-6">
+
         {/* Título */}
         <div className="space-y-2 text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
@@ -395,12 +396,12 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* ⭐ PREMIOS INSTANTÁNEOS (DINÁMICO) - CORRECTAMENTE UBICADO */}
+        {/* ⭐ PREMIOS INSTANTÁNEOS (DINÁMICO) */}
         <section className="w-full py-6">
           <NumerosBendecidos sorteoId={sorteo.id} />
         </section>
 
-        {/* Precio unitario */}
+        {/* Precio unidad */}
         <div className="text-center">
           <p className="text-[13px] font-extrabold text-slate-700">
             Valor de la unidad:{" "}
@@ -410,7 +411,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Tarjetas de paquetes */}
+        {/* Paquetes */}
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
           {paquetes.map((cantidad) => (
             <article
@@ -420,9 +421,11 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
                 x{cantidad} números
               </p>
+
               <p className="text-2xl font-bold text-white">
                 {(cantidad * precioUnidad).toFixed(2)}
               </p>
+
               <button
                 className="mt-2 w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
                 onClick={() => handleComprarClick(cantidad)}
@@ -432,7 +435,10 @@ export default function HomePage() {
             </article>
           ))}
         </div>
+
       </section>
+
+
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
