@@ -387,21 +387,25 @@ export default function HomePage() {
       </section>
 
       {/* SECCIÓN: PREMIOS INSTANTÁNEOS + ADQUIERE TUS NÚMEROS */}
-      <section className="space-y-4">
-        {/* 🟡 Título Premios instantáneos (poco espacio con el texto) */}
+      <section className="space-y-10">
+        {/* 🟡 BLOQUE PREMIOS INSTANTÁNEOS */}
         <div className="text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
             ¡PREMIOS INSTANTÁNEOS!
           </p>
+
+          <p className="mt-1 text-xs md:text-sm text-slate-600">
+            ¡Hay 10 números bendecidos con premios en efectivo! Revisa si tienes uno
+            de los siguientes números:
+          </p>
+
+          <div className="mt-4">
+            <NumerosBendecidos sorteoId={sorteo.id} />
+          </div>
         </div>
 
-        {/* 🟡 Bloque de números bendecidos (pegado arriba, con aire abajo) */}
-        <section className="w-full pt-1 pb-4">
-          <NumerosBendecidos sorteoId={sorteo.id} />
-        </section>
-
-        {/* 🟠 Título Adquiere tus números + valor (más separado de los bendecidos) */}
-        <div className="mt-4 space-y-2 text-center">
+        {/* 🟠 BLOQUE ADQUIERE TUS NÚMEROS */}
+        <div className="space-y-2 text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
             ¡ADQUIERE TUS NÚMEROS!
           </p>
@@ -414,7 +418,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* 🟠 Tarjetas de paquetes */}
+        {/* Tarjetas de paquetes */}
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
           {paquetes.map((cantidad) => (
             <article
@@ -437,6 +441,7 @@ export default function HomePage() {
           ))}
         </div>
       </section>
+
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
@@ -504,301 +509,303 @@ export default function HomePage() {
       </section>
 
       {/* MODAL COMPRA */}
-      {isModalOpen && selectedCantidad != null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-2xl bg-[#1f2128] p-6 shadow-xl border border-white/10">
-            {modalStep === "resumen" && (
-              <>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
-                >
-                  Resumen de compra
-                </h3>
+      {
+        isModalOpen && selectedCantidad != null && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
+            <div className="w-full max-w-md rounded-2xl bg-[#1f2128] p-6 shadow-xl border border-white/10">
+              {modalStep === "resumen" && (
+                <>
+                  <h3
+                    className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
+                  >
+                    Resumen de compra
+                  </h3>
 
-                <p className="mt-2 text-center text-xs text-slate-300">
-                  Actividad #{numeroActividad} · {sorteo.titulo}
-                </p>
+                  <p className="mt-2 text-center text-xs text-slate-300">
+                    Actividad #{numeroActividad} · {sorteo.titulo}
+                  </p>
 
-                <div className="mt-4 space-y-2 text-sm text-slate-200">
-                  <div className="flex justify-between">
-                    <span>Cantidad de números</span>
-                    <span className="font-semibold">x{selectedCantidad}</span>
+                  <div className="mt-4 space-y-2 text-sm text-slate-200">
+                    <div className="flex justify-between">
+                      <span>Cantidad de números</span>
+                      <span className="font-semibold">x{selectedCantidad}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Precio por número</span>
+                      <span>${precioUnidad.toFixed(2)}</span>
+                    </div>
+                    <div className="flex justify-between border-t border-white/10 pt-2 mt-1">
+                      <span className="font-semibold">Total a pagar</span>
+                      <span className="font-semibold text-[#FF7F00]">
+                        ${totalPaquete.toFixed(2)}
+                      </span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Precio por número</span>
-                    <span>${precioUnidad.toFixed(2)}</span>
+
+                  <p className="mt-3 text-[11px] text-slate-400 text-center">
+                    En el siguiente paso podrás elegir tu método de pago y dejar
+                    tus datos para confirmar la reserva de tus números.
+                  </p>
+
+                  <div className="mt-5 flex flex-col gap-2">
+                    <button
+                      className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff9933]"
+                      onClick={() => setModalStep("pago")}
+                    >
+                      Continuar al pago
+                    </button>
+                    <button
+                      className="w-full rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"
+                      onClick={handleCerrarModal}
+                    >
+                      Cerrar
+                    </button>
                   </div>
-                  <div className="flex justify-between border-t border-white/10 pt-2 mt-1">
-                    <span className="font-semibold">Total a pagar</span>
+                </>
+              )}
+
+              {modalStep === "pago" && (
+                <form onSubmit={handleConfirmarDatosPago}>
+                  <h3
+                    className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
+                  >
+                    Datos y método de pago
+                  </h3>
+
+                  <p className="mt-2 text-center text-xs text-slate-300">
+                    Actividad #{numeroActividad} · Paquete x{selectedCantidad} ·{" "}
                     <span className="font-semibold text-[#FF7F00]">
                       ${totalPaquete.toFixed(2)}
                     </span>
-                  </div>
-                </div>
-
-                <p className="mt-3 text-[11px] text-slate-400 text-center">
-                  En el siguiente paso podrás elegir tu método de pago y dejar
-                  tus datos para confirmar la reserva de tus números.
-                </p>
-
-                <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff9933]"
-                    onClick={() => setModalStep("pago")}
-                  >
-                    Continuar al pago
-                  </button>
-                  <button
-                    className="w-full rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"
-                    onClick={handleCerrarModal}
-                  >
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            )}
-
-            {modalStep === "pago" && (
-              <form onSubmit={handleConfirmarDatosPago}>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
-                >
-                  Datos y método de pago
-                </h3>
-
-                <p className="mt-2 text-center text-xs text-slate-300">
-                  Actividad #{numeroActividad} · Paquete x{selectedCantidad} ·{" "}
-                  <span className="font-semibold text-[#FF7F00]">
-                    ${totalPaquete.toFixed(2)}
-                  </span>
-                </p>
-
-                <div className="mt-4 space-y-3 text-sm text-slate-200">
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300">
-                      Nombre completo
-                    </label>
-                    <input
-                      type="text"
-                      value={nombreCliente}
-                      onChange={(e) => setNombreCliente(e.target.value)}
-                      className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
-                      placeholder="Ej: Juan Pérez"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300">
-                      WhatsApp / Teléfono
-                    </label>
-                    <input
-                      type="tel"
-                      value={telefonoCliente}
-                      onChange={(e) => setTelefonoCliente(e.target.value)}
-                      className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
-                      placeholder="Ej: 09xxxxxxxx"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300">
-                      Correo electrónico
-                    </label>
-                    <input
-                      type="email"
-                      value={correoCliente}
-                      onChange={(e) => setCorreoCliente(e.target.value)}
-                      className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
-                      placeholder="Ej: correo@ejemplo.com"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-300">
-                      Elige tu método de pago:
-                    </p>
-
-                    <label className="flex items-center gap-2 text-xs">
-                      <input
-                        type="radio"
-                        className="h-3 w-3"
-                        checked={metodoPago === "payphone"}
-                        onChange={() => setMetodoPago("payphone")}
-                      />
-                      <span>Tarjeta Debito / Credito</span>
-                    </label>
-
-                    <label className="flex items-center gap-2 text-xs">
-                      <input
-                        type="radio"
-                        className="h-3 w-3"
-                        checked={metodoPago === "transferencia"}
-                        onChange={() => setMetodoPago("transferencia")}
-                      />
-                      <span>Transferencia / Depósito bancario</span>
-                    </label>
-                  </div>
-
-                  {orderError && (
-                    <p className="text-[11px] text-red-400">{orderError}</p>
-                  )}
-                </div>
-
-                <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    type="submit"
-                    disabled={savingOrder}
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600] disabled:opacity-60 disabled:cursor-not-allowed"
-                  >
-                    {savingOrder
-                      ? "Registrando pedido..."
-                      : "Confirmar pedido"}
-                  </button>
-                  <button
-                    type="button"
-                    className="w-full rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"
-                    onClick={handleCerrarModal}
-                  >
-                    Cancelar
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {modalStep === "transferencia" && (
-              <>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
-                >
-                  Datos para transferencia
-                </h3>
-
-                <p className="mt-3 text-xs text-slate-300 text-center">
-                  Tu pedido fue registrado correctamente. Ahora realiza la
-                  transferencia y envía el comprobante.
-                </p>
-
-                <div className="mt-5 space-y-2 rounded-xl bg-[#15161b] p-4 text-sm border border-white/10">
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Banco:</span>
-                    <span className="font-semibold text-slate-100">
-                      Banco Pichincha
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Tipo de cuenta:</span>
-                    <span className="font-semibold text-slate-100">
-                      Ahorros
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Número de cuenta:</span>
-                    <span className="font-mono text-slate-100">
-                      1234567890
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Titular:</span>
-                    <span className="font-semibold text-slate-100">
-                      ALEXIS AMAGUAY VÁSQUEZ
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between">
-                    <span className="text-slate-400">Whatsapp:</span>
-                    <span className="font-mono text-slate-100">
-                      0980966034
-                    </span>
-                  </div>
-
-                  <div className="flex justify-between pt-2 border-t border-white/10">
-                    <span className="text-slate-400">Monto a pagar:</span>
-                    <span className="font-bold text-[#FF7F00]">
-                      ${totalPaquete.toFixed(2)}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="mt-4 text-center">
-                  <p className="text-xs text-slate-300 mb-2">
-                    Envía el comprobante por WhatsApp:
                   </p>
 
-                  <a
-                    href={`https://wa.me/593980966034?text=${encodeURIComponent(
-                      `Hola, te envío el comprobante del pedido del paquete x${selectedCantidad} por $${totalPaquete.toFixed(
-                        2
-                      )}.`
-                    )}`}
-                    target="_blank"
-                    className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-black shadow hover:bg-emerald-400 transition"
+                  <div className="mt-4 space-y-3 text-sm text-slate-200">
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300">
+                        Nombre completo
+                      </label>
+                      <input
+                        type="text"
+                        value={nombreCliente}
+                        onChange={(e) => setNombreCliente(e.target.value)}
+                        className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
+                        placeholder="Ej: Juan Pérez"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300">
+                        WhatsApp / Teléfono
+                      </label>
+                      <input
+                        type="tel"
+                        value={telefonoCliente}
+                        onChange={(e) => setTelefonoCliente(e.target.value)}
+                        className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
+                        placeholder="Ej: 09xxxxxxxx"
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="text-xs text-slate-300">
+                        Correo electrónico
+                      </label>
+                      <input
+                        type="email"
+                        value={correoCliente}
+                        onChange={(e) => setCorreoCliente(e.target.value)}
+                        className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
+                        placeholder="Ej: correo@ejemplo.com"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <p className="text-xs text-slate-300">
+                        Elige tu método de pago:
+                      </p>
+
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          className="h-3 w-3"
+                          checked={metodoPago === "payphone"}
+                          onChange={() => setMetodoPago("payphone")}
+                        />
+                        <span>Tarjeta Debito / Credito</span>
+                      </label>
+
+                      <label className="flex items-center gap-2 text-xs">
+                        <input
+                          type="radio"
+                          className="h-3 w-3"
+                          checked={metodoPago === "transferencia"}
+                          onChange={() => setMetodoPago("transferencia")}
+                        />
+                        <span>Transferencia / Depósito bancario</span>
+                      </label>
+                    </div>
+
+                    {orderError && (
+                      <p className="text-[11px] text-red-400">{orderError}</p>
+                    )}
+                  </div>
+
+                  <div className="mt-5 flex flex-col gap-2">
+                    <button
+                      type="submit"
+                      disabled={savingOrder}
+                      className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600] disabled:opacity-60 disabled:cursor-not-allowed"
+                    >
+                      {savingOrder
+                        ? "Registrando pedido..."
+                        : "Confirmar pedido"}
+                    </button>
+                    <button
+                      type="button"
+                      className="w-full rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"
+                      onClick={handleCerrarModal}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              {modalStep === "transferencia" && (
+                <>
+                  <h3
+                    className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
                   >
-                    📲 Enviar comprobante
-                  </a>
-                </div>
+                    Datos para transferencia
+                  </h3>
 
-                <p className="mt-4 text-[11px] text-slate-400 text-center">
-                  Una vez verificado tu pago, cambiaremos el estado de tu pedido
-                  a{" "}
-                  <span className="font-semibold text-emerald-300">
-                    PAGADO
-                  </span>{" "}
-                  y se asignarán tus números.
-                </p>
+                  <p className="mt-3 text-xs text-slate-300 text-center">
+                    Tu pedido fue registrado correctamente. Ahora realiza la
+                    transferencia y envía el comprobante.
+                  </p>
 
-                <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
-                    onClick={handleCerrarModal}
+                  <div className="mt-5 space-y-2 rounded-xl bg-[#15161b] p-4 text-sm border border-white/10">
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Banco:</span>
+                      <span className="font-semibold text-slate-100">
+                        Banco Pichincha
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Tipo de cuenta:</span>
+                      <span className="font-semibold text-slate-100">
+                        Ahorros
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Número de cuenta:</span>
+                      <span className="font-mono text-slate-100">
+                        1234567890
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Titular:</span>
+                      <span className="font-semibold text-slate-100">
+                        ALEXIS AMAGUAY VÁSQUEZ
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between">
+                      <span className="text-slate-400">Whatsapp:</span>
+                      <span className="font-mono text-slate-100">
+                        0980966034
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between pt-2 border-t border-white/10">
+                      <span className="text-slate-400">Monto a pagar:</span>
+                      <span className="font-bold text-[#FF7F00]">
+                        ${totalPaquete.toFixed(2)}
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 text-center">
+                    <p className="text-xs text-slate-300 mb-2">
+                      Envía el comprobante por WhatsApp:
+                    </p>
+
+                    <a
+                      href={`https://wa.me/593980966034?text=${encodeURIComponent(
+                        `Hola, te envío el comprobante del pedido del paquete x${selectedCantidad} por $${totalPaquete.toFixed(
+                          2
+                        )}.`
+                      )}`}
+                      target="_blank"
+                      className="inline-flex items-center gap-2 rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-black shadow hover:bg-emerald-400 transition"
+                    >
+                      📲 Enviar comprobante
+                    </a>
+                  </div>
+
+                  <p className="mt-4 text-[11px] text-slate-400 text-center">
+                    Una vez verificado tu pago, cambiaremos el estado de tu pedido
+                    a{" "}
+                    <span className="font-semibold text-emerald-300">
+                      PAGADO
+                    </span>{" "}
+                    y se asignarán tus números.
+                  </p>
+
+                  <div className="mt-5 flex flex-col gap-2">
+                    <button
+                      className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
+                      onClick={handleCerrarModal}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {modalStep === "ok" && (
+                <>
+                  <h3
+                    className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff6600] text-center`}
                   >
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            )}
+                    Pedido recibido
+                  </h3>
 
-            {modalStep === "ok" && (
-              <>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff6600] text-center`}
-                >
-                  Pedido recibido
-                </h3>
+                  <p className="mt-3 text-sm text-slate-200 text-center">
+                    ¡Gracias, {nombreCliente || "participante"}! 🙌
+                  </p>
 
-                <p className="mt-3 text-sm text-slate-200 text-center">
-                  ¡Gracias, {nombreCliente || "participante"}! 🙌
-                </p>
+                  <p className="mt-2 text-xs text-slate-300 text-center">
+                    Hemos registrado tu pedido del paquete{" "}
+                    <span className="font-semibold">x{selectedCantidad}</span> por{" "}
+                    <span className="font-semibold text-[#FF7F00]">
+                      ${totalPaquete.toFixed(2)}
+                    </span>
+                    .
+                  </p>
 
-                <p className="mt-2 text-xs text-slate-300 text-center">
-                  Hemos registrado tu pedido del paquete{" "}
-                  <span className="font-semibold">x{selectedCantidad}</span> por{" "}
-                  <span className="font-semibold text-[#FF7F00]">
-                    ${totalPaquete.toFixed(2)}
-                  </span>
-                  .
-                </p>
+                  <p className="mt-3 text-[11px] text-slate-400 text-center">
+                    Tu pedido aparecerá como pendiente hasta que confirmemos el
+                    pago desde el panel administrativo.
+                  </p>
 
-                <p className="mt-3 text-[11px] text-slate-400 text-center">
-                  Tu pedido aparecerá como pendiente hasta que confirmemos el
-                  pago desde el panel administrativo.
-                </p>
-
-                <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
-                    onClick={handleCerrarModal}
-                  >
-                    Cerrar
-                  </button>
-                </div>
-              </>
-            )}
+                  <div className="mt-5 flex flex-col gap-2">
+                    <button
+                      className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
+                      onClick={handleCerrarModal}
+                    >
+                      Cerrar
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 }

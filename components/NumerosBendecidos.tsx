@@ -128,43 +128,36 @@ function NumerosBendecidos({ sorteoId }: NumerosBendecidosProps) {
     }
 
     return (
-        <div className="space-y-4 text-center">
-            <p className="text-xs md:text-sm text-slate-600">
-                ¡Hay {numeros.length} números bendecidos con premios en efectivo!
-                Revisa si tienes uno de los siguientes números:
-            </p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 justify-items-center">
+            {numeros.map((n) => {
+                const numStr =
+                    n.numero !== null && n.numero !== undefined
+                        ? String(n.numero).padStart(5, "0")
+                        : "--";
 
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 justify-items-center">
-                {numeros.map((n) => {
-                    const numStr =
-                        n.numero !== null && n.numero !== undefined
-                            ? String(n.numero).padStart(5, "0")
-                            : "--";
+                const entregado = entregadosSet.has(String(n.numero ?? ""));
 
-                    const entregado = entregadosSet.has(String(n.numero ?? ""));
-
-                    return (
-                        <div
-                            key={n.id}
-                            className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[90px]"
+                return (
+                    <div
+                        key={n.id}
+                        className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[90px]"
+                    >
+                        {/* Número bendecido */}
+                        <span
+                            className={`${anton.className} text-lg md:text-xl tracking-[0.18em] text-slate-900`}
                         >
-                            {/* Número bendecido */}
-                            <span
-                                className={`${anton.className} text-lg md:text-xl tracking-[0.18em] text-slate-900`}
-                            >
-                                {numStr}
-                            </span>
+                            {numStr}
+                        </span>
 
-                            {/* Solo si el número está en un pedido pagado → mostrar 'Premio Entregado' */}
-                            {entregado && (
-                                <span className="mt-1 text-[10px] md:text-xs text-slate-700 underline">
-                                    ¡Premio Entregado!
-                                </span>
-                            )}
-                        </div>
-                    );
-                })}
-            </div>
+                        {/* Solo si el número está en un pedido pagado → mostrar 'Premio Entregado' */}
+                        {entregado && (
+                            <span className="mt-1 text-[10px] md:text-xs text-slate-700 underline">
+                                ¡Premio Entregado!
+                            </span>
+                        )}
+                    </div>
+                );
+            })}
         </div>
     );
 }
