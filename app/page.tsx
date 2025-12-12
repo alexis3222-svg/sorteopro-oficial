@@ -387,22 +387,21 @@ export default function HomePage() {
       </section>
 
       {/* SECCIÓN: PREMIOS INSTANTÁNEOS + ADQUIERE TUS NÚMEROS */}
-      <section className="space-y-6">
-
-        {/* ⭐ Título Premios instantáneos */}
-        <div className="space-y-2 text-center">
+      <section className="space-y-4">
+        {/* 🟡 Título Premios instantáneos (poco espacio con el texto) */}
+        <div className="text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
             ¡PREMIOS INSTANTÁNEOS!
           </p>
         </div>
 
-        {/* ⭐ Números bendecidos */}
-        <section className="w-full py-6">
+        {/* 🟡 Bloque de números bendecidos (pegado arriba, con aire abajo) */}
+        <section className="w-full pt-1 pb-4">
           <NumerosBendecidos sorteoId={sorteo.id} />
         </section>
 
-        {/* 🟠 Título Adquiere tus números + valor unidad */}
-        <div className="space-y-2 text-center">
+        {/* 🟠 Título Adquiere tus números + valor (más separado de los bendecidos) */}
+        <div className="mt-4 space-y-2 text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
             ¡ADQUIERE TUS NÚMEROS!
           </p>
@@ -415,7 +414,7 @@ export default function HomePage() {
           </p>
         </div>
 
-        {/* Paquetes */}
+        {/* 🟠 Tarjetas de paquetes */}
         <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
           {paquetes.map((cantidad) => (
             <article
