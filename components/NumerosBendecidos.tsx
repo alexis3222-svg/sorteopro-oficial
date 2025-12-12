@@ -1,107 +1,172 @@
-// app/api/admin/pedidos/marcar-pagado/route.ts
-import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+"use client";
 
-export async function POST(req: Request) {
-    try {
-        const { pedidoId } = await req.json();
+import { useEffect, useState } from "react";
+import { Anton } from "next/font/google";
+import { supabase } from "../lib/supabaseClient";
 
-        if (!pedidoId) {
-            return NextResponse.json(
-                { ok: false, error: "Falta el pedidoId" },
-                { status: 400 }
-            );
-        }
+const anton = Anton({
+    subsets: ["latin"],
+    weight: "400",
+});
 
-        // 1) Obtener el pedido
-        const { data: pedido, error: pedidoError } = await supabaseAdmin
-            .from("pedidos")
-            .select("id, sorteo_id, cantidad_numeros, estado")
-            .eq("id", pedidoId)
-            .single();
+type BendecidoRow = {
+    id: number;
+    numero: number | string | null;
+};
 
-        if (pedidoError || !pedido) {
-            console.error("Error obteniendo pedido:", pedidoError);
-            return NextResponse.json(
-                { ok: false, error: "Pedido no encontrado" },
-                { status: 400 }
-            );
-        }
+interface NumerosBendecidosProps {
+    sorteoId: string;
+}
 
-        if (pedido.estado === "pagado") {
-            return NextResponse.json(
-                { ok: false, error: "El pedido ya está pagado" },
-                { status: 400 }
-            );
-        }
+function NumerosBendecidos({ sorteoId }: NumerosBendecidosProps) {
+    const [numeros, setNumeros] = useState<BendecidoRow[]>([]);
+    const [entregadosSet, setEntregadosSet] = useState<Set<string>>(new Set());
+    const [loading, setLoading] = useState(true);
 
-        if (!pedido.sorteo_id || !pedido.cantidad_numeros) {
-            return NextResponse.json(
-                { ok: false, error: "El pedido no tiene sorteo_id o cantidad_numeros" },
-                { status: 400 }
-            );
-        }
+    useEffect(() => {
+        const fetchBendecidos = async () => {
+            if (!sorteoId) return;
+            setLoading(true);
 
-        // 2) Verificar si YA tiene números asignados este pedido
-        const { data: existentes, error: existentesError } = await supabaseAdmin
-            .from("numeros_asignados")
-            .select("numero")
-            .eq("pedido_id", pedido.id);
+            // 1️⃣ Números bendecidos del sorteo
+            const { data: bendecidos, error: bendecidosError } = await supabase
+                .from("numeros_bendecidos")
+                .select("id, numero")
+                .eq("sorteo_id", sorteoId)
+                .order("numero", { ascending: true });
 
-        if (existentesError) {
-            console.error("Error consultando numeros_asignados:", existentesError);
-            return NextResponse.json(
-                { ok: false, error: "Error consultando números asignados" },
-                { status: 500 }
-            );
-        }
-
-        const yaTieneNumeros = (existentes?.length ?? 0) > 0;
-        let asignados = existentes ?? [];
-
-        // 3) Si NO tiene números todavía → llamamos al RPC para asignarlos
-        if (!yaTieneNumeros) {
-            const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
-                "asignar_numeros_sorteo",
-                {
-                    p_sorteo_id: pedido.sorteo_id,
-                    p_pedido_id: pedido.id,
-                    p_cantidad: pedido.cantidad_numeros,
-                    p_estado: "pagado",
-                }
-            );
-
-            if (rpcError) {
-                console.error("Error asignando números:", rpcError);
-                return NextResponse.json(
-                    { ok: false, error: rpcError.message },
-                    { status: 400 }
+            if (bendecidosError) {
+                console.error(
+                    "Error cargando números bendecidos:",
+                    bendecidosError.message
                 );
+                setNumeros([]);
+                setEntregadosSet(new Set());
+                setLoading(false);
+                return;
             }
 
-            asignados = rpcData || [];
-        }
+            const listaBendecidos = (bendecidos || []) as BendecidoRow[];
+            setNumeros(listaBendecidos);
 
-        // 4) Actualizar estado del pedido a 'pagado'
-        const { error: updateError } = await supabaseAdmin
-            .from("pedidos")
-            .update({ estado: "pagado" })
-            .eq("id", pedido.id);
+            if (!listaBendecidos.length) {
+                // no hay números bendecidos → nada más que hacer
+                setEntregadosSet(new Set());
+                setLoading(false);
+                return;
+            }
 
-        if (updateError) {
-            console.error("Error actualizando pedido:", updateError);
-            return NextResponse.json(
-                { ok: false, error: updateError.message },
-                { status: 500 }
+            // 2️⃣ Pedidos PAGADOS de este sorteo
+            const { data: pedidosPagados, error: pedidosError } = await supabase
+                .from("pedidos")
+                .select("id")
+                .eq("sorteo_id", sorteoId)
+                .eq("estado", "pagado");
+
+            if (pedidosError) {
+                console.error(
+                    "Error cargando pedidos pagados:",
+                    pedidosError.message
+                );
+                setEntregadosSet(new Set());
+                setLoading(false);
+                return;
+            }
+
+            const idsPagados = (pedidosPagados || []).map((p: any) => p.id) as number[];
+
+            if (!idsPagados.length) {
+                // no hay pedidos pagados → ningún premio entregado
+                setEntregadosSet(new Set());
+                setLoading(false);
+                return;
+            }
+
+            // 3️⃣ Números asignados a esos pedidos pagados
+            const { data: asignados, error: asignadosError } = await supabase
+                .from("numeros_asignados")
+                .select("numero, pedido_id")
+                .eq("sorteo_id", sorteoId)
+                .in("pedido_id", idsPagados);
+
+            if (asignadosError) {
+                console.error(
+                    "Error cargando números asignados:",
+                    asignadosError.message
+                );
+                setEntregadosSet(new Set());
+                setLoading(false);
+                return;
+            }
+
+            // 4️⃣ Set de números que YA fueron entregados (asignados a un pedido pagado)
+            const entregados = new Set<string>(
+                (asignados || [])
+                    .map((n: any) => n.numero)
+                    .filter((n: any) => n !== null && n !== undefined)
+                    .map((n: any) => String(n))
             );
-        }
 
-        return NextResponse.json({ ok: true, asignados });
-    } catch (e: any) {
-        console.error("Error inesperado en marcar-pagado:", e);
-        return NextResponse.json(
-            { ok: false, error: e?.message || "Error inesperado" },
-            { status: 500 }
+            setEntregadosSet(entregados);
+            setLoading(false);
+        };
+
+        fetchBendecidos();
+    }, [sorteoId]);
+
+    if (loading) {
+        return (
+            <p className="text-center text-xs text-slate-500">
+                Cargando premios instantáneos...
+            </p>
         );
     }
+
+    if (!numeros.length) {
+        // si no hay bendecidos, no mostramos nada
+        return null;
+    }
+
+    return (
+        <div className="space-y-4 text-center">
+            <p className="text-xs md:text-sm text-slate-600">
+                ¡Hay {numeros.length} números bendecidos con premios en efectivo!
+                Revisa si tienes uno de los siguientes números:
+            </p>
+
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4 justify-items-center">
+                {numeros.map((n) => {
+                    const numStr =
+                        n.numero !== null && n.numero !== undefined
+                            ? String(n.numero).padStart(5, "0")
+                            : "--";
+
+                    const entregado = entregadosSet.has(String(n.numero ?? ""));
+
+                    return (
+                        <div
+                            key={n.id}
+                            className="flex flex-col items-center justify-center rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm min-w-[90px]"
+                        >
+                            {/* Número bendecido */}
+                            <span
+                                className={`${anton.className} text-lg md:text-xl tracking-[0.18em] text-slate-900`}
+                            >
+                                {numStr}
+                            </span>
+
+                            {/* Solo si el número está en un pedido pagado → mostrar 'Premio Entregado' */}
+                            {entregado && (
+                                <span className="mt-1 text-[10px] md:text-xs text-slate-700 underline">
+                                    ¡Premio Entregado!
+                                </span>
+                            )}
+                        </div>
+                    );
+                })}
+            </div>
+        </div>
+    );
 }
+
+export default NumerosBendecidos;
