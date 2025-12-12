@@ -386,23 +386,27 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SECCIÓN: ADQUIERE TUS NÚMEROS */}
+      {/* SECCIÓN: PREMIOS INSTANTÁNEOS + ADQUIERE TUS NÚMEROS */}
       <section className="space-y-6">
 
-        {/* Título */}
+        {/* ⭐ Título Premios instantáneos */}
         <div className="space-y-2 text-center">
           <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
-            ¡ADQUIERE TUS NÚMEROS!
+            ¡PREMIOS INSTANTÁNEOS!
           </p>
         </div>
 
-        {/* ⭐ PREMIOS INSTANTÁNEOS (DINÁMICO) */}
+        {/* ⭐ Números bendecidos */}
         <section className="w-full py-6">
           <NumerosBendecidos sorteoId={sorteo.id} />
         </section>
 
-        {/* Precio unidad */}
-        <div className="text-center">
+        {/* 🟠 Título Adquiere tus números + valor unidad */}
+        <div className="space-y-2 text-center">
+          <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
+            ¡ADQUIERE TUS NÚMEROS!
+          </p>
+
           <p className="text-[13px] font-extrabold text-slate-700">
             Valor de la unidad:{" "}
             <span className="font-extrabold text-slate-700">
@@ -421,11 +425,9 @@ export default function HomePage() {
               <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
                 x{cantidad} números
               </p>
-
               <p className="text-2xl font-bold text-white">
                 {(cantidad * precioUnidad).toFixed(2)}
               </p>
-
               <button
                 className="mt-2 w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
                 onClick={() => handleComprarClick(cantidad)}
@@ -435,10 +437,7 @@ export default function HomePage() {
             </article>
           ))}
         </div>
-
       </section>
-
-
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
       <section className="w-full pb-10 md:pb-14">
