@@ -2,11 +2,10 @@
 
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { supabase } from "@/lib/supabaseClient";
 
 export default function PagoExitosoPage() {
     return (
-        <Suspense fallback={<div>Cargando...</div>}>
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Cargando...</div>}>
             <PagoExitosoInner />
         </Suspense>
     );
@@ -24,94 +23,88 @@ function PagoExitosoInner() {
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [pedidoId, setPedidoId] = useState<number | null>(null);
+    const [estado, setEstado] = useState<string | null>(null);
 
-    // 🔥 Aquí insertamos la asignación automática
     useEffect(() => {
         if (!tx) {
-            setErrorMsg("No se recibió el código de transacción en la URL.");
+            setErrorMsg("No se recibió el código de transacción (tx).");
             setLoading(false);
             return;
         }
 
-        async function procesarPago() {
+        async function confirmar() {
             try {
-                // 1️⃣ Buscar el pedido por tx
-                const { data: pedido, error: pedidoError } = await supabase
-                    .from("pedidos")
-                    .select("id, estado")
-                    .eq("payphone_client_transaction_id", tx)
-                    .maybeSingle();
-
-                if (pedidoError || !pedido) {
-                    setErrorMsg("No se encontró el pedido asociado a esta transacción.");
-                    setLoading(false);
-                    return;
-                }
-
-                setPedidoId(pedido.id);
-
-                // 2️⃣ Llamar al endpoint que marca como pagado y asigna números
-                const res = await fetch("/api/admin/pedidos/marcar-pagado", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ pedidoId: pedido.id })
+                // ✅ Un SOLO punto de verdad: servidor confirma PayPhone y recién ahí registra/actualiza pedido
+                const res = await fetch(`/api/payphone/confirmar?tx=${encodeURIComponent(tx)}`, {
+                    method: "GET",
+                    cache: "no-store",
                 });
 
                 const result = await res.json();
 
-                if (!result.ok) {
-                    console.error("Error asignando números:", result);
-                    setErrorMsg("El pago fue recibido, pero no se pudieron asignar los números.");
+                if (!res.ok || !result?.ok) {
+                    setEstado(result?.estado || "no_confirmado");
+                    setErrorMsg(
+                        result?.error ||
+                        "El pago aún no está confirmado. Si pagaste, espera unos segundos y vuelve a intentar."
+                    );
+                    setLoading(false);
+                    return;
                 }
+
+                setPedidoId(result.pedidoId ?? null);
+                setEstado(result.estado ?? "pagado");
             } catch (err) {
                 console.error(err);
-                setErrorMsg("Ocurrió un error procesando la compra.");
+                setErrorMsg("Ocurrió un error verificando el pago.");
+            } finally {
+                setLoading(false);
             }
-
-            setLoading(false);
         }
 
-        procesarPago();
+        confirmar();
     }, [tx]);
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
-                Procesando pedido...
+                Verificando pago...
             </div>
         );
     }
 
     return (
-        <main className="min-h-screen flex items-center justify-center">
-            <div className="p-6 max-w-md bg-white rounded-xl shadow">
-
+        <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+            <div className="p-6 w-full max-w-md bg-white rounded-2xl shadow">
                 <h1 className="text-xl font-bold text-orange-600">
-                    ¡Pago realizado con éxito!
+                    {estado === "pagado" ? "¡Pago confirmado!" : "Pago en verificación"}
                 </h1>
 
-                <p className="mt-2">Hemos recibido tu pago correctamente.</p>
+                <p className="mt-2 text-gray-700">
+                    {estado === "pagado"
+                        ? "Tu pago fue confirmado y tus números serán asignados."
+                        : "Aún no hay confirmación oficial del pago. Si ya pagaste, espera un momento."}
+                </p>
 
                 {errorMsg && (
-                    <p className="mt-2 text-red-500 text-sm">{errorMsg}</p>
+                    <p className="mt-3 text-red-500 text-sm">{errorMsg}</p>
                 )}
 
-                {pedidoId && (
-                    <ul className="mt-4 text-sm text-slate-600">
-                        <li><strong>clientTransactionId:</strong> {tx}</li>
-                        <li><strong>Pedido ID:</strong> {pedidoId}</li>
-                    </ul>
-                )}
+                <div className="mt-4 text-sm text-slate-600 space-y-1">
+                    <div><strong>Tx:</strong> {tx}</div>
+                    {pedidoId && <div><strong>Pedido ID:</strong> {pedidoId}</div>}
+                    {estado && <div><strong>Estado:</strong> {estado}</div>}
+                </div>
 
                 <button
-                    className="mt-4 bg-orange-500 text-white px-4 py-2 rounded w-full"
-                    onClick={() => router.push(`/mi-compra?tx=${tx}`)}
+                    className="mt-5 bg-orange-500 text-white px-4 py-2 rounded-xl w-full font-semibold"
+                    onClick={() => router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`)}
                 >
                     Ver mi compra
                 </button>
 
                 <button
-                    className="mt-3 bg-gray-200 px-4 py-2 rounded w-full"
+                    className="mt-3 bg-gray-200 px-4 py-2 rounded-xl w-full font-semibold"
                     onClick={() => router.push("/")}
                 >
                     Regresar al inicio

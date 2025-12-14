@@ -130,6 +130,7 @@ export default function HomePage() {
     selectedCantidad != null ? selectedCantidad * precioUnidad : 0;
 
   // Guardar pedido en Supabase + flujo según método de pago
+  // ✅ Opción 1: NO crear pedido aquí. Solo redirigir / mostrar transferencia.
   const handleConfirmarDatosPago = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setOrderError(null);
@@ -147,22 +148,16 @@ export default function HomePage() {
 
     const telefonoValido = /^09\d{8}$/.test(telefonoCliente.trim());
     if (!telefonoValido) {
-      setOrderError(
-        "Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx)."
-      );
+      setOrderError("Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx).");
       return;
     }
 
     if (!correoCliente.trim()) {
-      setOrderError(
-        "El correo electrónico es obligatorio para ver tus números asignados."
-      );
+      setOrderError("El correo electrónico es obligatorio para ver tus números asignados.");
       return;
     }
 
-    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-      correoCliente.trim()
-    );
+    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoCliente.trim());
     if (!correoValido) {
       setOrderError("Ingresa un correo electrónico válido.");
       return;
@@ -175,67 +170,55 @@ export default function HomePage() {
 
     setSavingOrder(true);
 
-    // 👉 ID único de transacción para PayPhone
-    const clientTransactionId = `P-${numeroActividad}-${Date.now()
-      .toString()
-      .slice(-8)}`;
-    router.push(
-      `/pago-payphone?amount=${encodeURIComponent(totalStr)}&ref=${encodeURIComponent(
-        ref
-      )}&tx=${encodeURIComponent(clientTransactionId)}`
-    );
-
-
     try {
-      // 1) Insertar pedido en Supabase
-      const estadoInicial =
-        metodoPago === "payphone"
-          ? "en_proceso" // 🔸 PayPhone → NO aparece en pendientes
-          : "pendiente"; // 🔸 Transferencia / tarjeta → pendiente
+      const totalStr = Number(totalPaquete).toFixed(2);
+      const ref = `Sorteo ${numeroActividad} - Preorden`;
 
+      // 👉 ID único de transacción para PayPhone (sin crear pedido aún)
+      const clientTransactionId =
+        (crypto as any)?.randomUUID?.() ||
+        `P-${numeroActividad}-${Date.now().toString().slice(-8)}-${Math.random()
+          .toString(16)
+          .slice(2)}`;
 
-      if (error || !inserted) {
-        console.error("Error guardando pedido:", error);
-        setOrderError(
-          error?.message ||
-          "No se pudo registrar el pedido. Intenta de nuevo."
-        );
-        return;
-      }
-
-      // 2) Flujo según método de pago
+      // 2) Flujo según método de pago (SIN DB)
       if (metodoPago === "payphone") {
         // Cerrar modal y mandar a la página de PayPhone
         setIsModalOpen(false);
 
-        const totalStr = Number(totalPaquete).toFixed(2);
-        const ref = `Sorteo ${numeroActividad} - Preorden`;
-
-
         router.push(
-          `/pago-payphone?amount=${encodeURIComponent(
-            totalStr
-          )}&ref=${encodeURIComponent(ref)}&tx=${encodeURIComponent(
-            clientTransactionId
+          `/pago-payphone?amount=${encodeURIComponent(totalStr)}&ref=${encodeURIComponent(
+            ref
+          )}&tx=${encodeURIComponent(clientTransactionId)}&sorteoId=${encodeURIComponent(
+            sorteo.id
+          )}&cantidad=${encodeURIComponent(String(selectedCantidad))}&nombre=${encodeURIComponent(
+            nombreCliente.trim()
+          )}&telefono=${encodeURIComponent(telefonoCliente.trim())}&correo=${encodeURIComponent(
+            correoCliente.trim().toLowerCase()
           )}`
         );
-      } else if (metodoPago === "transferencia") {
-        // Transferencia → mostrar modal bancario
-        setModalStep("transferencia");
-      } else {
-        // Tarjeta/manual u otro canal
-        setModalStep("ok");
+
+        return;
       }
+
+      if (metodoPago === "transferencia") {
+        // Transferencia → mostrar modal bancario (sin crear pedido)
+        setModalStep("transferencia");
+        return;
+      }
+
+      // Otro canal (si existiera)
+      setModalStep("ok");
     } catch (err: any) {
-      console.error("Error registrando pedido:", err);
+      console.error("Error en flujo de pago:", err);
       setOrderError(
-        err?.message ||
-        "Ocurrió un error inesperado al registrar el pedido. Intenta de nuevo."
+        err?.message || "Ocurrió un error inesperado. Intenta de nuevo."
       );
     } finally {
       setSavingOrder(false);
     }
   };
+
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
