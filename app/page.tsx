@@ -129,44 +129,22 @@ export default function HomePage() {
   const totalPaquete =
     selectedCantidad != null ? selectedCantidad * precioUnidad : 0;
 
-  // Guardar pedido en Supabase + flujo según método de pago
-  // ✅ Opción 1: NO crear pedido aquí. Solo redirigir / mostrar transferencia.
   const handleConfirmarDatosPago = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setOrderError(null);
 
-    // 🔒 Validaciones de campos
-    if (!nombreCliente.trim()) {
-      setOrderError("El nombre completo es obligatorio.");
-      return;
-    }
-
-    if (!telefonoCliente.trim()) {
-      setOrderError("El número de WhatsApp es obligatorio.");
-      return;
-    }
+    // Validaciones (las tuyas)
+    if (!nombreCliente.trim()) return setOrderError("El nombre completo es obligatorio.");
+    if (!telefonoCliente.trim()) return setOrderError("El número de WhatsApp es obligatorio.");
 
     const telefonoValido = /^09\d{8}$/.test(telefonoCliente.trim());
-    if (!telefonoValido) {
-      setOrderError("Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx).");
-      return;
-    }
+    if (!telefonoValido) return setOrderError("Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx).");
 
-    if (!correoCliente.trim()) {
-      setOrderError("El correo electrónico es obligatorio para ver tus números asignados.");
-      return;
-    }
-
+    if (!correoCliente.trim()) return setOrderError("El correo electrónico es obligatorio para ver tus números asignados.");
     const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoCliente.trim());
-    if (!correoValido) {
-      setOrderError("Ingresa un correo electrónico válido.");
-      return;
-    }
+    if (!correoValido) return setOrderError("Ingresa un correo electrónico válido.");
 
-    if (selectedCantidad == null) {
-      setOrderError("No se detectó el paquete seleccionado.");
-      return;
-    }
+    if (selectedCantidad == null) return setOrderError("No se detectó el paquete seleccionado.");
 
     setSavingOrder(true);
 
@@ -174,22 +152,19 @@ export default function HomePage() {
       const totalStr = Number(totalPaquete).toFixed(2);
       const ref = `Sorteo ${numeroActividad} - Preorden`;
 
-      // 👉 ID único de transacción para PayPhone (sin crear pedido aún)
-      const clientTransactionId =
+      // tx único para PayPhone
+      const tx =
         (crypto as any)?.randomUUID?.() ||
-        `P-${numeroActividad}-${Date.now().toString().slice(-8)}-${Math.random()
-          .toString(16)
-          .slice(2)}`;
+        `P-${numeroActividad}-${Date.now().toString().slice(-8)}-${Math.random().toString(16).slice(2)}`;
 
-      // 2) Flujo según método de pago (SIN DB)
+      // ✅ PAYPHONE: solo redirige. NO crea pedido, NO vende, NO asigna.
       if (metodoPago === "payphone") {
-        // Cerrar modal y mandar a la página de PayPhone
         setIsModalOpen(false);
 
         router.push(
           `/pago-payphone?amount=${encodeURIComponent(totalStr)}&ref=${encodeURIComponent(
             ref
-          )}&tx=${encodeURIComponent(clientTransactionId)}&sorteoId=${encodeURIComponent(
+          )}&tx=${encodeURIComponent(tx)}&sorteoId=${encodeURIComponent(
             sorteo.id
           )}&cantidad=${encodeURIComponent(String(selectedCantidad))}&nombre=${encodeURIComponent(
             nombreCliente.trim()
@@ -201,23 +176,22 @@ export default function HomePage() {
         return;
       }
 
+      // ✅ TRANSFERENCIA: solo muestra instrucciones. NO crea pedido, NO vende, NO asigna.
       if (metodoPago === "transferencia") {
-        // Transferencia → mostrar modal bancario (sin crear pedido)
         setModalStep("transferencia");
         return;
       }
 
-      // Otro canal (si existiera)
+      // Otros (si existiera)
       setModalStep("ok");
     } catch (err: any) {
-      console.error("Error en flujo de pago:", err);
-      setOrderError(
-        err?.message || "Ocurrió un error inesperado. Intenta de nuevo."
-      );
+      console.error(err);
+      setOrderError(err?.message || "Ocurrió un error inesperado. Intenta de nuevo.");
     } finally {
       setSavingOrder(false);
     }
   };
+
 
 
   // 🔍 Buscar números asignados por correo
