@@ -9,22 +9,21 @@ type ResultadoAsignacion =
   }
   | {
     ok: false;
-    code: "BAD_REQUEST" | "NOT_FOUND" | "NO_STOCK" | "INTERNAL";
+    code: "BAD_REQUEST" | "NOT_FOUND" | "NO_STOCK" | "INTERNAL" | "NOT_CONFIRMED";
     error: string;
   };
 
 /**
- * Asigna números a partir del tx de PayPhone usando SOLO la función de BD.
- * - Solo funciona para pedidos con método de pago "payphone".
- * - Si el pedido ya tiene números asignados, NO vuelve a asignar.
- * - Si asigna, también marca el pedido como "pagado".
+ * ✅ Asigna números a partir del tx SOLO si el pago está confirmado.
  *
- * En esta versión se usa la función de BD:
- *   asignar_numeros_sorteo(p_sorteo_id uuid, p_pedido_id int, p_cantidad int, p_estado text)
- * que realiza la asignación en la base de datos (estilo secuencial/seguro).
+ * Regla PRO:
+ * - Este helper NO valida PayPhone.
+ * - Debe ser llamado ÚNICAMENTE por un endpoint servidor que ya verificó el pago.
+ * - Si paidConfirmed === false, no hace nada (reporta NOT_CONFIRMED).
  */
 export async function asignarNumerosPorTx(
-  tx: string
+  tx: string,
+  paidConfirmed: boolean
 ): Promise<ResultadoAsignacion> {
   try {
     if (!tx) {
@@ -32,6 +31,15 @@ export async function asignarNumerosPorTx(
         ok: false,
         code: "BAD_REQUEST",
         error: "Falta el identificador de transacción (tx)",
+      };
+    }
+
+    // 🔒 Blindaje: sin confirmación real, NO asignar jamás
+    if (!paidConfirmed) {
+      return {
+        ok: false,
+        code: "NOT_CONFIRMED",
+        error: "Pago no confirmado por PayPhone. No se asignarán números.",
       };
     }
 
@@ -77,7 +85,7 @@ export async function asignarNumerosPorTx(
       };
     }
 
-    const cantidad = (pedido.cantidad_numeros as number) || 0;
+    const cantidad = Number(pedido.cantidad_numeros) || 0;
     if (cantidad <= 0) {
       return {
         ok: false,
@@ -103,7 +111,6 @@ export async function asignarNumerosPorTx(
     }
 
     if (existentes && existentes.length > 0) {
-      // Ya tenía números → no volvemos a asignar
       return {
         ok: true,
         alreadyAssigned: true,
@@ -112,6 +119,7 @@ export async function asignarNumerosPorTx(
     }
 
     // 3) Llamar a la función de BD para asignar (secuencial, segura)
+    // ✅ Como ya está confirmado, aquí sí marcamos p_estado="pagado"
     const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
       "asignar_numeros_sorteo",
       {
@@ -137,7 +145,6 @@ export async function asignarNumerosPorTx(
       typeof n === "number" ? (n as number) : (n.numero as number)
     );
 
-    // Seguridad extra: si por alguna razón la función no devolvió nada
     if (!numerosFinales.length) {
       return {
         ok: false,
@@ -147,7 +154,7 @@ export async function asignarNumerosPorTx(
       };
     }
 
-    // 4) Marcar pedido como pagado (si no lo está)
+    // 4) Asegurar estado pagado (por si tu RPC no lo hace)
     if (pedido.estado !== "pagado") {
       const { error: updateError } = await supabaseAdmin
         .from("pedidos")
@@ -156,7 +163,6 @@ export async function asignarNumerosPorTx(
 
       if (updateError) {
         console.error("Error actualizando estado del pedido:", updateError);
-        // No rompemos la asignación, solo avisamos
       }
     }
 
