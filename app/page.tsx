@@ -179,6 +179,12 @@ export default function HomePage() {
     const clientTransactionId = `P-${numeroActividad}-${Date.now()
       .toString()
       .slice(-8)}`;
+    router.push(
+      `/pago-payphone?amount=${encodeURIComponent(totalStr)}&ref=${encodeURIComponent(
+        ref
+      )}&tx=${encodeURIComponent(clientTransactionId)}`
+    );
+
 
     try {
       // 1) Insertar pedido en Supabase
@@ -187,24 +193,6 @@ export default function HomePage() {
           ? "en_proceso" // 🔸 PayPhone → NO aparece en pendientes
           : "pendiente"; // 🔸 Transferencia / tarjeta → pendiente
 
-      const { data: inserted, error } = await supabase
-        .from("pedidos")
-        .insert({
-          sorteo_id: sorteo.id, // uuid del sorteo
-          actividad_numero: numeroActividad,
-          cantidad_numeros: selectedCantidad,
-          precio_unitario: precioUnidad,
-          total: totalPaquete,
-          metodo_pago: metodoPago,
-          nombre: nombreCliente.trim(),
-          telefono: telefonoCliente.trim(),
-          correo: correoCliente.trim(),
-          estado: estadoInicial,
-          payphone_client_transaction_id:
-            metodoPago === "payphone" ? clientTransactionId : null,
-        })
-        .select()
-        .single();
 
       if (error || !inserted) {
         console.error("Error guardando pedido:", error);
@@ -221,7 +209,8 @@ export default function HomePage() {
         setIsModalOpen(false);
 
         const totalStr = Number(totalPaquete).toFixed(2);
-        const ref = `Sorteo ${numeroActividad} - Pedido ${inserted.id}`;
+        const ref = `Sorteo ${numeroActividad} - Preorden`;
+
 
         router.push(
           `/pago-payphone?amount=${encodeURIComponent(
