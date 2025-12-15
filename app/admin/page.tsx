@@ -133,6 +133,7 @@ export default function AdminHomePage() {
                     .from("numeros_asignados")
                     .select("id", { count: "exact", head: true })
                     .eq("sorteo_id", sorteoIdActivo)
+                    .eq("estado", "asignado")          // ← 🔴 ESTA LÍNEA ES LA CLAVE
                     .in("pedido_id", pedidoIdsPagados);
 
                 if (countError) {
