@@ -20,6 +20,8 @@ function PagoExitosoInner() {
         searchParams.get("tx") ||
         searchParams.get("id");
 
+    const safeTx = tx ?? ""; // ✅ siempre string (para TS)
+
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [pedidoId, setPedidoId] = useState<number | null>(null);
@@ -45,7 +47,6 @@ function PagoExitosoInner() {
         run();
     }, [tx]);
 
-
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center">
@@ -67,19 +68,28 @@ function PagoExitosoInner() {
                         : "Aún no hay confirmación oficial del pago. Si ya pagaste, espera un momento."}
                 </p>
 
-                {errorMsg && (
-                    <p className="mt-3 text-red-500 text-sm">{errorMsg}</p>
-                )}
+                {errorMsg && <p className="mt-3 text-red-500 text-sm">{errorMsg}</p>}
 
                 <div className="mt-4 text-sm text-slate-600 space-y-1">
-                    <div><strong>Tx:</strong> {tx}</div>
-                    {pedidoId && <div><strong>Pedido ID:</strong> {pedidoId}</div>}
-                    {estado && <div><strong>Estado:</strong> {estado}</div>}
+                    <div>
+                        <strong>Tx:</strong> {tx}
+                    </div>
+                    {pedidoId && (
+                        <div>
+                            <strong>Pedido ID:</strong> {pedidoId}
+                        </div>
+                    )}
+                    {estado && (
+                        <div>
+                            <strong>Estado:</strong> {estado}
+                        </div>
+                    )}
                 </div>
 
                 <button
-                    className="mt-5 bg-orange-500 text-white px-4 py-2 rounded-xl w-full font-semibold"
-                    onClick={() => router.push(`/mi-compra?tx=${encodeURIComponent(tx)}`)}
+                    className="mt-5 bg-orange-500 text-white px-4 py-2 rounded-xl w-full font-semibold disabled:opacity-50"
+                    disabled={!tx} // ✅ no permite click si no hay tx
+                    onClick={() => router.push(`/mi-compra?tx=${encodeURIComponent(safeTx)}`)}
                 >
                     Ver mi compra
                 </button>
