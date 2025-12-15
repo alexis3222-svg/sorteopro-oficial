@@ -76,22 +76,28 @@ export default function AdminHomePage() {
                 setPedidos(pedidosNorm);
 
 
-                // 🧮 2) Calcular estadísticas globales
+                // 🧮 2) Calcular estadísticas globales (VENTAS REALES = SOLO PAGADO)
                 const totalPedidos = pedidosNorm.length;
-                const totalNumeros = pedidosNorm.reduce(
+
+                const pedidosPagadosArr = pedidosNorm.filter((p) => p.estado === "pagado");
+                const pedidosPendientesArr = pedidosNorm.filter((p) => p.estado === "pendiente");
+                // si quieres contarlo aparte (no afecta stats actuales)
+                const pedidosEnProcesoArr = pedidosNorm.filter((p) => p.estado === "en_proceso");
+
+                // ✅ vendidos = solo pagados
+                const totalNumeros = pedidosPagadosArr.reduce(
                     (acc, p) => acc + (p.cantidad_numeros || 0),
                     0
                 );
-                const totalRecaudado = pedidosNorm.reduce(
+
+                // ✅ recaudado = solo pagados
+                const totalRecaudado = pedidosPagadosArr.reduce(
                     (acc, p) => acc + (p.total || 0),
                     0
                 );
-                const pedidosPendientes = pedidosNorm.filter(
-                    (p) => p.estado === "pendiente"
-                ).length;
-                const pedidosPagados = pedidosNorm.filter(
-                    (p) => p.estado === "pagado"
-                ).length;
+
+                const pedidosPendientes = pedidosPendientesArr.length;
+                const pedidosPagados = pedidosPagadosArr.length;
 
                 setStats({
                     totalPedidos,
@@ -107,8 +113,15 @@ export default function AdminHomePage() {
                         `Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`
                     );
                 }
+
                 if (totalPedidos === 0) {
                     nuevasAlertas.push("Aún no se han registrado pedidos en el sistema.");
+                }
+
+                if (pedidosEnProcesoArr.length > 0) {
+                    nuevasAlertas.push(
+                        `Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`
+                    );
                 }
 
                 // 🎯 3) Cargar sorteo activo (muy flexible con columnas)
