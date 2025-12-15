@@ -12,17 +12,20 @@ type PedidoResumen = {
     cantidad_numeros: number | null;
     estado: string | null;
     cliente_nombre: string | null;
+    sorteo_id?: string | null;
 };
 
 type Stats = {
-    totalPedidos: number;
-    totalNumeros: number;
-    totalRecaudado: number;
-    pedidosPendientes: number;
-    pedidosPagados: number;
+    totalPedidos: number;      // total de pedidos DEL SORTEO ACTIVO
+    totalNumeros: number;      // vendidos reales (numeros_asignados de pedidos pagados)
+    totalRecaudado: number;    // sum(total) pagados
+    pedidosPendientes: number; // pendientes del sorteo activo
+    pedidosPagados: number;    // pagados del sorteo activo
 };
 
-type SorteoActivo = any; // usamos "any" para ser flexibles con los nombres de columnas
+type SorteoActivo = any;
+
+const normEstado = (v: any) => String(v ?? "").trim().toLowerCase();
 
 export default function AdminHomePage() {
     const [pedidos, setPedidos] = useState<PedidoResumen[]>([]);
@@ -39,30 +42,7 @@ export default function AdminHomePage() {
             const nuevasAlertas: string[] = [];
 
             try {
-                // 📦 1) Cargar pedidos
-                const { data: pedidosRaw, error: pedidosError } = await supabase
-                    .from("pedidos")
-                    .select("*")
-                    .order("created_at", { ascending: false });
-
-                if (pedidosError) {
-                    console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
-                    setErrorGeneral("No se pudieron cargar los pedidos.");
-                    return;
-                }
-
-                const pedidosNorm: PedidoResumen[] = (pedidosRaw || []).map((p: any) => ({
-                    id: p.id,
-                    created_at: p.created_at,
-                    total: Number(p.total ?? p.monto_total ?? 0),
-                    cantidad_numeros: Number(p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0),
-                    estado: p.estado ?? p.status ?? p.estado_pago ?? null,
-                    cliente_nombre: p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null,
-                }));
-
-                setPedidos(pedidosNorm);
-
-                // 🎯 2) Cargar sorteo activo (ANTES de stats reales)
+                // 1) Sorteo activo (primero, para filtrar todo por esta actividad)
                 const { data: sorteoData, error: sorteoError } = await supabase
                     .from("sorteos")
                     .select("*")
@@ -73,55 +53,87 @@ export default function AdminHomePage() {
 
                 if (sorteoError) {
                     console.error("Error cargando sorteo activo:", sorteoError);
-                } else if (sorteoData) {
-                    setSorteoActivo(sorteoData);
-                } else {
-                    nuevasAlertas.push("No hay un sorteo activo configurado actualmente.");
+                    nuevasAlertas.push("No se pudo cargar el sorteo activo.");
                 }
 
-                // 🧮 3) Calcular estadísticas (VENTAS REALES)
-                const normEstado = (v: any) => String(v ?? "").trim().toLowerCase();
+                if (!sorteoData?.id) {
+                    setSorteoActivo(null);
+                    setPedidos([]);
+                    setStats({
+                        totalPedidos: 0,
+                        totalNumeros: 0,
+                        totalRecaudado: 0,
+                        pedidosPendientes: 0,
+                        pedidosPagados: 0,
+                    });
+                    nuevasAlertas.push("No hay un sorteo activo configurado actualmente.");
+                    setAlertas(nuevasAlertas);
+                    setLoading(false);
+                    return;
+                }
 
-                const totalPedidos = pedidosNorm.length;
+                setSorteoActivo(sorteoData);
+                const sorteoIdActivo = sorteoData.id as string;
 
+                // 2) Pedidos SOLO del sorteo activo (para KPIs + últimos)
+                const { data: pedidosRaw, error: pedidosError } = await supabase
+                    .from("pedidos")
+                    .select("*")
+                    .eq("sorteo_id", sorteoIdActivo)
+                    .order("created_at", { ascending: false });
+
+                if (pedidosError) {
+                    console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
+                    setErrorGeneral("No se pudieron cargar los pedidos.");
+                    setLoading(false);
+                    return;
+                }
+
+                const pedidosNorm: PedidoResumen[] = (pedidosRaw || []).map((p: any) => ({
+                    id: p.id,
+                    created_at: p.created_at,
+                    total: Number(p.total ?? p.monto_total ?? 0),
+                    cantidad_numeros: Number(p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0),
+                    estado: p.estado ?? p.status ?? p.estado_pago ?? null,
+                    cliente_nombre: p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null,
+                    sorteo_id: p.sorteo_id ?? null,
+                }));
+
+                setPedidos(pedidosNorm);
+
+                // 3) Arrays por estado (del sorteo activo)
+                const pedidosPagadosArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pagado");
                 const pedidosPendientesArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pendiente");
                 const pedidosEnProcesoArr = pedidosNorm.filter((p) => normEstado(p.estado) === "en_proceso");
-                const pedidosPagadosArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pagado");
 
-                const pedidosPendientes = pedidosPendientesArr.length;
                 const pedidosPagados = pedidosPagadosArr.length;
+                const pedidosPendientes = pedidosPendientesArr.length;
 
-                const sorteoIdActivo = sorteoData?.id ?? null;
+                // 4) ✅ Recaudado real: SUM(pedidos.total) de pagados
+                const totalRecaudado =
+                    pedidosPagadosArr.reduce((acc, p) => acc + (Number(p.total) || 0), 0) ?? 0;
 
-                // ✅ vendidos reales: COUNT numeros_asignados (del sorteo activo)
+                // 5) ✅ Vendidos reales: COUNT(numeros_asignados) solo de pedidos pagados
                 let totalNumeros = 0;
-                if (sorteoIdActivo) {
+
+                const pedidoIdsPagados = pedidosPagadosArr.map((p) => p.id);
+
+                if (pedidoIdsPagados.length > 0) {
                     const { count, error: countError } = await supabase
                         .from("numeros_asignados")
-                        .select("*", { count: "exact", head: true })
+                        .select("id", { count: "exact", head: true })
                         .eq("sorteo_id", sorteoIdActivo)
-                        .eq("estado", "asignado");
+                        .in("pedido_id", pedidoIdsPagados);
 
-                    if (countError) console.error("Error contando numeros_asignados:", countError);
-                    totalNumeros = count ?? 0;
-                }
-
-                // ✅ recaudado real: SUM pedidos pagados (del sorteo activo)
-                let totalRecaudado = 0;
-                if (sorteoIdActivo) {
-                    const { data: pagos, error: pagosError } = await supabase
-                        .from("pedidos")
-                        .select("total")
-                        .eq("sorteo_id", sorteoIdActivo)
-                        .eq("estado", "pagado");
-
-                    if (pagosError) {
-                        console.error("Error sumando pedidos pagados:", pagosError);
+                    if (countError) {
+                        console.error("Error contando numeros_asignados:", countError);
                     } else {
-                        totalRecaudado =
-                            pagos?.reduce((acc: number, p: any) => acc + (Number(p.total) || 0), 0) ?? 0;
+                        totalNumeros = count ?? 0;
                     }
                 }
+
+                // 6) total pedidos del sorteo activo
+                const totalPedidos = pedidosNorm.length;
 
                 setStats({
                     totalPedidos,
@@ -131,15 +143,15 @@ export default function AdminHomePage() {
                     pedidosPagados,
                 });
 
-                // 🔔 Alertas
+                // 7) Alertas
                 if (pedidosPendientes > 0) {
                     nuevasAlertas.push(`Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`);
                 }
-                if (totalPedidos === 0) {
-                    nuevasAlertas.push("Aún no se han registrado pedidos en el sistema.");
-                }
                 if (pedidosEnProcesoArr.length > 0) {
                     nuevasAlertas.push(`Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`);
+                }
+                if (totalPedidos === 0) {
+                    nuevasAlertas.push("Aún no se han registrado pedidos en el sorteo activo.");
                 }
             } catch (err: any) {
                 console.error(err);
@@ -153,8 +165,7 @@ export default function AdminHomePage() {
         cargarDashboard();
     }, []);
 
-
-    // 🧠 Derivados del sorteo activo (soportando distintos nombres de columnas)
+    // Derivados del sorteo activo
     const sorteoTitulo: string | null = useMemo(() => {
         if (!sorteoActivo) return null;
         return (
@@ -176,30 +187,14 @@ export default function AdminHomePage() {
         );
     }, [sorteoActivo]);
 
-    const sorteoProgresoLabel: string | null = useMemo(() => {
-        if (!sorteoActivo) return null;
-        const raw =
-            sorteoActivo.porcentaje_vendido ||
-            sorteoActivo.progreso ||
-            sorteoActivo.progreso_venta ||
-            null;
-        if (raw == null) return null;
-        const num = Number(raw);
-        if (Number.isNaN(num)) return null;
-        return `${num.toFixed(2)}% vendido`;
-    }, [sorteoActivo]);
-
     const sorteoId: string | null = sorteoActivo?.id || null;
 
-    // 🧾 Últimos 5 pedidos
-    const ultimosPedidos = useMemo(() => {
-        return pedidos.slice(0, 5);
-    }, [pedidos]);
+    // Últimos 5 pedidos (ya del sorteo activo)
+    const ultimosPedidos = useMemo(() => pedidos.slice(0, 5), [pedidos]);
 
     return (
         <main className="min-h-screen bg-[#050608] text-slate-50">
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-12 space-y-8">
-                {/* Encabezado principal */}
                 <header className="space-y-3">
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                         Casa Bikers • Admin
@@ -208,82 +203,56 @@ export default function AdminHomePage() {
                         Panel administrativo
                     </h1>
                     <p className="max-w-2xl text-sm text-slate-400">
-                        Resumen general del sistema de sorteos. Desde aquí puedes controlar
-                        pedidos, números asignados y el estado de tus actividades.
+                        Resumen del sorteo activo. Aquí controlas pedidos, números asignados y estado.
                     </p>
                 </header>
 
-                {/* Errores generales */}
                 {errorGeneral && (
                     <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                         {errorGeneral}
                     </div>
                 )}
 
-                {/* Panel principal */}
                 {loading ? (
                     <div className="flex items-center justify-center py-16 text-sm text-slate-400">
                         Cargando información del panel...
                     </div>
                 ) : (
                     <>
-                        {/* Fila: KPIs + sorteo activo */}
                         <section className="grid gap-4 md:grid-cols-3">
-                            {/* KPIs */}
                             <div className="md:col-span-2 space-y-4">
                                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                    {/* Total pedidos */}
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Total de pedidos</p>
-                                        <p className="mt-2 text-2xl font-semibold">
-                                            {stats?.totalPedidos ?? 0}
-                                        </p>
+                                        <p className="mt-2 text-2xl font-semibold">{stats?.totalPedidos ?? 0}</p>
                                     </div>
 
-                                    {/* Números vendidos */}
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Números vendidos</p>
-                                        <p className="mt-2 text-2xl font-semibold">
-                                            {stats?.totalNumeros ?? 0}
-                                        </p>
+                                        <p className="mt-2 text-2xl font-semibold">{stats?.totalNumeros ?? 0}</p>
                                     </div>
 
-                                    {/* Total recaudado */}
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Total recaudado</p>
                                         <p className="mt-2 text-2xl font-semibold">
-                                            $
-                                            {stats
-                                                ? stats.totalRecaudado.toFixed(2)
-                                                : "0.00"}
+                                            ${stats ? stats.totalRecaudado.toFixed(2) : "0.00"}
                                         </p>
                                     </div>
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    {/* Pedidos pagados */}
                                     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-                                        <p className="text-xs text-emerald-200">
-                                            Pedidos pagados
-                                        </p>
-                                        <p className="mt-2 text-xl font-semibold">
-                                            {stats?.pedidosPagados ?? 0}
-                                        </p>
+                                        <p className="text-xs text-emerald-200">Pedidos pagados</p>
+                                        <p className="mt-2 text-xl font-semibold">{stats?.pedidosPagados ?? 0}</p>
                                     </div>
 
-                                    {/* Pedidos pendientes */}
                                     <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
-                                        <p className="text-xs text-yellow-100">
-                                            Pedidos pendientes
-                                        </p>
-                                        <p className="mt-2 text-xl font-semibold">
-                                            {stats?.pedidosPendientes ?? 0}
-                                        </p>
+                                        <p className="text-xs text-yellow-100">Pedidos pendientes</p>
+                                        <p className="mt-2 text-xl font-semibold">{stats?.pedidosPendientes ?? 0}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Sorteo activo */}
                             <div className="rounded-xl border border-orange-500/60 bg-gradient-to-b from-orange-500/20 via-slate-900/80 to-slate-950 px-4 py-4 flex flex-col justify-between">
                                 <div className="space-y-1">
                                     <p className="text-xs font-semibold tracking-[0.2em] uppercase text-orange-300">
@@ -291,19 +260,10 @@ export default function AdminHomePage() {
                                     </p>
                                     {sorteoActivo ? (
                                         <>
-                                            <h2 className="text-lg font-semibold">
-                                                {sorteoTitulo || "Sorteo en curso"}
-                                            </h2>
+                                            <h2 className="text-lg font-semibold">{sorteoTitulo || "Sorteo en curso"}</h2>
                                             <p className="text-xs text-orange-100/80">
-                                                {sorteoActividadNumero
-                                                    ? `Actividad #${sorteoActividadNumero}`
-                                                    : "Actividad sin número definido"}
+                                                {sorteoActividadNumero ? `Actividad #${sorteoActividadNumero}` : "Actividad sin número"}
                                             </p>
-                                            {sorteoProgresoLabel && (
-                                                <p className="mt-2 text-xs font-medium text-orange-100">
-                                                    {sorteoProgresoLabel}
-                                                </p>
-                                            )}
                                         </>
                                     ) : (
                                         <p className="text-sm text-orange-100/80">
@@ -331,11 +291,8 @@ export default function AdminHomePage() {
                             </div>
                         </section>
 
-                        {/* Accesos rápidos */}
                         <section className="space-y-3">
-                            <h2 className="text-sm font-semibold text-slate-200">
-                                Módulos disponibles
-                            </h2>
+                            <h2 className="text-sm font-semibold text-slate-200">Módulos disponibles</h2>
                             <div className="flex flex-wrap gap-3">
                                 <Link
                                     href="/admin/numeros"
@@ -358,26 +315,17 @@ export default function AdminHomePage() {
                             </div>
                         </section>
 
-                        {/* Fila: Últimos pedidos + Alertas */}
                         <section className="grid gap-4 md:grid-cols-3">
-                            {/* Últimos pedidos */}
                             <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h2 className="text-sm font-semibold text-slate-200">
-                                        Últimos pedidos
-                                    </h2>
-                                    <Link
-                                        href="/admin/pedidos"
-                                        className="text-[11px] text-orange-300 hover:text-orange-200"
-                                    >
+                                    <h2 className="text-sm font-semibold text-slate-200">Últimos pedidos</h2>
+                                    <Link href="/admin/pedidos" className="text-[11px] text-orange-300 hover:text-orange-200">
                                         Ver todos →
                                     </Link>
                                 </div>
 
                                 {ultimosPedidos.length === 0 ? (
-                                    <p className="text-xs text-slate-400">
-                                        Aún no se registran pedidos.
-                                    </p>
+                                    <p className="text-xs text-slate-400">Aún no se registran pedidos.</p>
                                 ) : (
                                     <div className="overflow-x-auto text-xs">
                                         <table className="min-w-full text-left">
@@ -392,77 +340,59 @@ export default function AdminHomePage() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {ultimosPedidos.map((p) => (
-                                                    <tr
-                                                        key={p.id}
-                                                        className="border-b border-slate-800/60 last:border-0"
-                                                    >
-                                                        <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">
-                                                            #{p.id}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            {p.cliente_nombre || "—"}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle text-slate-300">
-                                                            {p.created_at
-                                                                ? new Date(p.created_at).toLocaleString(
-                                                                    "es-EC",
-                                                                    {
+                                                {ultimosPedidos.map((p) => {
+                                                    const est = normEstado(p.estado);
+                                                    return (
+                                                        <tr key={p.id} className="border-b border-slate-800/60 last:border-0">
+                                                            <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">
+                                                                #{p.id}
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">{p.cliente_nombre || "—"}</td>
+                                                            <td className="py-1.5 pr-3 align-middle text-slate-300">
+                                                                {p.created_at
+                                                                    ? new Date(p.created_at).toLocaleString("es-EC", {
                                                                         dateStyle: "short",
                                                                         timeStyle: "short",
-                                                                    }
-                                                                )
-                                                                : "-"}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            {p.total
-                                                                ? `$${p.total.toFixed(2)}`
-                                                                : "$0.00"}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            <span
-                                                                className={[
-                                                                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                                                                    p.estado === "pagado"
-                                                                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40"
-                                                                        : p.estado === "pendiente"
-                                                                            ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
-                                                                            : p.estado === "en_proceso"
-                                                                                ? "bg-sky-500/10 text-sky-300 border border-sky-500/40"
-                                                                                : "bg-slate-700/60 text-slate-200 border border-slate-600",
-                                                                ].join(" ")}
-                                                            >
-                                                                {p.estado === "en_proceso"
-                                                                    ? "en proceso"
-                                                                    : p.estado || "N/A"}
-                                                            </span>
-
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            <Link
-                                                                href={`/admin/pedidos?pedido=${p.id}`}
-                                                                className="text-[11px] text-orange-300 hover:text-orange-200"
-                                                            >
-                                                                Ver detalle
-                                                            </Link>
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                                    })
+                                                                    : "-"}
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">
+                                                                {p.total ? `$${Number(p.total).toFixed(2)}` : "$0.00"}
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">
+                                                                <span
+                                                                    className={[
+                                                                        "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
+                                                                        est === "pagado"
+                                                                            ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40"
+                                                                            : est === "pendiente"
+                                                                                ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
+                                                                                : est === "en_proceso"
+                                                                                    ? "bg-sky-500/10 text-sky-300 border border-sky-500/40"
+                                                                                    : "bg-slate-700/60 text-slate-200 border border-slate-600",
+                                                                    ].join(" ")}
+                                                                >
+                                                                    {est === "en_proceso" ? "en proceso" : p.estado || "N/A"}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">
+                                                                <Link href={`/admin/pedidos?pedido=${p.id}`} className="text-[11px] text-orange-300 hover:text-orange-200">
+                                                                    Ver detalle
+                                                                </Link>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Alertas del sistema */}
                             <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4">
-                                <h2 className="text-sm font-semibold text-slate-200 mb-2">
-                                    Alertas del sistema
-                                </h2>
+                                <h2 className="text-sm font-semibold text-slate-200 mb-2">Alertas del sistema</h2>
                                 {alertas.length === 0 ? (
-                                    <p className="text-xs text-slate-400">
-                                        Todo se ve bien por ahora. 🎯
-                                    </p>
+                                    <p className="text-xs text-slate-400">Todo se ve bien por ahora. 🎯</p>
                                 ) : (
                                     <ul className="space-y-1 text-xs text-slate-200">
                                         {alertas.map((a, idx) => (
