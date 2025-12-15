@@ -575,7 +575,10 @@ export default function HomePage() {
                           type="radio"
                           className="h-3 w-3"
                           checked={metodoPago === "payphone"}
-                          onChange={() => setMetodoPago("payphone")}
+                          onChange={() => {
+                            setMetodoPago("payphone");
+                            setOrderError(null); // ✅ limpia el mensaje rojo
+                          }}
                         />
                         <span>Tarjeta Debito / Credito</span>
                       </label>
@@ -585,10 +588,14 @@ export default function HomePage() {
                           type="radio"
                           className="h-3 w-3"
                           checked={metodoPago === "transferencia"}
-                          onChange={() => setMetodoPago("transferencia")}
+                          onChange={() => {
+                            setMetodoPago("transferencia");
+                            setOrderError(null); // ✅ limpia el mensaje rojo
+                          }}
                         />
                         <span>Transferencia / Depósito bancario</span>
                       </label>
+
                     </div>
 
                     {orderError && (
