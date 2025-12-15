@@ -28,7 +28,7 @@ export async function POST(req: Request) {
             );
         }
 
-        // 1) Leer pedido actual (para rollback si algo falla)
+        // 1) Leer pedido actual
         const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
             .select("id, estado")
@@ -51,8 +51,7 @@ export async function POST(req: Request) {
             return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
         }
 
-        // 3) Liberar números (BORRAR filas del pedido)
-        //    (retornamos cuántos liberó)
+        // 3) Liberar números (borrar filas del pedido)
         const { data: borrados, error: delErr } = await supabaseAdmin
             .from("numeros_asignados")
             .delete()
@@ -60,7 +59,7 @@ export async function POST(req: Request) {
             .select("id");
 
         if (delErr) {
-            // rollback del estado si falló liberar
+            // rollback si falló liberar
             await supabaseAdmin.from("pedidos").update({ estado: estadoAnterior }).eq("id", pedidoId);
 
             return NextResponse.json(
