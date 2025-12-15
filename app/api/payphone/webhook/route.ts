@@ -48,7 +48,9 @@ export async function POST(req: NextRequest) {
         }
 
         // 5) Usar la misma lógica central que ya funciona
-        const result = await asignarNumerosPorTx(tx);
+        const result = await asignarNumerosPorTx(tx, true);
+
+
 
         if (!result.ok) {
             return NextResponse.json(
