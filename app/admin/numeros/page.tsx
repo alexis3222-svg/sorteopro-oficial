@@ -26,6 +26,9 @@ type PedidoInfo = {
     estado: string | null;
 };
 
+// 🔹 helper
+const normEstado = (v: any) => String(v ?? "").trim().toLowerCase();
+
 // 🔹 Componente que usa hooks y searchParams
 function AdminNumerosContent() {
     const searchParams = useSearchParams();
@@ -38,6 +41,7 @@ function AdminNumerosContent() {
     const [pedido, setPedido] = useState<PedidoInfo | null>(null);
     const [numeros, setNumeros] = useState<NumeroAsignado[]>([]);
     const [error, setError] = useState<string | null>(null);
+    const [warning, setWarning] = useState<string | null>(null);
 
     // Redirigir si el parámetro es inválido
     useEffect(() => {
@@ -53,19 +57,21 @@ function AdminNumerosContent() {
 
             setLoading(true);
             setError(null);
+            setWarning(null);
+            setNumeros([]);
 
             // 1) Pedido
             const { data: pedidoData, error: pedidoError } = await supabase
                 .from("pedidos")
                 .select(
                     `
-          id,
-          nombre,
-          telefono,
-          actividad_numero,
-          cantidad_numeros,
-          estado
-        `
+            id,
+            nombre,
+            telefono,
+            actividad_numero,
+            cantidad_numeros,
+            estado
+          `
                 )
                 .eq("id", pedidoId)
                 .maybeSingle();
@@ -77,9 +83,24 @@ function AdminNumerosContent() {
                 return;
             }
 
-            setPedido(pedidoData as PedidoInfo);
+            const pedidoInfo = pedidoData as PedidoInfo;
+            setPedido(pedidoInfo);
 
-            // 2) Números asignados
+            // ✅ Regla dura: solo pagado/confirmado puede mostrar números
+            const estadoLower = normEstado(pedidoInfo.estado);
+            const esPagado = estadoLower === "pagado" || estadoLower === "confirmado";
+
+            if (!esPagado) {
+                // ⛔ NO consultamos numeros_asignados si no está pagado
+                setWarning(
+                    `Este pedido está en estado "${estadoLower || "sin estado"}". ` +
+                    `Los números solo se muestran cuando el pedido está PAGADO.`
+                );
+                setLoading(false);
+                return;
+            }
+
+            // 2) Números asignados (SOLO si es pagado/confirmado)
             const { data: numerosData, error: numerosError } = await supabase
                 .from("numeros_asignados")
                 .select("numero")
@@ -101,30 +122,26 @@ function AdminNumerosContent() {
 
     // 🎨 Estilos dinámicos del estado
     const estadoRaw = (pedido?.estado || "").toString();
-    const estadoLower = estadoRaw.toLowerCase();
+    const estadoLower = normEstado(estadoRaw);
     const estadoLabel = estadoRaw ? estadoRaw.toUpperCase() : "SIN ESTADO";
 
-    let estadoClasses =
-        "border-slate-500/40 bg-slate-500/15 text-slate-200";
+    let estadoClasses = "border-slate-500/40 bg-slate-500/15 text-slate-200";
 
     if (estadoLower === "pagado" || estadoLower === "confirmado") {
-        estadoClasses =
-            "border-emerald-400/60 bg-emerald-500/15 text-emerald-200";
+        estadoClasses = "border-emerald-500/40 bg-emerald-500/15 text-emerald-200";
     } else if (estadoLower === "pendiente") {
-        estadoClasses =
-            "border-amber-400/60 bg-amber-500/15 text-amber-200";
+        estadoClasses = "border-yellow-500/40 bg-yellow-500/10 text-yellow-200";
+    } else if (estadoLower === "en_proceso") {
+        estadoClasses = "border-sky-500/40 bg-sky-500/10 text-sky-200";
     } else if (estadoLower === "cancelado") {
-        estadoClasses =
-            "border-red-400/60 bg-red-500/15 text-red-200";
+        estadoClasses = "border-red-500/40 bg-red-500/10 text-red-200";
     }
 
     // Pantalla intermedia mientras se hace replace()
     if (!pedidoParam || pedidoId === null || Number.isNaN(pedidoId)) {
         return (
             <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center">
-                <p className="text-xs text-slate-400">
-                    Redirigiendo a la lista de pedidos...
-                </p>
+                <p className="text-xs text-slate-400">Redirigiendo a la lista de pedidos...</p>
             </main>
         );
     }
@@ -132,15 +149,13 @@ function AdminNumerosContent() {
     return (
         <main className="min-h-screen bg-[#050609] text-slate-100">
             <div className="mx-auto max-w-4xl px-4 py-8 flex flex-col gap-6">
-                {/* HEADER ELEGANTE */}
+                {/* HEADER */}
                 <header className="mb-2 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                     <div>
                         <p className="text-[11px] font-semibold uppercase tracking-[0.32em] text-orange-400">
                             SORTEOPRO • ADMIN
                         </p>
-                        <h1
-                            className={`${anton.className} mt-1 text-2xl md:text-3xl tracking-wide`}
-                        >
+                        <h1 className={`${anton.className} mt-1 text-2xl md:text-3xl tracking-wide`}>
                             Detalle de pedido
                         </h1>
                         <p className="mt-1 text-xs md:text-sm text-slate-400">
@@ -178,16 +193,14 @@ function AdminNumerosContent() {
                     </div>
                 ) : (
                     <>
-                        {/* 🔥 Tarjeta del pedido mejorada */}
+                        {/* Tarjeta del pedido */}
                         <section className="mb-2 rounded-2xl border border-white/10 bg-gradient-to-br from-[#11121a] via-[#0c0d14] to-[#050609] px-6 py-5 shadow-xl shadow-black/40">
                             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                                 <div>
                                     <p className="text-[11px] uppercase tracking-[0.22em] text-slate-500">
                                         Pedido #{pedido.id}
                                     </p>
-                                    <p className="text-lg font-semibold">
-                                        {pedido.nombre || "Cliente sin nombre"}
-                                    </p>
+                                    <p className="text-lg font-semibold">{pedido.nombre || "Cliente sin nombre"}</p>
                                     <p className="mt-1 text-xs text-slate-400">
                                         Teléfono: {pedido.telefono || "—"}
                                     </p>
@@ -203,9 +216,7 @@ function AdminNumerosContent() {
 
                             <div className="mt-4 grid grid-cols-1 gap-3 text-[11px] text-slate-300 sm:grid-cols-2 md:grid-cols-4">
                                 <div>
-                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                                        Actividad
-                                    </p>
+                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Actividad</p>
                                     <p className="mt-1">#{pedido.actividad_numero ?? "—"}</p>
                                 </div>
 
@@ -213,22 +224,16 @@ function AdminNumerosContent() {
                                     <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
                                         Cantidad de números
                                     </p>
-                                    <p className="mt-1">
-                                        {pedido.cantidad_numeros ?? "—"}
-                                    </p>
+                                    <p className="mt-1">{pedido.cantidad_numeros ?? "—"}</p>
                                 </div>
 
                                 <div>
-                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                                        ID de pedido
-                                    </p>
+                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">ID de pedido</p>
                                     <p className="mt-1">{pedido.id}</p>
                                 </div>
 
                                 <div>
-                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">
-                                        Resumen
-                                    </p>
+                                    <p className="text-[10px] uppercase tracking-[0.18em] text-slate-500">Resumen</p>
                                     <p className="mt-1">
                                         {pedido.cantidad_numeros
                                             ? `Cliente compró ${pedido.cantidad_numeros} número(s).`
@@ -238,11 +243,16 @@ function AdminNumerosContent() {
                             </div>
                         </section>
 
-                        {/* Números asignados */}
+                        {/* Warning si no es pagado */}
+                        {warning && (
+                            <div className="rounded-2xl border border-yellow-500/40 bg-yellow-500/10 px-6 py-4 text-sm text-yellow-100">
+                                {warning}
+                            </div>
+                        )}
+
+                        {/* Números asignados (solo se llenan si pagado/confirmado) */}
                         <section className="rounded-2xl border border-white/10 bg-[#11121a] px-6 py-5 shadow-lg">
-                            <h3 className="text-sm font-semibold mb-3">
-                                Números asignados
-                            </h3>
+                            <h3 className="text-sm font-semibold mb-3">Números asignados</h3>
 
                             {numeros.length === 0 ? (
                                 <p className="text-xs text-slate-400">
@@ -283,9 +293,7 @@ export default function AdminNumerosPage() {
         <Suspense
             fallback={
                 <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center">
-                    <p className="text-xs text-slate-400">
-                        Cargando detalle del pedido...
-                    </p>
+                    <p className="text-xs text-slate-400">Cargando detalle del pedido...</p>
                 </main>
             }
         >
