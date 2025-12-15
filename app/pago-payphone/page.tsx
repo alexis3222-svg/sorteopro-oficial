@@ -97,6 +97,11 @@ function PagoPayphoneInner() {
                     (txParam && txParam.length > 0 ? txParam : null) ||
                     `WEB-${Date.now().toString().slice(-10)}`.slice(0, 15);
 
+                // ✅ GUARDAR TX LOCAL (fallback por si PayPhone no lo manda en la URL)
+                try {
+                    sessionStorage.setItem("last_payphone_tx", clientTransactionId);
+                } catch { }
+
                 // URL base del sitio (prod o local)
                 const baseUrl =
                     process.env.NEXT_PUBLIC_SITE_URL || window.location.origin;

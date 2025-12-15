@@ -1,131 +1,133 @@
-// app/pago-exitoso/PagoExitosoClient.tsx
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-type Props = {
-    tx: string | null;
-};
-
-export default function PagoExitosoClient({ tx }: Props) {
+export default function PagoExitosoClient() {
+    const searchParams = useSearchParams();
     const router = useRouter();
 
-    const [asignando, setAsignando] = useState(false);
-    const [errorAsignacion, setErrorAsignacion] = useState<string | null>(null);
-    const [numeros, setNumeros] = useState<number[] | null>(null);
+    const txFromUrl = useMemo(() => {
+        return (
+            searchParams.get("clientTransactionId") ||
+            searchParams.get("tx") ||
+            searchParams.get("id")
+        );
+    }, [searchParams]);
 
+    const [tx, setTx] = useState<string | null>(txFromUrl);
+
+    const [loading, setLoading] = useState(true);
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+    const [pedidoId, setPedidoId] = useState<number | null>(null);
+    const [estado, setEstado] = useState<string | null>(null);
+
+    // ✅ Recuperar tx si PayPhone NO lo mandó en la URL
     useEffect(() => {
-        if (!tx) return;
+        if (txFromUrl) {
+            setTx(txFromUrl);
+            return;
+        }
 
-        async function asignar() {
+        try {
+            const saved = sessionStorage.getItem("last_payphone_tx");
+            if (saved) setTx(saved);
+        } catch { }
+    }, [txFromUrl]);
+
+    // ✅ Confirmar pago
+    useEffect(() => {
+        const run = async () => {
+            if (!tx) {
+                setLoading(false);
+                setErrorMsg("No se recibió el código de transacción en la URL.");
+                return;
+            }
+
             try {
-                setAsignando(true);
-                setErrorAsignacion(null);
+                setLoading(true);
+                setErrorMsg(null);
 
-                const res = await fetch("/api/pedidos/asignar", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ tx }),
-                });
+                const res = await fetch(
+                    `/api/payphone/confirmar?tx=${encodeURIComponent(tx)}`,
+                    { method: "GET", cache: "no-store" }
+                );
 
                 const data = await res.json();
 
-                if (!res.ok || !data.ok) {
-                    setErrorAsignacion(
-                        data?.error || "No se pudieron asignar números"
-                    );
-                } else {
-                    setNumeros(data.numeros || []);
+                if (!res.ok || !data?.ok) {
+                    setEstado(data?.estado ?? "en_proceso");
+                    setPedidoId(data?.pedidoId ?? null);
+                    setErrorMsg(data?.error ?? "No se pudo confirmar el pago todavía.");
+                    setLoading(false);
+                    return;
                 }
-            } catch (err) {
-                console.error(err);
-                setErrorAsignacion("Error de conexión al asignar números");
-            } finally {
-                setAsignando(false);
-            }
-        }
 
-        asignar();
+                setEstado(data?.estado ?? "pagado");
+                setPedidoId(data?.pedidoId ?? null);
+                setLoading(false);
+            } catch (e: any) {
+                console.error(e);
+                setErrorMsg(e?.message || "Error confirmando el pago.");
+                setLoading(false);
+            }
+        };
+
+        run();
     }, [tx]);
+
+    if (loading) {
+        return (
+            <div className="min-h-screen flex items-center justify-center">
+                Verificando pago...
+            </div>
+        );
+    }
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-            <div
-                className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center"
-                style={{ border: "2px solid #FF6600" }}
-            >
-                <h1
-                    className="text-2xl font-bold mb-2"
-                    style={{ color: "#FF6600" }}
-                >
-                    ¡Pago realizado con éxito!
+            <div className="p-6 w-full max-w-md bg-white rounded-2xl shadow">
+                <h1 className="text-xl font-bold text-orange-600">
+                    {estado === "pagado" ? "¡Pago confirmado!" : "Pago en verificación"}
                 </h1>
 
-                <p className="text-gray-700 mb-2">
-                    Hemos recibido tu pago correctamente.
+                <p className="mt-2 text-gray-700">
+                    {estado === "pagado"
+                        ? "Tu pago fue confirmado y tus números serán asignados."
+                        : "Aún no hay confirmación oficial del pago. Si ya pagaste, espera un momento."}
                 </p>
 
-                {tx && (
-                    <p className="text-xs text-gray-500 mb-4">
-                        Código de transacción:
-                        <span className="font-mono bg-gray-100 px-2 py-1 rounded ml-1">
-                            {tx}
-                        </span>
-                    </p>
-                )}
+                {errorMsg && <p className="mt-3 text-red-500 text-sm">{errorMsg}</p>}
 
-                {!tx && (
-                    <p className="text-xs text-red-600 mb-4">
-                        No se recibió el código de transacción en la URL.
-                    </p>
-                )}
-
-                {asignando && (
-                    <p className="text-xs text-gray-500">
-                        Asignando tus números en el sorteo...
-                    </p>
-                )}
-
-                {errorAsignacion && (
-                    <p className="text-xs text-red-600 mt-2">{errorAsignacion}</p>
-                )}
-
-                {numeros && numeros.length > 0 && (
-                    <div className="mt-4">
-                        <p className="text-sm font-semibold">Tus números asignados:</p>
-                        <div className="flex flex-wrap justify-center gap-2 mt-2">
-                            {numeros.map((n) => (
-                                <span
-                                    key={n}
-                                    className="px-3 py-1 rounded-full bg-[#fff1e6] text-[#ff6600] border border-[#ff6600]/40 text-sm font-semibold shadow-sm"
-                                >
-                                    #{n}
-                                </span>
-                            ))}
-                        </div>
+                <div className="mt-4 text-sm text-slate-600 space-y-1">
+                    <div>
+                        <strong>Tx:</strong> {tx ?? "-"}
                     </div>
-                )}
-
-                <div className="mt-6 flex flex-col gap-2">
-                    <button
-                        onClick={() =>
-                            router.push(
-                                tx ? `/mi-compra?tx=${encodeURIComponent(tx)}` : "/mi-compra"
-                            )
-                        }
-                        className="w-full bg-[#FF6600] hover:bg-[#ff7f26] text-white font-semibold px-4 py-2 rounded-lg"
-                    >
-                        Ver mi compra
-                    </button>
-
-                    <button
-                        onClick={() => router.push(`/`)}
-                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 font-semibold px-4 py-2 rounded-lg"
-                    >
-                        Regresar al inicio
-                    </button>
+                    {pedidoId && (
+                        <div>
+                            <strong>Pedido ID:</strong> {pedidoId}
+                        </div>
+                    )}
+                    {estado && (
+                        <div>
+                            <strong>Estado:</strong> {estado}
+                        </div>
+                    )}
                 </div>
+
+                <button
+                    className="mt-5 bg-orange-500 text-white px-4 py-2 rounded-xl w-full font-semibold"
+                    onClick={() => router.push(tx ? `/mi-compra?tx=${encodeURIComponent(tx)}` : "/mi-compra")}
+                >
+                    Ver mi compra
+                </button>
+
+                <button
+                    className="mt-3 bg-gray-200 px-4 py-2 rounded-xl w-full font-semibold"
+                    onClick={() => router.push("/")}
+                >
+                    Regresar al inicio
+                </button>
             </div>
         </main>
     );
