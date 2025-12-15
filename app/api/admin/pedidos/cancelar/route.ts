@@ -1,91 +1,50 @@
-// app/api/admin/pedidos/cancelar/route.ts
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
+type Body = { pedidoId: number };
+
 export async function POST(req: Request) {
     try {
-        const { pedidoId, nuevoEstado } = await req.json();
+        const body = (await req.json()) as Partial<Body>;
+        const pedidoId = Number(body.pedidoId);
 
-        if (!pedidoId) {
-            return NextResponse.json(
-                { ok: false, error: "Falta el pedidoId" },
-                { status: 400 }
-            );
+        if (!pedidoId || Number.isNaN(pedidoId)) {
+            return NextResponse.json({ ok: false, error: "Falta pedidoId válido" }, { status: 400 });
         }
 
-        if (nuevoEstado !== "pendiente" && nuevoEstado !== "cancelado") {
-            return NextResponse.json(
-                { ok: false, error: "Estado no permitido" },
-                { status: 400 }
-            );
-        }
-
-        // 1) verificar que el pedido existe
-        const { data: pedido, error: pedidoError } = await supabaseAdmin
+        // 1) Validar pedido
+        const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
-            .select("id")
+            .select("id, estado")
             .eq("id", pedidoId)
-            .maybeSingle();
+            .single();
 
-        if (pedidoError) {
-            console.error("Error obteniendo pedido:", pedidoError);
-            return NextResponse.json(
-                { ok: false, error: "Error obteniendo pedido" },
-                { status: 500 }
-            );
+        if (pedidoErr || !pedido) {
+            return NextResponse.json({ ok: false, error: "Pedido no encontrado" }, { status: 404 });
         }
 
-        if (!pedido) {
-            return NextResponse.json(
-                { ok: false, error: "Pedido no encontrado" },
-                { status: 404 }
-            );
-        }
-
-        // 2) liberar números (si tiene)
-        const { data: liberados, error: rpcError } = await supabaseAdmin.rpc(
-            "liberar_numeros_pedido",
-            { p_pedido_id: pedido.id }
-        );
-
-        if (rpcError) {
-            console.error("Error RPC liberar_numeros_pedido:", rpcError);
-
-            // 🔥 ahora devolvemos el mensaje REAL del RPC
-            return NextResponse.json(
-                {
-                    ok: false,
-                    error:
-                        "RPC liberar_numeros_pedido: " +
-                        (rpcError.message || "Error interno en la función"),
-                },
-                { status: 500 }
-            );
-        }
-
-        // 3) actualizar estado del pedido (pendiente o cancelado)
-        const { error: updateError } = await supabaseAdmin
+        // 2) Marcar cancelado
+        const { error: upErr } = await supabaseAdmin
             .from("pedidos")
-            .update({ estado: nuevoEstado })
-            .eq("id", pedido.id);
+            .update({ estado: "cancelado" })
+            .eq("id", pedidoId);
 
-        if (updateError) {
-            console.error("Error actualizando pedido:", updateError);
-            return NextResponse.json(
-                { ok: false, error: "No se pudo actualizar el estado del pedido" },
-                { status: 500 }
-            );
+        if (upErr) {
+            return NextResponse.json({ ok: false, error: upErr.message }, { status: 500 });
         }
 
-        return NextResponse.json({
-            ok: true,
-            liberados: liberados ?? 0,
-        });
+        // 3) Liberar números (BORRAR filas del pedido)
+        const { error: delErr } = await supabaseAdmin
+            .from("numeros_asignados")
+            .delete()
+            .eq("pedido_id", pedidoId);
+
+        if (delErr) {
+            return NextResponse.json({ ok: false, error: delErr.message }, { status: 500 });
+        }
+
+        return NextResponse.json({ ok: true, pedidoId });
     } catch (e: any) {
-        console.error("Error inesperado en cancelar:", e);
-        return NextResponse.json(
-            { ok: false, error: e?.message || "Error inesperado en cancelar" },
-            { status: 500 }
-        );
+        return NextResponse.json({ ok: false, error: e?.message ?? "Error inesperado" }, { status: 500 });
     }
 }
