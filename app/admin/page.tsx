@@ -1,34 +1,40 @@
 // app/admin/page.tsx
 "use client";
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "../../lib/supabaseClient";
 
-type PedidoResumen = {
+type PedidoRow = {
     id: number;
     created_at: string | null;
-    total: number | null;
+    sorteo_id: string | null;
+    actividad_numero: number | null;
     cantidad_numeros: number | null;
+    precio_unitario: number | null;
+    total: number | null;
+    metodo_pago: string | null;
     estado: string | null;
-    cliente_nombre: string | null;
-    sorteo_id?: string | null;
+    nombre: string | null;
+    telefono: string | null;
 };
 
 type Stats = {
-    totalPedidos: number; // total pedidos del sorteo activo (incluye cancelado/en_proceso/etc)
-    totalNumeros: number; // vendidos reales (numeros_asignados de pedidos PAGADOS)
-    totalRecaudado: number; // vendidos * precio_numero (coherente con numeros_asignados)
+    totalPedidos: number;      // pedidos del sorteo activo (de tabla pedidos)
+    totalNumeros: number;      // vendidos reales (numeros_asignados de pedidos pagados)
+    totalRecaudado: number;    // coherente: vendidos * precio_numero
     pedidosPendientes: number; // pendientes del sorteo activo
-    pedidosPagados: number; // pagados del sorteo activo
+    pedidosPagados: number;    // pagados del sorteo activo
 };
 
 type SorteoActivo = any;
 
-const normEstado = (v: any) => String(v ?? "").trim().toLowerCase();
+const norm = (v: any) => String(v ?? "").trim().toLowerCase();
 
 export default function AdminHomePage() {
-    const [pedidos, setPedidos] = useState<PedidoResumen[]>([]);
+    const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
     const [stats, setStats] = useState<Stats | null>(null);
     const [sorteoActivo, setSorteoActivo] = useState<SorteoActivo | null>(null);
     const [loading, setLoading] = useState(true);
@@ -42,7 +48,7 @@ export default function AdminHomePage() {
             const nuevasAlertas: string[] = [];
 
             try {
-                // 1) Sorteo activo
+                // 1) Sorteo activo (igual que antes, pero primero)
                 const { data: sorteoData, error: sorteoError } = await supabase
                     .from("sorteos")
                     .select("*")
@@ -74,55 +80,56 @@ export default function AdminHomePage() {
 
                 setSorteoActivo(sorteoData);
                 const sorteoIdActivo = String(sorteoData.id);
-
                 const precioNumero = Number(sorteoData.precio_numero ?? 0);
 
-                // 2) Pedidos SOLO del sorteo activo (para tabla + KPIs de estados)
-                const { data: pedidosRaw, error: pedidosError } = await supabase
+                // 2) Pedidos: MISMA FUENTE que /admin/pedidos (pero filtrado al sorteo activo)
+                const { data: pedidosData, error: pedidosError } = await supabase
                     .from("pedidos")
-                    .select("*")
+                    .select(`
+            id,
+            created_at,
+            sorteo_id,
+            actividad_numero,
+            cantidad_numeros,
+            precio_unitario,
+            total,
+            metodo_pago,
+            estado,
+            nombre,
+            telefono
+          `)
                     .eq("sorteo_id", sorteoIdActivo)
-                    .order("created_at", { ascending: false });
+                    .order("id", { ascending: false });
 
                 if (pedidosError) {
-                    console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
+                    console.error("Error cargando pedidos:", pedidosError.message);
                     setErrorGeneral("No se pudieron cargar los pedidos.");
                     setLoading(false);
                     return;
                 }
 
-                const pedidosNorm: PedidoResumen[] = (pedidosRaw || []).map((p: any) => ({
-                    id: p.id,
-                    created_at: p.created_at,
-                    total: Number(p.total ?? p.monto_total ?? 0),
-                    cantidad_numeros: Number(p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0),
-                    estado: p.estado ?? p.status ?? p.estado_pago ?? null,
-                    cliente_nombre: p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null,
-                    sorteo_id: p.sorteo_id ?? null,
-                }));
-
+                const pedidosNorm = (pedidosData || []) as PedidoRow[];
                 setPedidos(pedidosNorm);
 
-                // 3) KPIs de estados (coherente con tu panel de pedidos)
+                // 3) Estados (igual estilo del panel de pedidos)
+                const pagadosArr = pedidosNorm.filter((p) => norm(p.estado) === "pagado");
+                const pendientesArr = pedidosNorm.filter((p) => norm(p.estado) === "pendiente");
+                const enProcesoArr = pedidosNorm.filter((p) => norm(p.estado) === "en_proceso");
+
                 const totalPedidos = pedidosNorm.length;
+                const pedidosPagados = pagadosArr.length;
+                const pedidosPendientes = pendientesArr.length;
 
-                const pedidosPagadosArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pagado");
-                const pedidosPendientesArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pendiente");
-                const pedidosEnProcesoArr = pedidosNorm.filter((p) => normEstado(p.estado) === "en_proceso");
-
-                const pedidosPagados = pedidosPagadosArr.length;
-                const pedidosPendientes = pedidosPendientesArr.length;
-
-                // 4) ✅ vendidos reales: COUNT numeros_asignados SOLO de pedidos pagados y estado=asignado
+                // 4) Vendidos reales: desde numeros_asignados SOLO de pedidos pagados y estado=asignado
                 let totalNumeros = 0;
-                const pedidoIdsPagados = pedidosPagadosArr.map((p) => p.id);
+                const pedidoIdsPagados = pagadosArr.map((p) => p.id);
 
                 if (pedidoIdsPagados.length > 0) {
                     const { count, error: countError } = await supabase
                         .from("numeros_asignados")
                         .select("id", { count: "exact", head: true })
                         .eq("sorteo_id", sorteoIdActivo)
-                        .eq("estado", "asignado")
+                        .eq("estado", "asignado")          // CLAVE para que al liberar/cancelar baje
                         .in("pedido_id", pedidoIdsPagados);
 
                     if (countError) {
@@ -132,7 +139,7 @@ export default function AdminHomePage() {
                     }
                 }
 
-                // 5) ✅ recaudado coherente con numeros_asignados
+                // 5) Recaudado coherente con numeros_asignados
                 const totalRecaudado = totalNumeros * (Number.isFinite(precioNumero) ? precioNumero : 0);
 
                 setStats({
@@ -143,12 +150,12 @@ export default function AdminHomePage() {
                     pedidosPagados,
                 });
 
-                // 6) Alertas
+                // 6) Alertas (igual que venías)
                 if (pedidosPendientes > 0) {
                     nuevasAlertas.push(`Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`);
                 }
-                if (pedidosEnProcesoArr.length > 0) {
-                    nuevasAlertas.push(`Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`);
+                if (enProcesoArr.length > 0) {
+                    nuevasAlertas.push(`Tienes ${enProcesoArr.length} pedido(s) en proceso (PayPhone).`);
                 }
                 if (totalPedidos === 0) {
                     nuevasAlertas.push("Aún no se han registrado pedidos en el sorteo activo.");
@@ -165,26 +172,14 @@ export default function AdminHomePage() {
         cargarDashboard();
     }, []);
 
-    // Derivados del sorteo activo
     const sorteoTitulo: string | null = useMemo(() => {
         if (!sorteoActivo) return null;
-        return (
-            sorteoActivo.titulo ||
-            sorteoActivo.nombre ||
-            sorteoActivo.nombre_publico ||
-            sorteoActivo.titulo_publico ||
-            null
-        );
+        return sorteoActivo.titulo || null;
     }, [sorteoActivo]);
 
     const sorteoActividadNumero: number | null = useMemo(() => {
         if (!sorteoActivo) return null;
-        return (
-            sorteoActivo.actividad_numero ||
-            sorteoActivo.actividad ||
-            sorteoActivo.numero_actividad ||
-            null
-        );
+        return sorteoActivo.actividad_numero ?? null;
     }, [sorteoActivo]);
 
     const sorteoId: string | null = sorteoActivo?.id || null;
@@ -340,13 +335,13 @@ export default function AdminHomePage() {
                                             </thead>
                                             <tbody>
                                                 {ultimosPedidos.map((p) => {
-                                                    const est = normEstado(p.estado);
+                                                    const est = norm(p.estado);
                                                     return (
                                                         <tr key={p.id} className="border-b border-slate-800/60 last:border-0">
                                                             <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">
                                                                 #{p.id}
                                                             </td>
-                                                            <td className="py-1.5 pr-3 align-middle">{p.cliente_nombre || "—"}</td>
+                                                            <td className="py-1.5 pr-3 align-middle">{p.nombre || "—"}</td>
                                                             <td className="py-1.5 pr-3 align-middle text-slate-300">
                                                                 {p.created_at
                                                                     ? new Date(p.created_at).toLocaleString("es-EC", {
