@@ -26,44 +26,25 @@ function PagoExitosoInner() {
     const [estado, setEstado] = useState<string | null>(null);
 
     useEffect(() => {
-        if (!tx) {
-            setErrorMsg("No se recibió el código de transacción (tx).");
-            setLoading(false);
-            return;
-        }
+        const run = async () => {
+            if (!tx) return; // ✅ evita null
 
-        async function confirmar() {
             try {
-                // ✅ Un SOLO punto de verdad: servidor confirma PayPhone y recién ahí registra/actualiza pedido
-                const res = await fetch(`/api/payphone/confirmar?tx=${encodeURIComponent(tx)}`, {
-                    method: "GET",
-                    cache: "no-store",
-                });
+                const res = await fetch(
+                    `/api/payphone/confirmar?tx=${encodeURIComponent(tx)}`,
+                    { method: "GET", cache: "no-store" }
+                );
 
-                const result = await res.json();
-
-                if (!res.ok || !result?.ok) {
-                    setEstado(result?.estado || "no_confirmado");
-                    setErrorMsg(
-                        result?.error ||
-                        "El pago aún no está confirmado. Si pagaste, espera unos segundos y vuelve a intentar."
-                    );
-                    setLoading(false);
-                    return;
-                }
-
-                setPedidoId(result.pedidoId ?? null);
-                setEstado(result.estado ?? "pagado");
-            } catch (err) {
-                console.error(err);
-                setErrorMsg("Ocurrió un error verificando el pago.");
-            } finally {
-                setLoading(false);
+                const data = await res.json();
+                // ... tu lógica actual
+            } catch (e) {
+                console.error(e);
             }
-        }
+        };
 
-        confirmar();
+        run();
     }, [tx]);
+
 
     if (loading) {
         return (
