@@ -39,17 +39,42 @@ export default function AdminHomePage() {
             const nuevasAlertas: string[] = [];
 
             try {
-                // 📦 1) Cargar TODOS los pedidos (para KPIs + últimos)
-                // 📦 1) Cargar TODOS los pedidos (para KPIs + últimos)
-                // Pedimos * para evitar errores por nombres de columnas diferentes
-                const { data: pedidosRaw, error: pedidosError } = await supabase
+                // 🎯 1) Cargar sorteo activo (muy flexible con columnas)
+                const { data: sorteoData, error: sorteoError } = await supabase
+                    .from("sorteos")
+                    .select("*")
+                    .eq("estado", "activo")
+                    .order("created_at", { ascending: false })
+                    .limit(1)
+                    .maybeSingle();
+
+                if (sorteoError) {
+                    console.error("Error cargando sorteo activo:", sorteoError);
+                }
+
+                if (sorteoData) {
+                    setSorteoActivo(sorteoData);
+                } else {
+                    nuevasAlertas.push("No hay un sorteo activo configurado actualmente.");
+                }
+
+                // ✅ id del sorteo activo (si existe)
+                const sorteoIdActivo: string | null = sorteoData?.id ?? null;
+
+                // 📦 2) Cargar pedidos (FILTRADOS por sorteo activo si existe)
+                let pedidosQuery = supabase
                     .from("pedidos")
                     .select("*")
                     .order("created_at", { ascending: false });
 
+                if (sorteoIdActivo) {
+                    pedidosQuery = pedidosQuery.eq("sorteo_id", sorteoIdActivo);
+                }
+
+                const { data: pedidosRaw, error: pedidosError } = await pedidosQuery;
+
                 if (pedidosError) {
                     console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
-                    // No rompemos el dashboard completo, solo mostramos mensaje arriba
                     setErrorGeneral("No se pudieron cargar los pedidos.");
                     setLoading(false);
                     return;
@@ -60,37 +85,25 @@ export default function AdminHomePage() {
                     id: p.id,
                     created_at: p.created_at,
                     total: p.total ?? p.monto_total ?? 0,
-                    cantidad_numeros:
-                        p.cantidad_numeros ??
-                        p.cantidad ??
-                        p.cant_numeros ??
-                        0,
+                    cantidad_numeros: p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0,
                     estado: p.estado ?? p.status ?? p.estado_pago ?? null,
-                    cliente_nombre:
-                        p.cliente_nombre ??
-                        p.nombre_cliente ??
-                        p.nombre ??
-                        null,
+                    cliente_nombre: p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null,
                 }));
 
                 setPedidos(pedidosNorm);
 
-
-                // 🧮 2) Calcular estadísticas globales (VENTAS REALES = SOLO PAGADO)
+                // 🧮 3) Calcular estadísticas (VENTAS REALES = SOLO PAGADO)
                 const totalPedidos = pedidosNorm.length;
 
                 const pedidosPagadosArr = pedidosNorm.filter((p) => p.estado === "pagado");
                 const pedidosPendientesArr = pedidosNorm.filter((p) => p.estado === "pendiente");
-                // si quieres contarlo aparte (no afecta stats actuales)
                 const pedidosEnProcesoArr = pedidosNorm.filter((p) => p.estado === "en_proceso");
 
-                // ✅ vendidos = solo pagados
                 const totalNumeros = pedidosPagadosArr.reduce(
                     (acc, p) => acc + (p.cantidad_numeros || 0),
                     0
                 );
 
-                // ✅ recaudado = solo pagados
                 const totalRecaudado = pedidosPagadosArr.reduce(
                     (acc, p) => acc + (p.total || 0),
                     0
@@ -107,49 +120,24 @@ export default function AdminHomePage() {
                     pedidosPagados,
                 });
 
-                // 🔔 Alertas simples basadas en pedidos
+                // 🔔 Alertas
                 if (pedidosPendientes > 0) {
-                    nuevasAlertas.push(
-                        `Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`
-                    );
+                    nuevasAlertas.push(`Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`);
                 }
-
+                if (pedidosEnProcesoArr.length > 0) {
+                    nuevasAlertas.push(`Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`);
+                }
                 if (totalPedidos === 0) {
                     nuevasAlertas.push("Aún no se han registrado pedidos en el sistema.");
                 }
-
-                if (pedidosEnProcesoArr.length > 0) {
-                    nuevasAlertas.push(
-                        `Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`
-                    );
-                }
-
-                // 🎯 3) Cargar sorteo activo (muy flexible con columnas)
-                const { data: sorteoData, error: sorteoError } = await supabase
-                    .from("sorteos")
-                    .select("*")
-                    .eq("estado", "activo")
-                    .order("created_at", { ascending: false })
-                    .limit(1)
-                    .maybeSingle();
-
-                if (sorteoError) {
-                    console.error("Error cargando sorteo activo:", sorteoError);
-                    // No rompemos el dashboard, solo no mostramos info del sorteo
-                } else if (sorteoData) {
-                    setSorteoActivo(sorteoData);
-                } else {
-                    nuevasAlertas.push("No hay un sorteo activo configurado actualmente.");
-                }
             } catch (err: any) {
                 console.error(err);
-                setErrorGeneral(
-                    err?.message || "Ocurrió un error al cargar el panel."
-                );
+                setErrorGeneral(err?.message || "Ocurrió un error al cargar el panel.");
             } finally {
                 setAlertas(nuevasAlertas);
                 setLoading(false);
             }
+
         }
 
         cargarDashboard();
