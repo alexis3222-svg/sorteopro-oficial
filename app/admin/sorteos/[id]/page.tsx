@@ -1,4 +1,3 @@
-// app/admin/sorteos/[id]/page.tsx
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
@@ -24,11 +23,11 @@ export default function EditSorteoPage() {
     const [loading, setLoading] = useState(true);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
-    // recaudación real desde pedidos
+    // Recaudación real desde pedidos
     const [recaudadoReal, setRecaudadoReal] = useState<number | null>(null);
     const [resetting, setResetting] = useState(false);
 
-    // 🔥 nuevo: números vendidos calculados desde numeros_asignados
+    // Números vendidos calculados desde numeros_asignados
     const [numerosVendidosReal, setNumerosVendidosReal] = useState<number>(0);
 
     useEffect(() => {
@@ -38,7 +37,7 @@ export default function EditSorteoPage() {
             setLoading(true);
             setErrorMsg(null);
 
-            // 1) leer el sorteo desde la tabla principal
+            // 1) Leer el sorteo desde la tabla principal
             const { data: sorteoData, error: sorteoError } = await supabase
                 .from("sorteos")
                 .select("*")
@@ -54,7 +53,7 @@ export default function EditSorteoPage() {
 
             setSorteo(sorteoData as SorteoRow);
 
-            // 2) sumar recaudado real desde pedidos pagados/confirmados
+            // 2) Sumar recaudado real desde pedidos pagados/confirmados
             const { data: pedidosPagados, error: pedidosError } = await supabase
                 .from("pedidos")
                 .select("total")
@@ -72,7 +71,7 @@ export default function EditSorteoPage() {
                 setRecaudadoReal(totalRecaudado);
             }
 
-            // 3) contar números vendidos reales desde numeros_asignados
+            // 3) Contar números vendidos reales desde numeros_asignados
             const { count, error: countError } = await supabase
                 .from("numeros_asignados")
                 .select("*", { count: "exact", head: true })
@@ -97,7 +96,7 @@ export default function EditSorteoPage() {
         [sorteo]
     );
 
-    // 🔥 usamos SIEMPRE el valor real calculado
+    // Usamos SIEMPRE el valor real calculado
     const numerosVendidos = numerosVendidosReal;
 
     const precioNumero = useMemo(
@@ -105,7 +104,7 @@ export default function EditSorteoPage() {
         [sorteo]
     );
 
-    // recaudado real (o calculado como respaldo)
+    // Recaudado real (o calculado como respaldo)
     const recaudado = useMemo(() => {
         if (recaudadoReal != null) return recaudadoReal;
         return numerosVendidos * precioNumero;
@@ -248,9 +247,7 @@ export default function EditSorteoPage() {
                         </div>
                         <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
                             <p className="text-[11px] text-slate-400">Números restantes</p>
-                            <p className="mt-1 text-xl font-semibold">
-                                {numerosRestantes}
-                            </p>
+                            <p className="mt-1 text-xl font-semibold">{numerosRestantes}</p>
                         </div>
                         <div className="rounded-xl border border-slate-800 bg-slate-950/80 px-4 py-3">
                             <p className="text-[11px] text-slate-400">Recaudado</p>

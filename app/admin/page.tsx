@@ -39,7 +39,30 @@ export default function AdminHomePage() {
             const nuevasAlertas: string[] = [];
 
             try {
-                // 🎯 1) Cargar sorteo activo (muy flexible con columnas)
+                // 📦 1) Cargar pedidos
+                const { data: pedidosRaw, error: pedidosError } = await supabase
+                    .from("pedidos")
+                    .select("*")
+                    .order("created_at", { ascending: false });
+
+                if (pedidosError) {
+                    console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
+                    setErrorGeneral("No se pudieron cargar los pedidos.");
+                    return;
+                }
+
+                const pedidosNorm: PedidoResumen[] = (pedidosRaw || []).map((p: any) => ({
+                    id: p.id,
+                    created_at: p.created_at,
+                    total: Number(p.total ?? p.monto_total ?? 0),
+                    cantidad_numeros: Number(p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0),
+                    estado: p.estado ?? p.status ?? p.estado_pago ?? null,
+                    cliente_nombre: p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null,
+                }));
+
+                setPedidos(pedidosNorm);
+
+                // 🎯 2) Cargar sorteo activo (ANTES de stats reales)
                 const { data: sorteoData, error: sorteoError } = await supabase
                     .from("sorteos")
                     .select("*")
@@ -50,67 +73,55 @@ export default function AdminHomePage() {
 
                 if (sorteoError) {
                     console.error("Error cargando sorteo activo:", sorteoError);
-                }
-
-                if (sorteoData) {
+                } else if (sorteoData) {
                     setSorteoActivo(sorteoData);
                 } else {
                     nuevasAlertas.push("No hay un sorteo activo configurado actualmente.");
                 }
 
-                // ✅ id del sorteo activo (si existe)
-                const sorteoIdActivo: string | null = sorteoData?.id ?? null;
+                // 🧮 3) Calcular estadísticas (VENTAS REALES)
+                const normEstado = (v: any) => String(v ?? "").trim().toLowerCase();
 
-                // 📦 2) Cargar pedidos (FILTRADOS por sorteo activo si existe)
-                let pedidosQuery = supabase
-                    .from("pedidos")
-                    .select("*")
-                    .order("created_at", { ascending: false });
-
-                if (sorteoIdActivo) {
-                    pedidosQuery = pedidosQuery.eq("sorteo_id", sorteoIdActivo);
-                }
-
-                const { data: pedidosRaw, error: pedidosError } = await pedidosQuery;
-
-                if (pedidosError) {
-                    console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
-                    setErrorGeneral("No se pudieron cargar los pedidos.");
-                    setLoading(false);
-                    return;
-                }
-
-                // Normalizamos a la estructura que usa el dashboard
-                const pedidosNorm: PedidoResumen[] = (pedidosRaw || []).map((p: any) => ({
-                    id: p.id,
-                    created_at: p.created_at,
-                    total: p.total ?? p.monto_total ?? 0,
-                    cantidad_numeros: p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0,
-                    estado: p.estado ?? p.status ?? p.estado_pago ?? null,
-                    cliente_nombre: p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null,
-                }));
-
-                setPedidos(pedidosNorm);
-
-                // 🧮 3) Calcular estadísticas (VENTAS REALES = SOLO PAGADO)
                 const totalPedidos = pedidosNorm.length;
 
-                const pedidosPagadosArr = pedidosNorm.filter((p) => p.estado === "pagado");
-                const pedidosPendientesArr = pedidosNorm.filter((p) => p.estado === "pendiente");
-                const pedidosEnProcesoArr = pedidosNorm.filter((p) => p.estado === "en_proceso");
-
-                const totalNumeros = pedidosPagadosArr.reduce(
-                    (acc, p) => acc + (p.cantidad_numeros || 0),
-                    0
-                );
-
-                const totalRecaudado = pedidosPagadosArr.reduce(
-                    (acc, p) => acc + (p.total || 0),
-                    0
-                );
+                const pedidosPendientesArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pendiente");
+                const pedidosEnProcesoArr = pedidosNorm.filter((p) => normEstado(p.estado) === "en_proceso");
+                const pedidosPagadosArr = pedidosNorm.filter((p) => normEstado(p.estado) === "pagado");
 
                 const pedidosPendientes = pedidosPendientesArr.length;
                 const pedidosPagados = pedidosPagadosArr.length;
+
+                const sorteoIdActivo = sorteoData?.id ?? null;
+
+                // ✅ vendidos reales: COUNT numeros_asignados (del sorteo activo)
+                let totalNumeros = 0;
+                if (sorteoIdActivo) {
+                    const { count, error: countError } = await supabase
+                        .from("numeros_asignados")
+                        .select("*", { count: "exact", head: true })
+                        .eq("sorteo_id", sorteoIdActivo)
+                        .eq("estado", "asignado");
+
+                    if (countError) console.error("Error contando numeros_asignados:", countError);
+                    totalNumeros = count ?? 0;
+                }
+
+                // ✅ recaudado real: SUM pedidos pagados (del sorteo activo)
+                let totalRecaudado = 0;
+                if (sorteoIdActivo) {
+                    const { data: pagos, error: pagosError } = await supabase
+                        .from("pedidos")
+                        .select("total")
+                        .eq("sorteo_id", sorteoIdActivo)
+                        .eq("estado", "pagado");
+
+                    if (pagosError) {
+                        console.error("Error sumando pedidos pagados:", pagosError);
+                    } else {
+                        totalRecaudado =
+                            pagos?.reduce((acc: number, p: any) => acc + (Number(p.total) || 0), 0) ?? 0;
+                    }
+                }
 
                 setStats({
                     totalPedidos,
@@ -124,11 +135,11 @@ export default function AdminHomePage() {
                 if (pedidosPendientes > 0) {
                     nuevasAlertas.push(`Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`);
                 }
-                if (pedidosEnProcesoArr.length > 0) {
-                    nuevasAlertas.push(`Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`);
-                }
                 if (totalPedidos === 0) {
                     nuevasAlertas.push("Aún no se han registrado pedidos en el sistema.");
+                }
+                if (pedidosEnProcesoArr.length > 0) {
+                    nuevasAlertas.push(`Tienes ${pedidosEnProcesoArr.length} pedido(s) en proceso (PayPhone).`);
                 }
             } catch (err: any) {
                 console.error(err);
@@ -137,11 +148,11 @@ export default function AdminHomePage() {
                 setAlertas(nuevasAlertas);
                 setLoading(false);
             }
-
         }
 
         cargarDashboard();
     }, []);
+
 
     // 🧠 Derivados del sorteo activo (soportando distintos nombres de columnas)
     const sorteoTitulo: string | null = useMemo(() => {
