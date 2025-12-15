@@ -416,13 +416,16 @@ export default function AdminHomePage() {
                                                                         ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40"
                                                                         : p.estado === "pendiente"
                                                                             ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
-                                                                            : "bg-slate-700/60 text-slate-200 border border-slate-600",
-                                                                ]
-                                                                    .filter(Boolean)
-                                                                    .join(" ")}
+                                                                            : p.estado === "en_proceso"
+                                                                                ? "bg-sky-500/10 text-sky-300 border border-sky-500/40"
+                                                                                : "bg-slate-700/60 text-slate-200 border border-slate-600",
+                                                                ].join(" ")}
                                                             >
-                                                                {p.estado || "N/A"}
+                                                                {p.estado === "en_proceso"
+                                                                    ? "en proceso"
+                                                                    : p.estado || "N/A"}
                                                             </span>
+
                                                         </td>
                                                         <td className="py-1.5 pr-3 align-middle">
                                                             <Link
