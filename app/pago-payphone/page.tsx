@@ -32,7 +32,6 @@ function PagoPayphoneInner() {
 
     // ✅ Parámetros reales que vienen por URL
     const amountParam = searchParams.get("amount");
-    const refParam = searchParams.get("ref");
     const txParam = searchParams.get("tx");
 
     const sorteoIdParam = searchParams.get("sorteoId");
@@ -42,15 +41,22 @@ function PagoPayphoneInner() {
     const correoParam = searchParams.get("correo");
 
     const total = amountParam ? Number(amountParam) : null;
-    const referencia = refParam ?? "Pago SorteoPro";
     const hasValidAmount = total !== null && !Number.isNaN(total);
 
     // ✅ Tx estable (si viene por URL se usa; si no, se genera una vez)
     const clientTransactionId = useMemo(() => {
         const base = txParam && txParam.trim().length > 0 ? txParam.trim() : `WEB-${Date.now()}`;
-        // PayPhone suele aceptar longitudes limitadas, dejamos 20
         return base.slice(0, 20);
     }, [txParam]);
+
+    // ✅ REFERENCIA CONTROLADA (ya NO depende del refParam)
+    const referencia = useMemo(() => {
+        const actividad = sorteoIdParam ? `Sorteo ${sorteoIdParam}` : "Sorteo";
+        const cant = cantidadParam ? `x${cantidadParam}` : "";
+        const txShort = clientTransactionId ? clientTransactionId.slice(0, 8) : "";
+        // Ej: "Sorteo 1 x5 - c373e356"
+        return `${actividad} ${cant} - ${txShort}`.trim();
+    }, [sorteoIdParam, cantidadParam, clientTransactionId]);
 
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -72,14 +78,10 @@ function PagoPayphoneInner() {
                 createdAt: new Date().toISOString(),
             };
 
-            // tests rápidos para confirmar que el código sí corre
-            sessionStorage.setItem("pp_test", "ok-" + Date.now());
-
             sessionStorage.setItem("pp_preorden", JSON.stringify(preorden));
             localStorage.setItem("pp_preorden", JSON.stringify(preorden));
             sessionStorage.setItem("last_payphone_tx", clientTransactionId);
 
-            console.log("✅ pp_test:", sessionStorage.getItem("pp_test"));
             console.log("✅ pp_preorden guardado:", preorden);
         } catch (e) {
             console.error("❌ Error guardando pp_preorden:", e);
@@ -137,7 +139,6 @@ function PagoPayphoneInner() {
                     lang: "es",
                     timeZone: -5,
 
-                    // ✅ Forzamos que vuelva con tx
                     responseUrl: `${baseUrl}/pago-exitoso?tx=${encodeURIComponent(clientTransactionId)}`,
                     cancellationUrl: `${baseUrl}/pago-error`,
                 });
@@ -149,13 +150,11 @@ function PagoPayphoneInner() {
             }
         };
 
-        // Si ya está cargado, render directo
         if (window.PPaymentButtonBox) {
             renderBox();
             return;
         }
 
-        // Si no, cargar script una sola vez
         const existingScript = document.querySelector<HTMLScriptElement>('script[data-payphone-sdk="1"]');
         if (existingScript) {
             existingScript.addEventListener("load", renderBox, { once: true });
