@@ -1,6 +1,4 @@
 "use client";
-export const dynamic = "force-dynamic";
-export const revalidate = 0;
 
 import { useEffect, useMemo, useRef, useState, useCallback } from "react";
 import Link from "next/link";
@@ -32,15 +30,22 @@ type SorteoActivo = any;
 
 const norm = (v: any) => String(v ?? "").trim().toLowerCase();
 
+const STATS_ZERO: Stats = {
+    totalPedidos: 0,
+    totalNumeros: 0,
+    totalRecaudado: 0,
+    pedidosPendientes: 0,
+    pedidosPagados: 0,
+};
+
 export default function AdminHomePage() {
     const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
-    const [stats, setStats] = useState<Stats | null>(null);
+    const [stats, setStats] = useState<Stats>(STATS_ZERO);
     const [sorteoActivo, setSorteoActivo] = useState<SorteoActivo | null>(null);
     const [loading, setLoading] = useState(true);
     const [errorGeneral, setErrorGeneral] = useState<string | null>(null);
     const [alertas, setAlertas] = useState<string[]>([]);
 
-    const sorteoIdRef = useRef<string | null>(null);
     const channelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
 
     const cargarDashboard = useCallback(async () => {
@@ -66,24 +71,14 @@ export default function AdminHomePage() {
             if (!sorteoData?.id) {
                 setSorteoActivo(null);
                 setPedidos([]);
-                setStats({
-                    totalPedidos: 0,
-                    totalNumeros: 0,
-                    totalRecaudado: 0,
-                    pedidosPendientes: 0,
-                    pedidosPagados: 0,
-                });
+                setStats(STATS_ZERO);
                 nuevasAlertas.push("No hay un sorteo activo configurado actualmente.");
                 setAlertas(nuevasAlertas);
-                setLoading(false);
                 return;
             }
 
             setSorteoActivo(sorteoData);
-
-            // ✅ FIX: asegurar que el ref siempre tenga el sorteo activo (para realtime)
             const sorteoIdActivo = String(sorteoData.id);
-            sorteoIdRef.current = sorteoIdActivo;
 
             // 2) Pedidos del sorteo activo
             const { data: pedidosData, error: pedidosError } = await supabase
@@ -107,10 +102,11 @@ export default function AdminHomePage() {
                 .order("id", { ascending: false });
 
             if (pedidosError) {
-                console.error("Error cargando pedidos:", pedidosError.message);
+                console.error("Error cargando pedidos:", pedidosError);
                 setErrorGeneral("No se pudieron cargar los pedidos.");
                 setAlertas(nuevasAlertas);
-                setLoading(false);
+                setPedidos([]);
+                setStats(STATS_ZERO);
                 return;
             }
 
@@ -168,24 +164,23 @@ export default function AdminHomePage() {
         } catch (err: any) {
             console.error(err);
             setErrorGeneral(err?.message || "Ocurrió un error al cargar el panel.");
+            setPedidos([]);
+            setStats(STATS_ZERO);
         } finally {
             setAlertas(nuevasAlertas);
             setLoading(false);
         }
     }, []);
 
-    // ✅ FIX: Carga inicial SIEMPRE
+    // Carga inicial
     useEffect(() => {
         cargarDashboard();
     }, [cargarDashboard]);
 
-    // ✅ FIX: Realtime se arma cuando YA existe sorteoActivo.id (no dependemos del ref inicialmente)
+    // Realtime: suscribirse cuando hay sorteoActivo
     useEffect(() => {
         const sorteoId = sorteoActivo?.id ? String(sorteoActivo.id) : null;
         if (!sorteoId) return;
-
-        // mantener ref sincronizado
-        sorteoIdRef.current = sorteoId;
 
         // Evitar duplicar canales
         if (channelRef.current) {
@@ -217,15 +212,11 @@ export default function AdminHomePage() {
         };
     }, [cargarDashboard, sorteoActivo?.id]);
 
-    const sorteoTitulo: string | null = useMemo(() => {
-        if (!sorteoActivo) return null;
-        return sorteoActivo.titulo || null;
-    }, [sorteoActivo]);
-
-    const sorteoActividadNumero: number | null = useMemo(() => {
-        if (!sorteoActivo) return null;
-        return sorteoActivo.actividad_numero ?? null;
-    }, [sorteoActivo]);
+    const sorteoTitulo: string | null = useMemo(() => (sorteoActivo ? sorteoActivo.titulo || null : null), [sorteoActivo]);
+    const sorteoActividadNumero: number | null = useMemo(
+        () => (sorteoActivo ? sorteoActivo.actividad_numero ?? null : null),
+        [sorteoActivo]
+    );
 
     const sorteoId: string | null = sorteoActivo?.id || null;
     const ultimosPedidos = useMemo(() => pedidos.slice(0, 5), [pedidos]);
@@ -239,9 +230,7 @@ export default function AdminHomePage() {
                             <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                                 Casa Bikers • Admin
                             </div>
-                            <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">
-                                Panel administrativo
-                            </h1>
+                            <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">Panel administrativo</h1>
                             <p className="max-w-2xl text-sm text-slate-400">
                                 Resumen del sorteo activo. Aquí controlas pedidos, números asignados y estado.
                             </p>
@@ -273,40 +262,36 @@ export default function AdminHomePage() {
                                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Total de pedidos</p>
-                                        <p className="mt-2 text-2xl font-semibold">{stats?.totalPedidos ?? 0}</p>
+                                        <p className="mt-2 text-2xl font-semibold">{stats.totalPedidos}</p>
                                     </div>
 
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Números vendidos</p>
-                                        <p className="mt-2 text-2xl font-semibold">{stats?.totalNumeros ?? 0}</p>
+                                        <p className="mt-2 text-2xl font-semibold">{stats.totalNumeros}</p>
                                     </div>
 
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Total recaudado</p>
-                                        <p className="mt-2 text-2xl font-semibold">
-                                            ${stats ? stats.totalRecaudado.toFixed(2) : "0.00"}
-                                        </p>
+                                        <p className="mt-2 text-2xl font-semibold">${stats.totalRecaudado.toFixed(2)}</p>
                                     </div>
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
                                     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
                                         <p className="text-xs text-emerald-200">Pedidos pagados</p>
-                                        <p className="mt-2 text-xl font-semibold">{stats?.pedidosPagados ?? 0}</p>
+                                        <p className="mt-2 text-xl font-semibold">{stats.pedidosPagados}</p>
                                     </div>
 
                                     <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
                                         <p className="text-xs text-yellow-100">Pedidos pendientes</p>
-                                        <p className="mt-2 text-xl font-semibold">{stats?.pedidosPendientes ?? 0}</p>
+                                        <p className="mt-2 text-xl font-semibold">{stats.pedidosPendientes}</p>
                                     </div>
                                 </div>
                             </div>
 
                             <div className="rounded-xl border border-orange-500/60 bg-gradient-to-b from-orange-500/20 via-slate-900/80 to-slate-950 px-4 py-4 flex flex-col justify-between">
                                 <div className="space-y-1">
-                                    <p className="text-xs font-semibold tracking-[0.2em] uppercase text-orange-300">
-                                        Sorteo activo
-                                    </p>
+                                    <p className="text-xs font-semibold tracking-[0.2em] uppercase text-orange-300">Sorteo activo</p>
                                     {sorteoActivo ? (
                                         <>
                                             <h2 className="text-lg font-semibold">{sorteoTitulo || "Sorteo en curso"}</h2>
@@ -315,9 +300,7 @@ export default function AdminHomePage() {
                                             </p>
                                         </>
                                     ) : (
-                                        <p className="text-sm text-orange-100/80">
-                                            No hay un sorteo activo configurado en este momento.
-                                        </p>
+                                        <p className="text-sm text-orange-100/80">No hay un sorteo activo configurado en este momento.</p>
                                     )}
                                 </div>
 
@@ -393,16 +376,11 @@ export default function AdminHomePage() {
                                                     const est = norm(p.estado);
                                                     return (
                                                         <tr key={p.id} className="border-b border-slate-800/60 last:border-0">
-                                                            <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">
-                                                                #{p.id}
-                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">#{p.id}</td>
                                                             <td className="py-1.5 pr-3 align-middle">{p.nombre || "—"}</td>
                                                             <td className="py-1.5 pr-3 align-middle text-slate-300">
                                                                 {p.created_at
-                                                                    ? new Date(p.created_at).toLocaleString("es-EC", {
-                                                                        dateStyle: "short",
-                                                                        timeStyle: "short",
-                                                                    })
+                                                                    ? new Date(p.created_at).toLocaleString("es-EC", { dateStyle: "short", timeStyle: "short" })
                                                                     : "-"}
                                                             </td>
                                                             <td className="py-1.5 pr-3 align-middle">
@@ -427,10 +405,7 @@ export default function AdminHomePage() {
                                                                 </span>
                                                             </td>
                                                             <td className="py-1.5 pr-3 align-middle">
-                                                                <Link
-                                                                    href={`/admin/pedidos?pedido=${p.id}`}
-                                                                    className="text-[11px] text-orange-300 hover:text-orange-200"
-                                                                >
+                                                                <Link href={`/admin/pedidos?pedido=${p.id}`} className="text-[11px] text-orange-300 hover:text-orange-200">
                                                                     Ver detalle
                                                                 </Link>
                                                             </td>
