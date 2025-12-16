@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 
 type EstadoUI = "verificando" | "confirmado" | "no_confirmado";
@@ -28,7 +28,6 @@ function leerPreorden(): Preorden | null {
         }
     };
 
-    // primero sessionStorage, luego localStorage
     const s = typeof window !== "undefined" ? sessionStorage.getItem("pp_preorden") : null;
     const l = typeof window !== "undefined" ? localStorage.getItem("pp_preorden") : null;
 
@@ -36,45 +35,55 @@ function leerPreorden(): Preorden | null {
 }
 
 export default function PagoExitosoPage() {
+    return (
+        <Suspense
+            fallback={
+                <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
+                    <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center">
+                        <h1 className="text-xl font-bold text-orange-600">Cargando…</h1>
+                        <p className="text-gray-700 mt-2 text-sm">Preparando verificación del pago…</p>
+                    </div>
+                </main>
+            }
+        >
+            <PagoExitosoInner />
+        </Suspense>
+    );
+}
+
+function PagoExitosoInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    const tx =
-        searchParams.get("tx") ||
-        searchParams.get("clientTransactionId") ||
-        searchParams.get("id") ||
-        "";
+    const id = (searchParams.get("id") || "").trim(); // ✅ id real PayPhone si viene
+    const clientTx = (searchParams.get("clientTransactionId") || searchParams.get("tx") || "").trim();
+
+    // Preferimos id para confirmar; si no hay id, usamos tx como respaldo
+    const identifier = id || clientTx;
 
     const [estado, setEstado] = useState<EstadoUI>("verificando");
     const [intentos, setIntentos] = useState(0);
     const [errorExtra, setErrorExtra] = useState<string | null>(null);
 
     const INTERVAL_MS = 5000;
-    const MAX_INTENTOS = 12; // 60s
+    const MAX_INTENTOS = 12;
 
     async function confirmarYCrearPedido() {
-        if (!tx) return false;
+        if (!identifier) return false;
 
-        // ✅ leer preorden del navegador
         const preorden = leerPreorden();
-
-        // si no hay preorden, no podemos crear pedido (solo confirmar)
         if (!preorden) {
             setErrorExtra("No se encontró la preorden (pp_preorden).");
             setEstado("no_confirmado");
             return false;
         }
 
-        // asegurar que la preorden use el tx actual
-        const payphoneId = searchParams.get("id")?.trim() || null; // 👈 ESTE ES EL IMPORTANTE
-
         const payload = {
             ...preorden,
-            tx,                 // tu clientTransactionId (útil para tu lógica)
-            id: payphoneId,     // ✅ el id real de PayPhone (para confirmar)
+            tx: clientTx || preorden.tx, // tu tx
+            id: id || null,              // ✅ id real de PayPhone
             metodo_pago: "payphone",
         };
-
 
         try {
             const res = await fetch(`/api/payphone/confirmar`, {
@@ -92,21 +101,20 @@ export default function PagoExitosoPage() {
                 return true;
             }
 
-            // si PayPhone todavía no confirma, mantenemos el estado no_confirmado (pero seguimos reintentando)
             setEstado("no_confirmado");
-            setErrorExtra(data?.error || null);
+            setErrorExtra(data?.error || "Pago no confirmado todavía.");
             return false;
         } catch (e: any) {
             setEstado("no_confirmado");
-            setErrorExtra(e?.message || "Error consultando el backend");
+            setErrorExtra(e?.message || "Error consultando el backend.");
             return false;
         }
     }
 
     useEffect(() => {
-        if (!tx) {
+        if (!identifier) {
             setEstado("no_confirmado");
-            setErrorExtra("Falta tx en la URL.");
+            setErrorExtra("Falta id/tx en la URL.");
             return;
         }
 
@@ -119,7 +127,7 @@ export default function PagoExitosoPage() {
         }, INTERVAL_MS);
 
         return () => clearTimeout(t);
-    }, [tx, estado, intentos]);
+    }, [identifier, estado, intentos]);
 
     const titulo = estado === "confirmado" ? "¡Pago confirmado!" : "Pago en verificación";
 
@@ -141,14 +149,15 @@ export default function PagoExitosoPage() {
                 )}
 
                 {errorExtra && (
-                    <p className="text-[11px] text-slate-500 mb-3 break-words">
-                        Detalle: {errorExtra}
-                    </p>
+                    <p className="text-[11px] text-slate-500 mb-3 break-words">Detalle: {errorExtra}</p>
                 )}
 
                 <div className="text-xs text-gray-500 mb-5 space-y-1">
                     <div>
-                        Tx: <span className="font-mono">{tx || "—"}</span>
+                        PayPhone ID: <span className="font-mono">{id || "—"}</span>
+                    </div>
+                    <div>
+                        Tx: <span className="font-mono">{clientTx || "—"}</span>
                     </div>
                     <div>
                         Estado: <b>{estado}</b>
@@ -163,7 +172,9 @@ export default function PagoExitosoPage() {
                 <div className="space-y-3">
                     {estado === "confirmado" ? (
                         <button
-                            onClick={() => router.push(`/mis-numeros?tx=${encodeURIComponent(tx)}`)}
+                            onClick={() =>
+                                router.push(`/mis-numeros?tx=${encodeURIComponent(clientTx || identifier)}`)
+                            }
                             className="w-full rounded-xl bg-orange-500 py-2 font-semibold text-white hover:bg-orange-400"
                         >
                             Ver mis números
