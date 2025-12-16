@@ -209,7 +209,8 @@ export async function POST(req: Request) {
         }
 
         // 4) asignar números (tu función actual)
-        const result = await asignarNumerosPorTx(clientTransactionId);
+        const result = await asignarNumerosPorTx(clientTransactionId, true);
+
 
         if (!result.ok) {
             return NextResponse.json(
