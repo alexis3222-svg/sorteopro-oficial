@@ -80,10 +80,12 @@ export default function AdminHomePage() {
             }
 
             setSorteoActivo(sorteoData);
+
+            // ✅ FIX: asegurar que el ref siempre tenga el sorteo activo (para realtime)
             const sorteoIdActivo = String(sorteoData.id);
             sorteoIdRef.current = sorteoIdActivo;
 
-            // 2) Pedidos del sorteo activo (misma fuente)
+            // 2) Pedidos del sorteo activo
             const { data: pedidosData, error: pedidosError } = await supabase
                 .from("pedidos")
                 .select(
@@ -142,7 +144,7 @@ export default function AdminHomePage() {
                 }
             }
 
-            // 5) Recaudado: SOLO pedidos pagados (coherente con fuente pedidos)
+            // 5) Recaudado: SOLO pedidos pagados
             const totalRecaudado = pagadosArr.reduce((acc, p) => acc + Number(p.total ?? 0), 0);
 
             setStats({
@@ -172,15 +174,18 @@ export default function AdminHomePage() {
         }
     }, []);
 
-    // Carga inicial
+    // ✅ FIX: Carga inicial SIEMPRE
     useEffect(() => {
         cargarDashboard();
     }, [cargarDashboard]);
 
-    // Realtime: si cambia pedidos o numeros_asignados → recalcular
+    // ✅ FIX: Realtime se arma cuando YA existe sorteoActivo.id (no dependemos del ref inicialmente)
     useEffect(() => {
-        const sorteoId = sorteoIdRef.current;
+        const sorteoId = sorteoActivo?.id ? String(sorteoActivo.id) : null;
         if (!sorteoId) return;
+
+        // mantener ref sincronizado
+        sorteoIdRef.current = sorteoId;
 
         // Evitar duplicar canales
         if (channelRef.current) {
