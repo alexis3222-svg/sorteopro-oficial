@@ -66,11 +66,15 @@ export default function PagoExitosoPage() {
         }
 
         // asegurar que la preorden use el tx actual
-        const payload: Preorden & { id?: string } = {
+        const payphoneId = searchParams.get("id")?.trim() || null; // 👈 ESTE ES EL IMPORTANTE
+
+        const payload = {
             ...preorden,
-            tx,
+            tx,                 // tu clientTransactionId (útil para tu lógica)
+            id: payphoneId,     // ✅ el id real de PayPhone (para confirmar)
             metodo_pago: "payphone",
         };
+
 
         try {
             const res = await fetch(`/api/payphone/confirmar`, {
