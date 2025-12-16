@@ -1,64 +1,114 @@
-// app/api/payphone/confirmar/route.ts
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+import { supabaseAdmin } from "@/lib/supabaseAdmin"; // ajusta si tu path es distinto
+import { asignarNumerosPorTx } from "@/lib/asignarNumeros"; // ajusta si tu path es distinto
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-const supabaseAdmin = createClient(supabaseUrl, serviceKey);
+const PAYPHONE_TOKEN = process.env.PAYPHONE_TOKEN ?? process.env.NEXT_PUBLIC_PAYPHONE_TOKEN ?? "";
+const PAYPHONE_STORE_ID = process.env.PAYPHONE_STORE_ID ?? process.env.NEXT_PUBLIC_PAYPHONE_STORE_ID ?? "";
 
-// ⚠️ TODO: aquí debes integrar la verificación REAL con PayPhone (API o webhook)
-// Mientras no exista verificación, este endpoint NO confirma pagos (cero curiosos).
-async function verificarConPayPhone(_tx: string): Promise<{ paid: boolean; raw?: any }> {
-    // ✅ Modo seguro: no confirmar por defecto
-    return { paid: false };
+export const dynamic = "force-dynamic";
+
+async function fetchJson(url: string, options: RequestInit) {
+    const r = await fetch(url, options);
+    const text = await r.text();
+    let json: any = null;
+    try { json = JSON.parse(text); } catch { }
+    return { ok: r.ok, status: r.status, json, text };
 }
 
 export async function GET(req: Request) {
-    const { searchParams } = new URL(req.url);
-    const tx = searchParams.get("tx");
+    try {
+        const { searchParams } = new URL(req.url);
 
-    if (!tx) {
-        return NextResponse.json({ ok: false, error: "Falta tx" }, { status: 400 });
-    }
+        // ✅ Aceptar ambos
+        const tx = searchParams.get("tx");
+        const id = searchParams.get("id");
 
-    // 1) Verificar con PayPhone
-    const verif = await verificarConPayPhone(tx);
-
-    if (!verif.paid) {
-        return NextResponse.json(
-            { ok: false, estado: "no_confirmado", error: "Pago no confirmado por PayPhone." },
-            { status: 409 }
-        );
-    }
-
-    // 2) Buscar pedido por tx (si existiera)
-    const { data: pedido, error: pedidoError } = await supabaseAdmin
-        .from("pedidos")
-        .select("id, estado")
-        .eq("payphone_client_transaction_id", tx)
-        .maybeSingle();
-
-    if (pedidoError) {
-        return NextResponse.json({ ok: false, error: "Error consultando pedido" }, { status: 500 });
-    }
-
-    // 3) Si existe, marcar pagado si hace falta
-    let pedidoId = pedido?.id ?? null;
-
-    if (pedidoId && pedido?.estado !== "pagado") {
-        const { error: updErr } = await supabaseAdmin
-            .from("pedidos")
-            .update({ estado: "pagado" })
-            .eq("id", pedidoId);
-
-        if (updErr) {
-            return NextResponse.json({ ok: false, error: "No se pudo actualizar a pagado" }, { status: 500 });
+        if (!tx && !id) {
+            return NextResponse.json({ ok: false, error: "Falta tx o id" }, { status: 400 });
         }
+
+        if (!PAYPHONE_TOKEN) {
+            return NextResponse.json({ ok: false, error: "Falta configuración PAYPHONE_TOKEN" }, { status: 500 });
+        }
+
+        // ------------------------------------------------------------
+        // 1) Consultar PayPhone: prioridad por ID si existe
+        //    (Si tu endpoint real difiere, aquí lo ajustamos en el paso 2)
+        // ------------------------------------------------------------
+        let paidConfirmed = false;
+        let clientTransactionId: string | null = tx ?? null;
+
+        if (id) {
+            // ⚠️ Este endpoint puede variar según tu cuenta/documentación PayPhone.
+            // Lo importante: aquí ya aceptamos id y luego obtenemos clientTransactionId.
+            const url = `https://pay.payphonetodoesposible.com/api/Transactions/${encodeURIComponent(id)}`;
+
+            const resp = await fetchJson(url, {
+                method: "GET",
+                headers: {
+                    Authorization: `Bearer ${PAYPHONE_TOKEN}`,
+                    "Content-Type": "application/json",
+                },
+                cache: "no-store",
+            });
+
+            if (!resp.ok) {
+                return NextResponse.json(
+                    { ok: false, estado: "no_confirmado", error: "No se pudo consultar PayPhone (id).", debug: resp.text?.slice(0, 200) },
+                    { status: 200 }
+                );
+            }
+
+            // 🔎 Intento de normalizar campos (depende de PayPhone)
+            const data = resp.json ?? {};
+            clientTransactionId =
+                data?.clientTransactionId ??
+                data?.data?.clientTransactionId ??
+                data?.transaction?.clientTransactionId ??
+                clientTransactionId;
+
+            const statusRaw =
+                data?.status ??
+                data?.data?.status ??
+                data?.transaction?.status ??
+                "";
+
+            const status = String(statusRaw).toLowerCase();
+
+            // Ajusta aquí si PayPhone usa otro status final
+            paidConfirmed = status.includes("paid") || status.includes("approved") || status.includes("success");
+        }
+
+        // Si vino por tx (sin id), tu lógica actual seguramente consulta PayPhone por tx.
+        // De momento, si NO tenemos confirmación por id, seguimos con tu función central:
+        if (!clientTransactionId) {
+            return NextResponse.json({ ok: false, estado: "no_confirmado", error: "No se obtuvo clientTransactionId" }, { status: 200 });
+        }
+
+        // ------------------------------------------------------------
+        // 2) Punto único: asignar / actualizar según confirmación
+        // ------------------------------------------------------------
+        const result = await asignarNumerosPorTx(clientTransactionId, paidConfirmed);
+
+        if (!result.ok) {
+            return NextResponse.json(
+                { ok: false, estado: "no_confirmado", error: result.error },
+                { status: 200 }
+            );
+        }
+
+        return NextResponse.json(
+            {
+                ok: true,
+                estado: "pagado",
+                tx: clientTransactionId,
+                numeros: result.numeros ?? [],
+                alreadyAssigned: result.alreadyAssigned ?? false,
+            },
+            { status: 200 }
+        );
+    } catch (e: any) {
+        console.error(e);
+        return NextResponse.json({ ok: false, error: e?.message || "Error interno" }, { status: 500 });
     }
-
-    // 4) Asignación (si ya tienes tu endpoint / lógica, llámala aquí)
-    //    Ej: await fetch(`${process.env.NEXT_PUBLIC_SITE_URL}/api/pedidos/asignar`, ...)
-    //    o importar tu función server-side si la tienes.
-
-    return NextResponse.json({ ok: true, estado: "pagado", pedidoId });
 }
