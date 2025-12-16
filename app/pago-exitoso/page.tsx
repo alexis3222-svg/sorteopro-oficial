@@ -5,6 +5,36 @@ import { useSearchParams, useRouter } from "next/navigation";
 
 type EstadoUI = "verificando" | "confirmado" | "no_confirmado";
 
+type Preorden = {
+    tx: string;
+    sorteoId: string | null;
+    cantidad: number | null;
+    nombre: string | null;
+    telefono: string | null;
+    correo: string | null;
+    total: number | null;
+    referencia: string | null;
+    metodo_pago?: string | null;
+    createdAt?: string | null;
+};
+
+function leerPreorden(): Preorden | null {
+    const tryParse = (raw: string | null) => {
+        if (!raw) return null;
+        try {
+            return JSON.parse(raw) as Preorden;
+        } catch {
+            return null;
+        }
+    };
+
+    // primero sessionStorage, luego localStorage
+    const s = typeof window !== "undefined" ? sessionStorage.getItem("pp_preorden") : null;
+    const l = typeof window !== "undefined" ? localStorage.getItem("pp_preorden") : null;
+
+    return tryParse(s) || tryParse(l);
+}
+
 export default function PagoExitosoPage() {
     const searchParams = useSearchParams();
     const router = useRouter();
@@ -17,28 +47,54 @@ export default function PagoExitosoPage() {
 
     const [estado, setEstado] = useState<EstadoUI>("verificando");
     const [intentos, setIntentos] = useState(0);
+    const [errorExtra, setErrorExtra] = useState<string | null>(null);
 
     const INTERVAL_MS = 5000;
-    const MAX_INTENTOS = 12; // 12*5s = 60s
+    const MAX_INTENTOS = 12; // 60s
 
-    async function confirmar() {
-        if (!tx) return;
+    async function confirmarYCrearPedido() {
+        if (!tx) return false;
+
+        // ✅ leer preorden del navegador
+        const preorden = leerPreorden();
+
+        // si no hay preorden, no podemos crear pedido (solo confirmar)
+        if (!preorden) {
+            setErrorExtra("No se encontró la preorden (pp_preorden).");
+            setEstado("no_confirmado");
+            return false;
+        }
+
+        // asegurar que la preorden use el tx actual
+        const payload: Preorden & { id?: string } = {
+            ...preorden,
+            tx,
+            metodo_pago: "payphone",
+        };
 
         try {
-            const res = await fetch(`/api/payphone/confirmar?tx=${encodeURIComponent(tx)}`, {
+            const res = await fetch(`/api/payphone/confirmar`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
                 cache: "no-store",
+                body: JSON.stringify(payload),
             });
+
             const data = await res.json();
 
             if (data?.ok) {
                 setEstado("confirmado");
+                setErrorExtra(null);
                 return true;
             }
 
+            // si PayPhone todavía no confirma, mantenemos el estado no_confirmado (pero seguimos reintentando)
             setEstado("no_confirmado");
+            setErrorExtra(data?.error || null);
             return false;
-        } catch {
+        } catch (e: any) {
             setEstado("no_confirmado");
+            setErrorExtra(e?.message || "Error consultando el backend");
             return false;
         }
     }
@@ -46,6 +102,7 @@ export default function PagoExitosoPage() {
     useEffect(() => {
         if (!tx) {
             setEstado("no_confirmado");
+            setErrorExtra("Falta tx en la URL.");
             return;
         }
 
@@ -53,17 +110,14 @@ export default function PagoExitosoPage() {
         if (intentos >= MAX_INTENTOS) return;
 
         const t = setTimeout(async () => {
-            const ok = await confirmar();
+            const ok = await confirmarYCrearPedido();
             if (!ok) setIntentos((i) => i + 1);
         }, INTERVAL_MS);
 
         return () => clearTimeout(t);
     }, [tx, estado, intentos]);
 
-    const titulo =
-        estado === "confirmado"
-            ? "¡Pago confirmado!"
-            : "Pago en verificación";
+    const titulo = estado === "confirmado" ? "¡Pago confirmado!" : "Pago en verificación";
 
     const mensaje =
         estado === "confirmado"
@@ -82,9 +136,19 @@ export default function PagoExitosoPage() {
                     </p>
                 )}
 
+                {errorExtra && (
+                    <p className="text-[11px] text-slate-500 mb-3 break-words">
+                        Detalle: {errorExtra}
+                    </p>
+                )}
+
                 <div className="text-xs text-gray-500 mb-5 space-y-1">
-                    <div>Tx: <span className="font-mono">{tx || "—"}</span></div>
-                    <div>Estado: <b>{estado}</b></div>
+                    <div>
+                        Tx: <span className="font-mono">{tx || "—"}</span>
+                    </div>
+                    <div>
+                        Estado: <b>{estado}</b>
+                    </div>
                     {estado !== "confirmado" && (
                         <div>
                             Intento {Math.min(intentos + 1, MAX_INTENTOS)} de {MAX_INTENTOS}
@@ -104,7 +168,8 @@ export default function PagoExitosoPage() {
                         <button
                             onClick={async () => {
                                 setEstado("verificando");
-                                await confirmar();
+                                setIntentos(0);
+                                await confirmarYCrearPedido();
                             }}
                             className="w-full rounded-xl bg-orange-500 py-2 font-semibold text-white hover:bg-orange-400"
                         >
