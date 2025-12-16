@@ -1,74 +1,141 @@
-// app/api/payphone/webhook/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asignarNumerosPorTx } from "@/lib/asignarNumeros";
 
-export async function POST(req: NextRequest) {
+export const dynamic = "force-dynamic";
+
+// Si quieres, añade un secreto para que nadie más te dispare el webhook:
+// En Vercel: PAYPHONE_WEBHOOK_SECRET=algo
+const WEBHOOK_SECRET = process.env.PAYPHONE_WEBHOOK_SECRET || "";
+
+const norm = (v: any) => String(v ?? "").trim().toLowerCase();
+
+function isApproved(payload: any) {
+    // Cubrimos distintas formas de PayPhone
+    const status =
+        payload?.status ??
+        payload?.transactionStatus ??
+        payload?.data?.status ??
+        payload?.data?.transactionStatus ??
+        payload?.transaction?.status ??
+        payload?.transaction?.transactionStatus ??
+        "";
+
+    const s = norm(status);
+
+    return (
+        s.includes("approved") ||
+        s.includes("paid") ||
+        s.includes("success") ||
+        s === "approved" ||
+        s === "paid" ||
+        s === "2"
+    );
+}
+
+function pickTx(payload: any): string | null {
+    return (
+        payload?.clientTransactionId ??
+        payload?.data?.clientTransactionId ??
+        payload?.transaction?.clientTransactionId ??
+        payload?.transaction?.reference ??
+        null
+    );
+}
+
+function pickId(payload: any): string | null {
+    const v =
+        payload?.id ??
+        payload?.transactionId ??
+        payload?.data?.id ??
+        payload?.data?.transactionId ??
+        payload?.transaction?.id ??
+        payload?.transaction?.transactionId ??
+        null;
+    return v == null ? null : String(v);
+}
+
+export async function POST(req: Request) {
     try {
-        // 1) Verificar secreto de seguridad
-        const secretFromUrl = req.nextUrl.searchParams.get("secret");
-        const expected = process.env.PAYPHONE_WEBHOOK_SECRET;
-
-        if (!expected || secretFromUrl !== expected) {
-            return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+        // (opcional) Validar secreto
+        if (WEBHOOK_SECRET) {
+            const got = req.headers.get("x-webhook-secret") || "";
+            if (got !== WEBHOOK_SECRET) {
+                return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
+            }
         }
 
-        // 2) Leer el body enviado por PayPhone
-        const body = await req.json().catch(() => null);
+        const payload = await req.json();
 
-        if (!body) {
-            return NextResponse.json({ error: "Body inválido" }, { status: 400 });
+        // 1) validar aprobado
+        const approved = isApproved(payload);
+        if (!approved) {
+            return NextResponse.json({ ok: true, ignored: true }, { status: 200 });
         }
 
-        // 3) Intentar recuperar el clientTransactionId de varios campos posibles
-        const tx =
-            body.clientTransactionId ||
-            body.clientTransactionID || // por si acaso
-            body.reference ||
-            body.transactionId;
-
-        const statusRaw =
-            body.status || body.transactionStatus || body.transactionStatusName;
-        const status = String(statusRaw || "").toUpperCase();
+        // 2) extraer tx + id
+        const tx = pickTx(payload);
+        const payphoneId = pickId(payload);
 
         if (!tx) {
+            // Sin tx no podemos enlazar con tu preorden
             return NextResponse.json(
-                { error: "No se encontró clientTransactionId en el payload" },
-                { status: 400 }
+                { ok: false, error: "Webhook aprobado pero sin clientTransactionId (tx)", payload },
+                { status: 200 }
             );
         }
 
-        // 4) Solo asignamos si el pago está aprobado/completado
-        const aprobados = ["APPROVED", "APPROVE", "COMPLETED", "PAID", "SUCCESS"];
-        if (!aprobados.includes(status)) {
-            return NextResponse.json({
-                ok: true,
-                skipped: true,
-                reason: `Estado no aprobado: ${status}`,
-            });
+        // 3) Crear pedido SOLO aquí (cuando ya está pagado)
+        const { data: existing } = await supabaseAdmin
+            .from("pedidos")
+            .select("id, estado, tx")
+            .eq("tx", tx)
+            .maybeSingle();
+
+        let pedidoId: number | null = existing?.id ?? null;
+
+        if (!pedidoId) {
+            // ⚠️ Aquí NO tenemos nombre/telefono/cantidad porque tú NO quieres preorden en BD.
+            // Se crea pedido mínimo y coherente.
+            const { data: inserted, error: insErr } = await supabaseAdmin
+                .from("pedidos")
+                .insert({
+                    tx,
+                    metodo_pago: "payphone",
+                    estado: "pagado",
+                    payphone_id: payphoneId, // quítalo si no existe esa columna
+                })
+                .select("id")
+                .single();
+
+            if (insErr) {
+                return NextResponse.json(
+                    { ok: false, error: `No se pudo crear pedido: ${insErr.message}` },
+                    { status: 200 }
+                );
+            }
+
+            pedidoId = inserted.id;
+        } else if (norm(existing.estado) !== "pagado") {
+            await supabaseAdmin
+                .from("pedidos")
+                .update({ estado: "pagado", metodo_pago: "payphone", payphone_id: payphoneId })
+                .eq("id", pedidoId);
         }
 
-        // 5) Usar la misma lógica central que ya funciona
+        // 4) Asignar números SOLO pagado
         const result = await asignarNumerosPorTx(tx, true);
 
-
-
         if (!result.ok) {
-            return NextResponse.json(
-                { error: result.error, code: result.code },
-                { status: 500 }
-            );
+            return NextResponse.json({ ok: false, pedidoId, error: result.error }, { status: 200 });
         }
 
-        return NextResponse.json({
-            ok: true,
-            alreadyAssigned: result.alreadyAssigned,
-            numeros: result.numeros,
-        });
-    } catch (e) {
-        console.error("Error en webhook PayPhone:", e);
         return NextResponse.json(
-            { error: "Error interno en webhook" },
-            { status: 500 }
+            { ok: true, pedidoId, tx, numeros: result.numeros, alreadyAssigned: result.alreadyAssigned },
+            { status: 200 }
         );
+    } catch (e: any) {
+        console.error(e);
+        return NextResponse.json({ ok: false, error: e?.message || "Error interno" }, { status: 500 });
     }
 }
