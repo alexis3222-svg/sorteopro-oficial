@@ -116,7 +116,8 @@ export async function POST(req: Request) {
             }
 
             pedidoId = inserted.id;
-        } else if (norm(existing.estado) !== "pagado") {
+        } else if (existing && norm(existing.estado) !== "pagado") {
+
             await supabaseAdmin
                 .from("pedidos")
                 .update({ estado: "pagado", metodo_pago: "payphone", payphone_id: payphoneId })
