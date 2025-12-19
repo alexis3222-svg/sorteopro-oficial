@@ -18,6 +18,12 @@ type NumeroAsignado = {
   numero: string | number;
 };
 
+type PedidoCreado = {
+  id: number;
+  tx: string;
+  estado: string;
+};
+
 export default function HomePage() {
   const router = useRouter();
 
@@ -29,15 +35,16 @@ export default function HomePage() {
   const [selectedCantidad, setSelectedCantidad] = useState<number | null>(null);
   const [modalStep, setModalStep] = useState<ModalStep>("resumen");
 
-  // datos del checkout
-  const [metodoPago, setMetodoPago] = useState<
-    "transferencia" | "payphone" | "tarjeta"
-  >("transferencia");
+  // ✅ SOLO estos 2 métodos (coinciden con /api/pedidos/crear)
+  const [metodoPago, setMetodoPago] = useState<"transferencia" | "payphone">(
+    "transferencia"
+  );
+
   const [nombreCliente, setNombreCliente] = useState("");
   const [telefonoCliente, setTelefonoCliente] = useState("");
   const [correoCliente, setCorreoCliente] = useState("");
 
-  // estado de guardado en Supabase
+  // estado de guardado
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
 
@@ -57,9 +64,7 @@ export default function HomePage() {
         .limit(1)
         .single();
 
-      if (!error) {
-        setSorteo(data);
-      }
+      if (!error) setSorteo(data);
       setLoading(false);
     };
 
@@ -127,7 +132,36 @@ export default function HomePage() {
   const totalPaquete =
     selectedCantidad != null ? selectedCantidad * precioUnidad : 0;
 
-  // Guardar pedido en Supabase + flujo según método de pago
+  // ✅ Crear pedido SIEMPRE en backend (service role)
+  async function crearPedidoServer(): Promise<PedidoCreado> {
+    const r = await fetch("/api/pedidos/crear", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        sorteo_id: sorteo.id,
+        actividad_numero: numeroActividad,
+        // ✅ TS: aquí ya validamos antes, pero TS no lo sabe
+        cantidad_numeros: selectedCantidad!,
+        precio_unitario: precioUnidad,
+        total: totalPaquete,
+        nombre: nombreCliente.trim(),
+        telefono: telefonoCliente.trim(),
+        correo: correoCliente.trim(),
+        metodo_pago: metodoPago,
+      }),
+      cache: "no-store",
+    });
+
+    const data = await r.json().catch(() => null);
+
+    if (!r.ok || !data?.ok || !data?.pedido) {
+      throw new Error(data?.error || `Error creando pedido (HTTP ${r.status})`);
+    }
+
+    return data.pedido as PedidoCreado;
+  }
+
+  // Guardar pedido + flujo según método de pago
   const handleConfirmarDatosPago = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setOrderError(null);
@@ -158,9 +192,7 @@ export default function HomePage() {
       return;
     }
 
-    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-      correoCliente.trim()
-    );
+    const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(correoCliente.trim());
     if (!correoValido) {
       setOrderError("Ingresa un correo electrónico válido.");
       return;
@@ -173,59 +205,25 @@ export default function HomePage() {
 
     setSavingOrder(true);
 
-    // 👉 ID único de transacción para PayPhone
-    const clientTransactionId = `P-${numeroActividad}-${Date.now()
-      .toString()
-      .slice(-8)}`;
-
     try {
-      // 1) Insertar pedido en Supabase (SIEMPRE estado 'pendiente')
-      const { data: inserted, error } = await supabase
-        .from("pedidos")
-        .insert({
-          sorteo_id: sorteo.id, // uuid del sorteo
-          actividad_numero: numeroActividad,
-          cantidad_numeros: selectedCantidad,
-          precio_unitario: precioUnidad,
-          total: totalPaquete,
-          metodo_pago: metodoPago,
-          nombre: nombreCliente.trim(),
-          telefono: telefonoCliente.trim(),
-          correo: correoCliente.trim(),
-          estado: "pendiente",
-          payphone_client_transaction_id:
-            metodoPago === "payphone" ? clientTransactionId : null,
-        })
-        .select()
-        .single();
+      // ✅ 1) Crear pedido en backend
+      const pedido = await crearPedidoServer();
 
-      if (error || !inserted) {
-        console.error("Error guardando pedido:", error);
-        setOrderError(
-          error?.message ||
-          "No se pudo registrar el pedido. Intenta de nuevo."
-        );
-        return;
-      }
-
-      // 2) Flujo según método de pago
+      // ✅ 2) Flujo por método
       if (metodoPago === "payphone") {
-        // Cerrar modal y mandar a la página de PayPhone
         setIsModalOpen(false);
 
         const totalStr = Number(totalPaquete).toFixed(2);
-        const ref = `Sorteo ${numeroActividad} - Pedido ${inserted.id}`;
+        const ref = `Sorteo ${numeroActividad} - Pedido ${pedido.id}`;
 
+        // 🔥 Importante: usar tx del backend
         router.push(
           `/pago-payphone?amount=${encodeURIComponent(
             totalStr
-          )}&ref=${encodeURIComponent(ref)}&tx=${encodeURIComponent(
-            clientTransactionId
-          )}`
+          )}&ref=${encodeURIComponent(ref)}&tx=${encodeURIComponent(pedido.tx)}`
         );
       } else {
-        // 🧾 Transferencia o tarjeta manual:
-        // 👉 SOLO dejamos el pedido en pendiente, SIN asignar números aquí
+        // Transferencia: pedido ya existe como pendiente (server-side)
         setModalStep("ok");
       }
     } catch (err: any) {
@@ -238,7 +236,6 @@ export default function HomePage() {
       setSavingOrder(false);
     }
   };
-
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
@@ -276,7 +273,8 @@ export default function HomePage() {
         return;
       }
 
-      const pedidoIds = pedidos.map((p) => p.id as string);
+      // ✅ TS: ids numéricos
+      const pedidoIds = pedidos.map((p) => p.id as number);
 
       // 2) Buscar números asignados a esos pedidos
       const { data: nums, error: numsError } = await supabase
@@ -372,8 +370,8 @@ export default function HomePage() {
           <ProgressBar value={progresoMostrado} />
 
           <p className="text-center text-[13px] md:text-[15px] font-normal text-slate-600 leading-relaxed">
-            Los vehículos se jugarán una vez vendida la totalidad de los
-            números, es decir, cuando la barra de progreso llegue al 100%.
+            Los vehículos se jugarán una vez vendida la totalidad de los números,
+            es decir, cuando la barra de progreso llegue al 100%.
           </p>
         </div>
       </section>
@@ -416,11 +414,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* PREMIOS INSTANTÁNEOS (DINÁMICO) */}
-      {/* <NumerosBendecidos sorteoId={sorteo.id} /> */}
-
-
-      {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS (ESTILO PF) */}
+      {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS */}
       <section className="w-full pb-10 md:pb-14">
         <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white px-5 py-6 shadow-sm">
           <h3
@@ -428,6 +422,7 @@ export default function HomePage() {
           >
             Consulta tus números
           </h3>
+
           <p className="mt-2 text-xs md:text-sm text-slate-600 text-center">
             Ingresa el correo que usaste al realizar tu compra y te mostraremos
             los números asignados a tus boletos para esta actividad.
@@ -620,13 +615,9 @@ export default function HomePage() {
                       <span>PayPhone (tarjeta / app)</span>
                     </label>
 
+                    {/* ✅ Tarjeta deshabilitada por ahora (no existe en backend) */}
                     <label className="flex items-center gap-2 text-xs opacity-60">
-                      <input
-                        type="radio"
-                        className="h-3 w-3"
-                        checked={metodoPago === "tarjeta"}
-                        onChange={() => setMetodoPago("tarjeta")}
-                      />
+                      <input type="radio" className="h-3 w-3" disabled />
                       <span>Tarjeta de crédito/débito (otro canal)</span>
                     </label>
                   </div>
