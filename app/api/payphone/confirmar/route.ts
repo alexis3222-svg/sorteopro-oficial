@@ -1,117 +1,168 @@
-// app/api/payphone/confirmar/route.ts
 import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
 import { asignarNumerosPorTx } from "@/lib/asignarNumeros";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type Resp =
-    | { ok: true; paid: true; alreadyAssigned: boolean; numeros: number[] }
-    | { ok: true; paid: false; reason: string; details?: any }
-    | { ok: false; error: string; details?: any };
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const SERVICE_ROLE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
+const PAYPHONE_TOKEN = process.env.PAYPHONE_TOKEN!;
+
+const supabaseAdmin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+    auth: { persistSession: false },
+});
+
+// Helper: fetch JSON y si viene HTML lo reporta claro
+async function fetchJsonStrict(url: string, init: RequestInit) {
+    const res = await fetch(url, init);
+    const contentType = res.headers.get("content-type") || "";
+    const raw = await res.text();
+
+    if (!contentType.includes("application/json")) {
+        // PayPhone respondió HTML o algo raro -> este es el error que ves en logs
+        throw new Error(
+            `PayPhone no devolvió JSON (HTTP ${res.status}). content-type=${contentType}. raw=${raw.slice(
+                0,
+                200
+            )}`
+        );
+    }
+
+    const json = JSON.parse(raw);
+    return { res, json };
+}
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json().catch(() => null);
-
-        const idRaw =
-            body?.id || body?.payphoneId || body?.transactionId || body?.payphone_id;
-        const tx =
-            body?.tx ||
-            body?.clientTransactionId ||
-            body?.clientTransactionID ||
-            body?.clientTxId ||
-            body?.reference;
-
-        const id = Number(idRaw);
-
-        if (!id || Number.isNaN(id)) {
-            return NextResponse.json<Resp>(
-                { ok: false, error: "Falta 'id' (PayPhone ID) válido." },
-                { status: 400 }
-            );
-        }
-        if (!tx) {
-            return NextResponse.json<Resp>(
-                { ok: false, error: "Falta 'tx' (clientTransactionId)." },
-                { status: 400 }
-            );
-        }
-
-        const token = process.env.PAYPHONE_TOKEN || "";
-        if (!token) {
-            return NextResponse.json<Resp>(
-                { ok: false, error: "Falta PAYPHONE_TOKEN en Vercel (Production)." },
+        if (!PAYPHONE_TOKEN) {
+            return NextResponse.json(
+                { ok: false, error: "Falta PAYPHONE_TOKEN en variables de entorno" },
                 { status: 500 }
             );
         }
 
-        const apiBase = process.env.PAYPHONE_API_URL || "https://pay.payphonetodoesposible.com";
-        const url = `${apiBase}/api/button/V2/Confirm`;
+        const body = await req.json().catch(() => null);
+        const id = body?.id; // PayPhone transactionId (number/string)
+        const tx = body?.tx; // UUID tx generado por backend
 
-        const r = await fetch(url, {
-            method: "POST",
-            headers: {
-                Authorization: `Bearer ${token}`,
-                "Content-Type": "application/json",
-                Accept: "application/json",
-            },
-            body: JSON.stringify({ id, clientTxId: String(tx) }),
-            cache: "no-store",
-        });
+        if (!id || !tx) {
+            return NextResponse.json(
+                { ok: false, error: "Faltan campos: id y tx son obligatorios" },
+                { status: 400 }
+            );
+        }
 
-        const contentType = r.headers.get("content-type") || "";
-        const raw = await r.text().catch(() => "");
+        // 1) Validar que exista el intent por tx (si no existe, la UI está enviando tx incorrecto)
+        const { data: intent, error: intentErr } = await supabaseAdmin
+            .from("payphone_intents")
+            .select("id, tx, payphone_id, status")
+            .eq("tx", tx)
+            .order("created_at", { ascending: false })
+            .limit(1)
+            .maybeSingle();
 
-        if (!contentType.includes("application/json")) {
-            console.error("PAYPHONE_CONFIRM_NON_JSON", {
-                httpStatus: r.status,
-                contentType,
-                rawPreview: raw.slice(0, 200),
-            });
-            return NextResponse.json<Resp>(
+        if (intentErr) {
+            return NextResponse.json(
+                { ok: false, error: intentErr.message },
+                { status: 500 }
+            );
+        }
+
+        if (!intent) {
+            return NextResponse.json(
                 {
                     ok: false,
                     error:
-                        "PayPhone devolvió HTML/no-JSON al confirmar (token/endpoint/env incorrecto).",
-                    details: { httpStatus: r.status, contentType },
+                        "No existe payphone_intents para este tx. El tx en la URL no corresponde a una intención válida.",
                 },
-                { status: 502 }
+                { status: 400 }
             );
         }
 
-        const data = raw ? JSON.parse(raw) : null;
+        // 2) (Opcional) Guardar payphone_id si no está guardado aún o si cambió
+        if (!intent.payphone_id || String(intent.payphone_id) !== String(id)) {
+            await supabaseAdmin
+                .from("payphone_intents")
+                .update({ payphone_id: String(id) })
+                .eq("id", intent.id);
+        }
 
-        const statusCode = Number(data?.statusCode ?? data?.data?.statusCode);
-        const approved = statusCode === 3; // en PayPhone: 3 = Aprobada
+        // 3) Consultar estado real a PayPhone
+        // ⚠️ IMPORTANTE: aquí es donde te está regresando HTML.
+        // Este endpoint/headers deben devolver JSON. Si no, te lo reportamos exacto.
+        const url = `https://pay.payphonetodoesposible.com/api/button/V2/Confirm`;
+        const { json } = await fetchJsonStrict(url, {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+                Authorization: `Bearer ${PAYPHONE_TOKEN}`,
+            },
+            body: JSON.stringify({
+                id: Number(id), // PayPhone suele esperar number
+                clientTxId: String(tx), // usamos nuestro tx como correlación
+            }),
+        });
 
-        if (!approved) {
-            return NextResponse.json<Resp>({
+        // 4) Normalizar estado de PayPhone
+        // Dependiendo del payload, ajustamos campos comunes:
+        const statusRaw =
+            json?.status ||
+            json?.transactionStatus ||
+            json?.transactionStatusName ||
+            json?.data?.status ||
+            json?.data?.transactionStatus;
+
+        const status = String(statusRaw || "").toUpperCase();
+
+        // ✅ aprobados
+        const aprobados = ["APPROVED", "APPROVE", "COMPLETED", "PAID", "SUCCESS"];
+
+        if (!aprobados.includes(status)) {
+            // actualizar intent para debug
+            await supabaseAdmin
+                .from("payphone_intents")
+                .update({ status })
+                .eq("id", intent.id);
+
+            return NextResponse.json({
                 ok: true,
                 paid: false,
-                reason: `Pago no aprobado aún (statusCode=${statusCode || "?"}).`,
-                details: data,
+                status,
+                raw: json,
             });
         }
 
+        // 5) Pago aprobado -> ejecutar flujo central: crear pedido + asignar números (idempotente)
         const result = await asignarNumerosPorTx(String(tx));
+
         if (!result.ok) {
-            return NextResponse.json<Resp>(
-                { ok: false, error: result.error, details: result },
+            return NextResponse.json(
+                { ok: false, error: result.error, code: result.code },
                 { status: 500 }
             );
         }
 
-        return NextResponse.json<Resp>({
+        // actualizar intent como aprobado
+        await supabaseAdmin
+            .from("payphone_intents")
+            .update({ status: "APPROVED" })
+            .eq("id", intent.id);
+
+        return NextResponse.json({
             ok: true,
             paid: true,
             alreadyAssigned: result.alreadyAssigned,
             numeros: result.numeros,
         });
-    } catch (e) {
-        console.error("CONFIRM_ERROR", e);
-        return NextResponse.json<Resp>(
-            { ok: false, error: "Error interno en confirmar" },
+    } catch (e: any) {
+        console.error("Error /api/payphone/confirmar:", e);
+
+        return NextResponse.json(
+            {
+                ok: false,
+                error: e?.message || "Error interno en confirmar",
+            },
             { status: 500 }
         );
     }
