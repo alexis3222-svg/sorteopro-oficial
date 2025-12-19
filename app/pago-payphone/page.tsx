@@ -12,7 +12,6 @@ declare global {
     }
 }
 
-// 👇 Page envuelta en Suspense (lo que Next pide)
 export default function PagoPayphonePage() {
     return (
         <Suspense
@@ -33,7 +32,7 @@ function PagoPayphoneInner() {
 
     const amountParam = searchParams.get("amount");
     const refParam = searchParams.get("ref");
-    const txParam = searchParams.get("tx"); // ID que viene desde el pedido
+    const txParam = searchParams.get("tx"); // DEBE venir desde el pedido
 
     const total = amountParam ? Number(amountParam) : null;
     const referencia = refParam ?? "Pago SorteoPro";
@@ -48,6 +47,12 @@ function PagoPayphoneInner() {
         }
         if (!TOKEN || !STORE_ID) {
             setErrorMsg("Error de configuración de PayPhone.");
+            return;
+        }
+
+        // ✅ CRÍTICO: sin tx NO se permite renderizar PayPhone
+        if (!txParam || txParam.trim().length === 0) {
+            setErrorMsg("Falta el identificador de transacción (tx). Vuelve a iniciar la compra.");
             return;
         }
 
@@ -92,9 +97,8 @@ function PagoPayphoneInner() {
             try {
                 const amountInCents = Math.round(total! * 100);
 
-                const clientTransactionId =
-                    (txParam && txParam.length > 0 ? txParam : null) ||
-                    `WEB-${Date.now().toString().slice(-10)}`.slice(0, 15);
+                // ✅ Definitivo: SIEMPRE usar el tx que viene del pedido
+                const clientTransactionId = txParam.trim();
 
                 const ppb = new window.PPaymentButtonBox({
                     token: TOKEN,
@@ -131,9 +135,7 @@ function PagoPayphoneInner() {
                 {hasValidAmount && (
                     <p className="text-center text-sm text-gray-700 mt-1">
                         Total a pagar:{" "}
-                        <span className="font-bold text-green-600">
-                            ${total!.toFixed(2)}
-                        </span>
+                        <span className="font-bold text-green-600">${total!.toFixed(2)}</span>
                     </p>
                 )}
 
