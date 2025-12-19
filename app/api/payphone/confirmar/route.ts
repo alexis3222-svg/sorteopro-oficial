@@ -91,18 +91,55 @@ export async function POST(req: NextRequest) {
         // 3) Consultar estado real a PayPhone
         // ⚠️ IMPORTANTE: aquí es donde te está regresando HTML.
         // Este endpoint/headers deben devolver JSON. Si no, te lo reportamos exacto.
-        const url = `https://pay.payphonetodoesposible.com/api/button/V2/Confirm`;
-        const { json } = await fetchJsonStrict(url, {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${PAYPHONE_TOKEN}`,
-            },
-            body: JSON.stringify({
-                id: Number(id), // PayPhone suele esperar number
-                clientTxId: String(tx), // usamos nuestro tx como correlación
-            }),
-        });
+        const url = "https://pay.payphonetodoesposible.com/api/button/V2/Confirm";
+
+        // 1) Primer intento: Bearer (como lo tienes)
+        let json: any = null;
+        let lastErr: any = null;
+
+        for (const authHeader of [
+            `Bearer ${PAYPHONE_TOKEN}`,
+            // 2) Segundo intento: token directo (algunos endpoints lo usan así)
+            `${PAYPHONE_TOKEN}`,
+        ]) {
+            try {
+                const res = await fetch(url, {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json",
+                        Authorization: authHeader,
+                    },
+                    body: JSON.stringify({
+                        id: Number(id),
+                    }),
+                });
+
+                const contentType = res.headers.get("content-type") || "";
+                const raw = await res.text();
+
+                // si no es JSON, guardamos el error y probamos siguiente header
+                if (!contentType.includes("application/json")) {
+                    lastErr = new Error(
+                        `PayPhone no devolvió JSON (HTTP ${res.status}). content-type=${contentType}. raw=${raw.slice(
+                            0,
+                            200
+                        )}`
+                    );
+                    continue;
+                }
+
+                json = JSON.parse(raw);
+                lastErr = null;
+                break;
+            } catch (e: any) {
+                lastErr = e;
+            }
+        }
+
+        if (lastErr || !json) {
+            throw lastErr || new Error("No se pudo confirmar pago con PayPhone");
+        }
+
 
         // 4) Normalizar estado de PayPhone
         // Dependiendo del payload, ajustamos campos comunes:
