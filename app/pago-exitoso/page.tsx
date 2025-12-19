@@ -1,29 +1,40 @@
-export const dynamic = "force-dynamic";
+"use client";
 
-export default function PagoExitosoPage() {
+import Link from "next/link";
+
+export default function PagoExitosoClient() {
     return (
-        <main className="min-h-screen flex items-center justify-center bg-neutral-950 px-4 text-slate-100">
-            <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-neutral-800 p-6 text-center">
-                <h1 className="text-2xl font-bold text-orange-400">
-                    Pago recibido
+        <div className="min-h-screen flex items-center justify-center bg-neutral-950 px-4">
+            <div className="max-w-md w-full rounded-xl border border-neutral-800 bg-neutral-900 p-8 text-center">
+                <h1 className="text-xl font-semibold text-orange-400">
+                    Pedido recibido
                 </h1>
 
-                <p className="mt-3 text-sm text-neutral-300">
-                    Hemos recibido tu comprobante de pago.
+                <p className="mt-4 text-sm text-neutral-300">
+                    Tu pedido ha sido registrado correctamente.
                 </p>
 
-                <p className="mt-2 text-xs text-neutral-400">
-                    Tu pedido será validado manualmente por el administrador.
-                    Una vez confirmado, tus números serán asignados.
+                <p className="mt-2 text-sm text-neutral-400">
+                    El pago será revisado por un administrador.
+                    Una vez confirmado, se asignarán tus números.
                 </p>
 
-                <button
-                    onClick={() => window.location.href = "/"}
-                    className="mt-6 w-full rounded-xl bg-orange-500 hover:bg-orange-600 py-3 font-semibold text-black"
-                >
-                    Volver al inicio
-                </button>
+                <div className="mt-6 flex flex-col gap-3">
+                    <Link
+                        href="/"
+                        className="rounded-md bg-orange-500 px-4 py-2 text-sm font-medium text-black hover:bg-orange-400"
+                    >
+                        Volver al inicio
+                    </Link>
+
+                    <Link
+                        href="/mis-pedidos"
+                        className="rounded-md border border-neutral-700 px-4 py-2 text-sm text-neutral-300 hover:bg-neutral-800"
+                    >
+                        Ver mis pedidos
+                    </Link>
+                </div>
             </div>
-        </main>
+        </div>
     );
 }
