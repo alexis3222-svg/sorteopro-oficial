@@ -5,129 +5,132 @@ import { asignarNumerosPorTx } from "@/lib/asignarNumeros";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-type ConfirmResult =
+type ConfirmResp =
     | { ok: true; paid: true; alreadyAssigned: boolean; numeros: number[] }
-    | { ok: true; paid: false; reason: string }
-    | { ok: false; error: string };
+    | { ok: true; paid: false; reason: string; details?: any }
+    | { ok: false; error: string; details?: any };
 
-function normalizeStatus(raw: any) {
-    return String(raw ?? "")
-        .trim()
-        .toUpperCase();
-}
-
-function isApprovedStatus(status: string) {
-    // Lista flexible (PayPhone a veces varía nombres)
-    const approved = new Set([
-        "APPROVED",
-        "APPROVE",
-        "COMPLETED",
-        "PAID",
-        "SUCCESS",
-        "OK",
-        "CONFIRMED",
-    ]);
-    return approved.has(status);
+function upper(v: any) {
+    return String(v ?? "").trim().toUpperCase();
 }
 
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json().catch(() => null);
 
+        // ✅ PayPhone devuelve estos 2 parámetros en la URL de respuesta:
+        // - id (PayPhone ID) -> entero
+        // - clientTransactionId (tu tx) -> string
+        // (en tu UI se ven ambos)
+        const idRaw =
+            body?.id ||
+            body?.payphoneId ||
+            body?.transactionId ||
+            body?.payphone_id;
+
         const tx =
             body?.tx ||
             body?.clientTransactionId ||
             body?.clientTransactionID ||
-            body?.id ||
+            body?.clientTxId ||
             body?.reference;
 
+        const id = Number(idRaw);
+
+        if (!id || Number.isNaN(id)) {
+            return NextResponse.json<ConfirmResp>(
+                { ok: false, error: "Falta 'id' (PayPhone ID) válido para confirmar." },
+                { status: 400 }
+            );
+        }
         if (!tx) {
-            return NextResponse.json<ConfirmResult>(
-                { ok: false, error: "Falta tx (clientTransactionId)" },
+            return NextResponse.json<ConfirmResp>(
+                { ok: false, error: "Falta 'tx' (clientTransactionId) para confirmar." },
                 { status: 400 }
             );
         }
 
-        // 🔐 Token server-side (NO uses NEXT_PUBLIC_ aquí)
         const token =
             process.env.PAYPHONE_TOKEN ||
             process.env.PAYPHONE_API_TOKEN ||
-            process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "";
+            process.env.NEXT_PUBLIC_PAYPHONE_TOKEN ||
+            "";
 
         if (!token) {
-            return NextResponse.json<ConfirmResult>(
-                { ok: false, error: "Falta PAYPHONE_TOKEN en variables de entorno" },
+            return NextResponse.json<ConfirmResp>(
+                { ok: false, error: "Falta PAYPHONE_TOKEN en variables de entorno." },
                 { status: 500 }
             );
         }
 
-        // ✅ Consultar estado a PayPhone
-        // NOTA: Si tu endpoint exacto es otro, lo ajustamos en el siguiente mensaje.
-        const url = `https://pay.payphonetodoesposible.com/api/Sale/${encodeURIComponent(
-            tx
-        )}`;
+        // ✅ Endpoint correcto de confirmación (Botón/Cajita):
+        const url = "https://pay.payphonetodoesposible.com/api/button/V2/Confirm";
 
         const r = await fetch(url, {
-            method: "GET",
+            method: "POST",
             headers: {
-                Authorization: `Bearer ${token}`,
+                // OJO: docs usan "bearer" (minúscula) y funciona igual con Bearer,
+                // pero lo dejamos igual que la doc.
+                Authorization: `bearer ${token}`,
+                "Content-Type": "application/json",
                 Accept: "application/json",
             },
+            body: JSON.stringify({ id, clientTxId: String(tx) }),
             cache: "no-store",
         });
 
-        // Si PayPhone devuelve HTML, aquí lo detectamos y devolvemos error legible
         const contentType = r.headers.get("content-type") || "";
+        const raw = await r.text().catch(() => "");
+
+        // Si por algún motivo PayPhone no devuelve JSON, lo reportamos claro
         if (!contentType.includes("application/json")) {
-            const raw = await r.text().catch(() => "");
-            console.error("PayPhone confirmar: respuesta NO JSON", {
-                status: r.status,
+            console.error("PAYPHONE CONFIRM no-json", {
+                httpStatus: r.status,
                 contentType,
                 rawPreview: raw.slice(0, 200),
             });
 
-            return NextResponse.json<ConfirmResult>(
+            return NextResponse.json<ConfirmResp>(
                 {
                     ok: false,
                     error:
-                        "PayPhone respondió HTML/no-JSON al confirmar. Revisa token/endpoint.",
+                        "PayPhone respondió no-JSON al confirmar. Revisa token, endpoint o credenciales.",
                 },
                 { status: 502 }
             );
         }
 
-        const data = await r.json().catch(() => null);
+        const data = raw ? JSON.parse(raw) : null;
 
-        // Intentar leer status desde varias rutas posibles
-        const statusRaw =
-            data?.status ||
-            data?.transactionStatus ||
-            data?.transactionStatusName ||
-            data?.data?.status ||
-            data?.data?.transactionStatus ||
-            data?.data?.transactionStatusName;
+        // Según docs: statusCode 3 = Aprobada; 2 = Cancelado
+        const statusCode = Number(data?.statusCode ?? data?.data?.statusCode);
+        const transactionStatus = upper(
+            data?.transactionStatus ?? data?.data?.transactionStatus
+        );
 
-        const status = normalizeStatus(statusRaw);
+        const approved =
+            statusCode === 3 || transactionStatus === "APPROVED" || transactionStatus === "APPROVE";
 
-        if (!isApprovedStatus(status)) {
-            return NextResponse.json<ConfirmResult>({
+        if (!approved) {
+            return NextResponse.json<ConfirmResp>({
                 ok: true,
                 paid: false,
-                reason: `Estado no aprobado: ${status || "DESCONOCIDO"}`,
+                reason: `Pago no aprobado aún (statusCode=${statusCode || "?"}, transactionStatus=${transactionStatus || "?"})`,
+                details: data,
             });
         }
 
-        // ✅ Pago confirmado → asignar números y crear/actualizar pedido desde la lógica central
+        // ✅ Confirmado → ejecutar lógica idempotente central
         const result = await asignarNumerosPorTx(String(tx));
 
         if (!result.ok) {
-            return NextResponse.json<ConfirmResult>(
-                { ok: false, error: result.error },
+            return NextResponse.json<ConfirmResp>(
+                { ok: false, error: result.error, details: result },
                 { status: 500 }
             );
         }
 
-        return NextResponse.json<ConfirmResult>({
+        return NextResponse.json<ConfirmResp>({
             ok: true,
             paid: true,
             alreadyAssigned: result.alreadyAssigned,
@@ -135,7 +138,7 @@ export async function POST(req: NextRequest) {
         });
     } catch (e) {
         console.error("Error /api/payphone/confirmar:", e);
-        return NextResponse.json<ConfirmResult>(
+        return NextResponse.json<ConfirmResp>(
             { ok: false, error: "Error interno en confirmar" },
             { status: 500 }
         );
