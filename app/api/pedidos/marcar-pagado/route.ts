@@ -1,24 +1,29 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { asignarNumerosPorPedido } from "@/lib/asignarNumerosPorPedido";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-);
+function assertAdmin(req: NextRequest) {
+    // ✅ Simple y estable: header + secret
+    // En tu frontend admin, manda este header.
+    const secret = req.headers.get("x-admin-secret");
+    if (!secret || secret !== process.env.ADMIN_SECRET) {
+        throw new Error("UNAUTHORIZED");
+    }
+}
 
 export async function POST(req: NextRequest) {
     try {
-        const body = await req.json().catch(() => null);
-        const pedidoId = body?.pedidoId;
+        assertAdmin(req);
 
-        if (!pedidoId) {
+        const body = await req.json().catch(() => null);
+        const pedidoId = Number(body?.pedidoId);
+
+        if (!pedidoId || Number.isNaN(pedidoId)) {
             return NextResponse.json(
-                { ok: false, error: "Falta pedidoId" },
+                { ok: false, error: "Falta pedidoId válido" },
                 { status: 400 }
             );
         }
@@ -26,7 +31,7 @@ export async function POST(req: NextRequest) {
         // 1) Obtener pedido
         const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
-            .select("id, estado, sorteo_id")
+            .select("id, estado")
             .eq("id", pedidoId)
             .single();
 
@@ -37,45 +42,51 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 2) Si ya está pagado, no hacemos nada (idempotente)
-        if (pedido.estado === "pagado") {
-            return NextResponse.json({
-                ok: true,
-                alreadyPaid: true,
-            });
+        // 2) Marcar como pagado (si ya lo está, seguimos igual para devolver números)
+        if (pedido.estado !== "pagado") {
+            const { error: updErr } = await supabaseAdmin
+                .from("pedidos")
+                .update({ estado: "pagado" })
+                .eq("id", pedidoId);
+
+            if (updErr) {
+                return NextResponse.json(
+                    { ok: false, error: updErr.message },
+                    { status: 500 }
+                );
+            }
         }
 
-        // 3) Marcar pedido como pagado
-        const { error: updErr } = await supabaseAdmin
-            .from("pedidos")
-            .update({ estado: "pagado" })
-            .eq("id", pedidoId);
-
-        if (updErr) {
-            return NextResponse.json(
-                { ok: false, error: updErr.message },
-                { status: 500 }
-            );
-        }
-
-        // 4) Asignar números (lógica central)
-        const result = await asignarNumerosPorPedido(pedidoId);
+        // 3) Asignar números (idempotente)
+        const result = await asignarNumerosPorPedidoId(pedidoId);
 
         if (!result.ok) {
             return NextResponse.json(
-                { ok: false, error: result.error },
+                { ok: false, code: result.code, error: result.error },
                 { status: 500 }
             );
         }
 
         return NextResponse.json({
             ok: true,
+            pedidoId,
+            alreadyPaid: pedido.estado === "pagado",
+            alreadyAssigned: result.alreadyAssigned,
             numeros: result.numeros,
         });
     } catch (e: any) {
+        const msg = String(e?.message || e);
+
+        if (msg === "UNAUTHORIZED") {
+            return NextResponse.json(
+                { ok: false, error: "No autorizado" },
+                { status: 401 }
+            );
+        }
+
         console.error("ADMIN marcar-pagado error:", e);
         return NextResponse.json(
-            { ok: false, error: e?.message || "Error interno" },
+            { ok: false, error: msg || "Error interno" },
             { status: 500 }
         );
     }

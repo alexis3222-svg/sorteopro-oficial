@@ -1,12 +1,7 @@
-// lib/asignarNumeros.ts
 import { supabaseAdmin } from "./supabaseAdmin";
 
 type ResultadoAsignacion =
-  | {
-    ok: true;
-    alreadyAssigned: boolean;
-    numeros: number[];
-  }
+  | { ok: true; alreadyAssigned: boolean; numeros: number[] }
   | {
     ok: false;
     code: "BAD_REQUEST" | "NOT_FOUND" | "NO_STOCK" | "INTERNAL";
@@ -14,24 +9,21 @@ type ResultadoAsignacion =
   };
 
 /**
- * ✅ Asigna números por ID de pedido (sirve para Transferencia / Admin manual)
- * - Si el pedido ya tiene números asignados, NO vuelve a asignar.
- * - Asigna usando la misma RPC asignar_numeros_sorteo
- * - Al finalizar, marca el pedido como "pagado"
+ * ✅ ADMIN-ONLY: asigna números por pedidoId
+ * Reglas:
+ * - Solo asigna si el pedido está en estado "pagado"
+ * - Si ya tiene números asignados, NO reasigna (idempotente)
+ * - Usa RPC asignar_numeros_sorteo
  */
-export async function asignarNumerosPorPedido(
+export async function asignarNumerosPorPedidoId(
   pedidoId: number
 ): Promise<ResultadoAsignacion> {
   try {
     if (!pedidoId) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "Falta pedidoId",
-      };
+      return { ok: false, code: "BAD_REQUEST", error: "Falta pedidoId" };
     }
 
-    // 1) Buscar pedido por id
+    // 1) Leer pedido
     const { data: pedido, error: pedidoError } = await supabaseAdmin
       .from("pedidos")
       .select("id, sorteo_id, cantidad_numeros, estado")
@@ -40,10 +32,15 @@ export async function asignarNumerosPorPedido(
 
     if (pedidoError || !pedido) {
       console.error("Pedido no encontrado:", pedidoError);
+      return { ok: false, code: "NOT_FOUND", error: "Pedido no encontrado" };
+    }
+
+    // ✅ Regla dura del modelo ADMIN-ONLY
+    if (pedido.estado !== "pagado") {
       return {
         ok: false,
-        code: "NOT_FOUND",
-        error: "Pedido no encontrado",
+        code: "BAD_REQUEST",
+        error: 'El pedido no está "pagado". Solo el ADMIN puede asignar al marcar pagado.',
       };
     }
 
@@ -55,8 +52,8 @@ export async function asignarNumerosPorPedido(
       };
     }
 
-    const cantidad = (pedido.cantidad_numeros as number) || 0;
-    if (cantidad <= 0) {
+    const cantidad = Number(pedido.cantidad_numeros || 0);
+    if (!cantidad || cantidad <= 0) {
       return {
         ok: false,
         code: "BAD_REQUEST",
@@ -64,7 +61,7 @@ export async function asignarNumerosPorPedido(
       };
     }
 
-    // 2) ¿Ya tiene números asignados este pedido?
+    // 2) Idempotencia: si ya hay asignados → devolverlos
     const { data: existentes, error: existentesError } = await supabaseAdmin
       .from("numeros_asignados")
       .select("numero")
@@ -84,11 +81,11 @@ export async function asignarNumerosPorPedido(
       return {
         ok: true,
         alreadyAssigned: true,
-        numeros: existentes.map((n: any) => n.numero as number),
+        numeros: existentes.map((n: any) => Number(n.numero)),
       };
     }
 
-    // 3) RPC para asignar números + setear estado pagado (en la función)
+    // 3) RPC: asignación en BD (segura)
     const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
       "asignar_numeros_sorteo",
       {
@@ -110,170 +107,13 @@ export async function asignarNumerosPorPedido(
       };
     }
 
-    const numerosFinales: number[] = (asignados ?? []).map(
-      (n: any) => n.numero as number
+    const numerosFinales: number[] = (asignados ?? []).map((n: any) =>
+      Number(n.numero)
     );
 
-    // 4) Marcar pedido como pagado (si no lo está)
-    if (pedido.estado !== "pagado") {
-      const { error: updateError } = await supabaseAdmin
-        .from("pedidos")
-        .update({ estado: "pagado" })
-        .eq("id", pedido.id);
-
-      if (updateError) {
-        console.error("Error actualizando estado del pedido:", updateError);
-      }
-    }
-
-    return {
-      ok: true,
-      alreadyAssigned: false,
-      numeros: numerosFinales,
-    };
+    return { ok: true, alreadyAssigned: false, numeros: numerosFinales };
   } catch (e: any) {
-    console.error("Error inesperado en asignarNumerosPorPedido:", e);
-    return {
-      ok: false,
-      code: "INTERNAL",
-      error: "Error interno al asignar números",
-    };
-  }
-}
-
-/**
- * Asigna números a partir del tx de PayPhone usando SOLO la función de BD.
- * - Solo funciona para pedidos con método de pago "payphone".
- * - Si el pedido ya tiene números asignados, NO vuelve a asignar.
- * - Si asigna, también marca el pedido como "pagado".
- */
-export async function asignarNumerosPorTx(
-  tx: string
-): Promise<ResultadoAsignacion> {
-  try {
-    if (!tx) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "Falta el identificador de transacción (tx)",
-      };
-    }
-
-    // 1) Buscar el pedido por tx
-    const { data: pedido, error: pedidoError } = await supabaseAdmin
-      .from("pedidos")
-      .select(
-        "id, sorteo_id, cantidad_numeros, estado, metodo_pago, payphone_client_transaction_id"
-      )
-      .eq("payphone_client_transaction_id", tx)
-      .single();
-
-    if (pedidoError || !pedido) {
-      console.error("Pedido no encontrado:", pedidoError);
-      return {
-        ok: false,
-        code: "NOT_FOUND",
-        error: "Pedido no encontrado para ese tx",
-      };
-    }
-
-    // Aseguramos que este helper solo se use para PayPhone
-    if (pedido.metodo_pago !== "payphone") {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "El pedido no corresponde a un pago PayPhone",
-      };
-    }
-
-    if (!pedido.sorteo_id) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "El pedido no tiene sorteo_id",
-      };
-    }
-
-    const cantidad = (pedido.cantidad_numeros as number) || 0;
-    if (cantidad <= 0) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "El pedido no tiene cantidad_numeros válida",
-      };
-    }
-
-    // 2) ¿Ya tiene números asignados este pedido?
-    const { data: existentes, error: existentesError } = await supabaseAdmin
-      .from("numeros_asignados")
-      .select("numero")
-      .eq("pedido_id", pedido.id)
-      .order("numero", { ascending: true });
-
-    if (existentesError) {
-      console.error("Error consultando numeros_asignados:", existentesError);
-      return {
-        ok: false,
-        code: "INTERNAL",
-        error: "Error consultando números existentes",
-      };
-    }
-
-    if (existentes && existentes.length > 0) {
-      // Ya tenía números → no volvemos a asignar
-      return {
-        ok: true,
-        alreadyAssigned: true,
-        numeros: existentes.map((n: any) => n.numero as number),
-      };
-    }
-
-    // 3) Llamar a la función de BD para asignar (secuencial, segura)
-    const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
-      "asignar_numeros_sorteo",
-      {
-        p_sorteo_id: pedido.sorteo_id,
-        p_pedido_id: pedido.id,
-        p_cantidad: cantidad,
-        p_estado: "pagado",
-      }
-    );
-
-    if (rpcError) {
-      console.error("Error en asignar_numeros_sorteo:", rpcError);
-      return {
-        ok: false,
-        code: "NO_STOCK",
-        error:
-          rpcError.message ||
-          "No se pudieron asignar los números (sin stock o error de BD)",
-      };
-    }
-
-    const numerosFinales: number[] = (asignados ?? []).map(
-      (n: any) => n.numero as number
-    );
-
-    // 4) Marcar pedido como pagado (si no lo está)
-    if (pedido.estado !== "pagado") {
-      const { error: updateError } = await supabaseAdmin
-        .from("pedidos")
-        .update({ estado: "pagado" })
-        .eq("id", pedido.id);
-
-      if (updateError) {
-        console.error("Error actualizando estado del pedido:", updateError);
-        // No rompemos la asignación, solo avisamos
-      }
-    }
-
-    return {
-      ok: true,
-      alreadyAssigned: false,
-      numeros: numerosFinales,
-    };
-  } catch (e: any) {
-    console.error("Error inesperado en asignarNumerosPorTx:", e);
+    console.error("Error inesperado en asignarNumerosPorPedidoId:", e);
     return {
       ok: false,
       code: "INTERNAL",
