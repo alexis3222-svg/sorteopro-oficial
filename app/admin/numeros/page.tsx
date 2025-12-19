@@ -14,15 +14,25 @@ export default function AdminNumerosPage({
         return (
             <main className="min-h-screen flex items-center justify-center p-6 text-center">
                 <div>
-                    <p className="text-sm text-red-400">Falta el parámetro <b>pedido</b> en la URL.</p>
-                    <p className="text-xs text-slate-400 mt-2">Ej: /admin/numeros?pedido=310</p>
+                    <p className="text-sm text-red-400">
+                        Falta el parámetro <b>pedido</b> en la URL.
+                    </p>
+                    <p className="text-xs text-slate-400 mt-2">
+                        Ej: /admin/numeros?pedido=310
+                    </p>
                 </div>
             </main>
         );
     }
 
     return (
-        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Cargando…</div>}>
+        <Suspense
+            fallback={
+                <div className="min-h-screen flex items-center justify-center">
+                    Cargando…
+                </div>
+            }
+        >
             <NumerosClient pedidoId={pedidoId} />
         </Suspense>
     );
