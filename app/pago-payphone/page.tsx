@@ -140,6 +140,7 @@ function PagoPayphoneInner() {
                     timeZone: -5,
 
                     responseUrl: `${baseUrl}/pago-exitoso?tx=${encodeURIComponent(clientTransactionId)}`,
+
                     cancellationUrl: `${baseUrl}/pago-error`,
                 });
 
