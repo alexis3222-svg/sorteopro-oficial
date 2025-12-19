@@ -1,205 +1,165 @@
+// app/pago-exitoso/page.tsx
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
+import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
-type EstadoUI = "verificando" | "confirmado" | "no_confirmado";
+type EstadoUI = "creando" | "creado" | "error";
 
 type Preorden = {
-    tx: string;
-    sorteoId: string | null;
-    cantidad: number | null;
-    nombre: string | null;
-    telefono: string | null;
-    correo: string | null;
-    total: number | null;
-    referencia: string | null;
-    metodo_pago?: string | null;
-    createdAt?: string | null;
+    sorteoId: string;
+    cantidad: number;
+    total: number;
+    nombre?: string | null;
+    telefono?: string | null;
+    correo?: string | null;
 };
-
-function leerPreorden(): Preorden | null {
-    const tryParse = (raw: string | null) => {
-        if (!raw) return null;
-        try {
-            return JSON.parse(raw) as Preorden;
-        } catch {
-            return null;
-        }
-    };
-
-    const s = typeof window !== "undefined" ? sessionStorage.getItem("pp_preorden") : null;
-    const l = typeof window !== "undefined" ? localStorage.getItem("pp_preorden") : null;
-
-    return tryParse(s) || tryParse(l);
-}
-
-export default function PagoExitosoPage() {
-    return (
-        <Suspense
-            fallback={
-                <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-                    <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center">
-                        <h1 className="text-xl font-bold text-orange-600">Cargando…</h1>
-                        <p className="text-gray-700 mt-2 text-sm">Preparando verificación del pago…</p>
-                    </div>
-                </main>
-            }
-        >
-            <PagoExitosoInner />
-        </Suspense>
-    );
-}
 
 function PagoExitosoInner() {
     const searchParams = useSearchParams();
     const router = useRouter();
 
-    const id = (searchParams.get("id") || "").trim(); // ✅ id real PayPhone si viene
-    const clientTx = (searchParams.get("clientTransactionId") || searchParams.get("tx") || "").trim();
+    const tx = useMemo(() => {
+        return (
+            searchParams.get("clientTransactionId") ||
+            searchParams.get("tx") ||
+            ""
+        ).trim();
+    }, [searchParams]);
 
-    // Preferimos id para confirmar; si no hay id, usamos tx como respaldo
-    const identifier = id || clientTx;
+    const [estado, setEstado] = useState<EstadoUI>("creando");
+    const [detalle, setDetalle] = useState<string>("");
+    const [pedidoId, setPedidoId] = useState<number | null>(null);
 
-    const [estado, setEstado] = useState<EstadoUI>("verificando");
-    const [intentos, setIntentos] = useState(0);
-    const [errorExtra, setErrorExtra] = useState<string | null>(null);
+    const leerPreorden = useCallback((): Preorden | null => {
+        const read = (k: string) => {
+            try {
+                const raw = k === "session" ? sessionStorage.getItem("pp_preorden") : localStorage.getItem("pp_preorden");
+                if (!raw) return null;
+                const obj = JSON.parse(raw);
 
-    const INTERVAL_MS = 5000;
-    const MAX_INTENTOS = 12;
+                const pre: Preorden = {
+                    sorteoId: obj.sorteoId ?? obj.sorteo_id,
+                    cantidad: Number(obj.cantidad ?? obj.cantidad_numeros),
+                    total: Number(obj.total),
+                    nombre: obj.nombre ?? null,
+                    telefono: obj.telefono ?? null,
+                    correo: obj.correo ?? null,
+                };
 
-    async function confirmarYCrearPedido() {
-        if (!identifier) return false;
-
-        const preorden = leerPreorden();
-        if (!preorden) {
-            setErrorExtra("No se encontró la preorden (pp_preorden).");
-            setEstado("no_confirmado");
-            return false;
-        }
-
-        const payload = {
-            ...preorden,
-            tx: clientTx || preorden.tx, // tu tx
-            id: id || null,              // ✅ id real de PayPhone
-            metodo_pago: "payphone",
+                if (!pre.sorteoId || !pre.cantidad || pre.total == null) return null;
+                return pre;
+            } catch {
+                return null;
+            }
         };
 
-        try {
-            const res = await fetch(`/api/payphone/confirmar`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                cache: "no-store",
-                body: JSON.stringify(payload),
-            });
-
-            const data = await res.json();
-
-            if (data?.ok) {
-                setEstado("confirmado");
-                setErrorExtra(null);
-                return true;
-            }
-
-            setEstado("no_confirmado");
-            setErrorExtra(data?.error || "Pago no confirmado todavía.");
-            return false;
-        } catch (e: any) {
-            setEstado("no_confirmado");
-            setErrorExtra(e?.message || "Error consultando el backend.");
-            return false;
-        }
-    }
+        return read("session") || read("local");
+    }, []);
 
     useEffect(() => {
-        if (!identifier) {
-            setEstado("no_confirmado");
-            setErrorExtra("Falta id/tx en la URL.");
-            return;
+        let cancelled = false;
+
+        async function run() {
+            try {
+                if (!tx) {
+                    setEstado("error");
+                    setDetalle("Falta tx en la URL. Regresa e intenta de nuevo.");
+                    return;
+                }
+
+                const preorden = leerPreorden();
+                if (!preorden) {
+                    setEstado("error");
+                    setDetalle("No existe pp_preorden (session/local). Regresa al inicio y compra nuevamente.");
+                    return;
+                }
+
+                setEstado("creando");
+                const res = await fetch("/api/payphone/crear-en-proceso", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ tx, preorden }),
+                });
+
+                const data = await res.json().catch(() => null);
+
+                if (cancelled) return;
+
+                if (!data?.ok) {
+                    setEstado("error");
+                    setDetalle(data?.error || "No se pudo crear el pedido.");
+                    return;
+                }
+
+                setPedidoId(data?.pedidoId ?? null);
+                setEstado("creado");
+                setDetalle(data?.ya_existia ? "Pedido ya existía. Estado actualizado." : "Pedido creado en proceso.");
+            } catch (e: any) {
+                if (cancelled) return;
+                setEstado("error");
+                setDetalle(e?.message || "Error interno creando pedido.");
+            }
         }
 
-        if (estado === "confirmado") return;
-        if (intentos >= MAX_INTENTOS) return;
-
-        const t = setTimeout(async () => {
-            const ok = await confirmarYCrearPedido();
-            if (!ok) setIntentos((i) => i + 1);
-        }, INTERVAL_MS);
-
-        return () => clearTimeout(t);
-    }, [identifier, estado, intentos]);
-
-    const titulo = estado === "confirmado" ? "¡Pago confirmado!" : "Pago en verificación";
-
-    const mensaje =
-        estado === "confirmado"
-            ? "Tu pago fue confirmado por PayPhone. Ya puedes ver tus números."
-            : "Aún no hay confirmación oficial del pago. Si ya pagaste, espera un momento.";
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [tx, leerPreorden]);
 
     return (
         <main className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
-            <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center">
-                <h1 className="text-2xl font-bold mb-2 text-orange-600">{titulo}</h1>
-                <p className="text-gray-700 mb-3">{mensaje}</p>
+            <div className="w-full max-w-md rounded-2xl bg-white shadow-lg p-6 text-center" style={{ border: "2px solid #FF6600" }}>
+                <h1 className="text-2xl font-bold mb-2" style={{ color: "#FF6600" }}>
+                    {estado === "creado" ? "Pago recibido" : "Procesando..."}
+                </h1>
 
-                {estado !== "confirmado" && (
-                    <p className="text-sm text-red-600 mb-3">
-                        Pago no confirmado por PayPhone. No se asignarán números todavía.
+                {estado === "creando" && (
+                    <p className="text-blue-600 font-semibold mb-2">Creando tu pedido en proceso…</p>
+                )}
+
+                {estado === "creado" && (
+                    <p className="text-green-600 font-semibold mb-2">
+                        Pedido creado (EN_PROCESO). Un administrador lo marcará como PAGADO para asignar números.
                     </p>
                 )}
 
-                {errorExtra && (
-                    <p className="text-[11px] text-slate-500 mb-3 break-words">Detalle: {errorExtra}</p>
+                {estado === "error" && (
+                    <p className="text-red-600 font-semibold mb-2">Error: {detalle || "No se pudo procesar."}</p>
                 )}
 
-                <div className="text-xs text-gray-500 mb-5 space-y-1">
-                    <div>
-                        PayPhone ID: <span className="font-mono">{id || "—"}</span>
-                    </div>
-                    <div>
-                        Tx: <span className="font-mono">{clientTx || "—"}</span>
-                    </div>
-                    <div>
-                        Estado: <b>{estado}</b>
-                    </div>
-                    {estado !== "confirmado" && (
-                        <div>
-                            Intento {Math.min(intentos + 1, MAX_INTENTOS)} de {MAX_INTENTOS}
-                        </div>
-                    )}
+                {detalle && estado !== "error" && <p className="text-xs text-gray-600 mt-2">Detalle: {detalle}</p>}
+
+                <div className="text-xs text-gray-600 mt-4 space-y-1">
+                    <div>Tx: {tx || "-"}</div>
+                    <div>Pedido ID: {pedidoId ?? "-"}</div>
+                    <div>Estado: <span className="font-semibold">{estado}</span></div>
                 </div>
 
-                <div className="space-y-3">
-                    {estado === "confirmado" ? (
-                        <button
-                            onClick={() =>
-                                router.push(`/mis-numeros?tx=${encodeURIComponent(clientTx || identifier)}`)
-                            }
-                            className="w-full rounded-xl bg-orange-500 py-2 font-semibold text-white hover:bg-orange-400"
-                        >
-                            Ver mis números
-                        </button>
-                    ) : (
-                        <button
-                            onClick={async () => {
-                                setEstado("verificando");
-                                setIntentos(0);
-                                await confirmarYCrearPedido();
-                            }}
-                            className="w-full rounded-xl bg-orange-500 py-2 font-semibold text-white hover:bg-orange-400"
-                        >
-                            Reintentar ahora
-                        </button>
-                    )}
+                <button
+                    onClick={() => router.push("/mi-compra")}
+                    className="mt-6 w-full rounded-xl py-3 font-semibold text-white"
+                    style={{ background: "#FF6600" }}
+                >
+                    Ver mi compra
+                </button>
 
-                    <button
-                        onClick={() => router.push("/")}
-                        className="w-full rounded-xl bg-gray-200 py-2 font-semibold text-gray-700 hover:bg-gray-300"
-                    >
-                        Regresar al inicio
-                    </button>
-                </div>
+                <button
+                    onClick={() => router.push("/")}
+                    className="mt-3 w-full rounded-xl py-3 font-semibold bg-gray-200 text-gray-800"
+                >
+                    Regresar al inicio
+                </button>
             </div>
         </main>
+    );
+}
+
+export default function PagoExitosoPage() {
+    return (
+        <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Cargando…</div>}>
+            <PagoExitosoInner />
+        </Suspense>
     );
 }
