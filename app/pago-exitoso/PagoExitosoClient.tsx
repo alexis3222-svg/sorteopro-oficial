@@ -22,11 +22,10 @@ export default function PagoExitosoClient() {
             sp.get("tx") ||
             sp.get("clientTransactionId") ||
             sp.get("clientTransactionID") ||
-            sp.get("id") ||
-            sp.get("reference") ||
             ""
         );
     }, [sp]);
+
 
     const payphoneId =
         sp.get("payphoneId") || sp.get("payphone_id") || sp.get("transactionId") || "";
