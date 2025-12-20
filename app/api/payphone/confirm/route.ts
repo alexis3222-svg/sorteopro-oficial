@@ -7,11 +7,35 @@ export const dynamic = "force-dynamic";
 
 type Body = {
     payphoneId?: number | string; // opcional
-    clientTxId: string;           // obligatorio
+    clientTxId: string; // obligatorio
 };
 
 function getPayphoneToken() {
-    return process.env.PAYPHONE_TOKEN || process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "";
+    return (
+        process.env.PAYPHONE_TOKEN ||
+        process.env.NEXT_PUBLIC_PAYPHONE_TOKEN ||
+        ""
+    );
+}
+
+type PedidoInfo = {
+    id: number;
+    nombre: string | null;
+    telefono: string | null;
+    correo: string | null;
+    cantidad_numeros: number | null;
+    total: number | null;
+    metodo_pago: string | null;
+};
+
+async function getPedidoInfo(pedidoId: number): Promise<PedidoInfo | null> {
+    const { data } = await supabaseAdmin
+        .from("pedidos")
+        .select("id, nombre, telefono, correo, cantidad_numeros, total, metodo_pago")
+        .eq("id", pedidoId)
+        .single();
+
+    return (data as PedidoInfo) ?? null;
 }
 
 export async function POST(req: NextRequest) {
@@ -39,7 +63,9 @@ export async function POST(req: NextRequest) {
         // 1) Buscar pedido por clientTxId (TU id)
         const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
-            .select("id, estado, metodo_pago, payphone_client_transaction_id, payphone_id")
+            .select(
+                "id, estado, metodo_pago, payphone_client_transaction_id, payphone_id"
+            )
             .eq("payphone_client_transaction_id", clientTxId)
             .single();
 
@@ -59,7 +85,11 @@ export async function POST(req: NextRequest) {
         let resolvedPayphoneId: number | null = null;
 
         // 1️⃣ viene en body
-        if (payphoneIdRaw !== undefined && payphoneIdRaw !== null && String(payphoneIdRaw).trim() !== "") {
+        if (
+            payphoneIdRaw !== undefined &&
+            payphoneIdRaw !== null &&
+            String(payphoneIdRaw).trim() !== ""
+        ) {
             const parsed = Number(payphoneIdRaw);
             if (!parsed || Number.isNaN(parsed)) {
                 return NextResponse.json(
@@ -67,6 +97,7 @@ export async function POST(req: NextRequest) {
                     { status: 400 }
                 );
             }
+
             resolvedPayphoneId = parsed;
 
             // Guardar en BD si aún no estaba
@@ -90,10 +121,16 @@ export async function POST(req: NextRequest) {
 
         if (!resolvedPayphoneId || Number.isNaN(resolvedPayphoneId)) {
             return NextResponse.json(
-                { ok: false, error: "Falta payphoneId (no llegó y no está guardado en el pedido)" },
+                {
+                    ok: false,
+                    error: "Falta payphoneId (no llegó y no está guardado en el pedido)",
+                },
                 { status: 400 }
             );
         }
+
+        // ✅ Traer info del pedido para el modal (columna izquierda)
+        const pedidoInfo = await getPedidoInfo(pedido.id);
 
         // ✅ 2) Idempotencia REAL (solo lectura)
         const { data: rows, error: rowsErr } = await supabaseAdmin
@@ -109,30 +146,39 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // ✅ Si ya existen números, devolvemos inmediatamente (SIN tocar PayPhone)
         if (rows && rows.length > 0) {
             return NextResponse.json({
                 ok: true,
                 status: "APPROVED_ALREADY_ASSIGNED",
                 pedidoId: pedido.id,
+                pedido: pedidoInfo,
                 numeros: rows.map((r: any) => Number(r.numero)),
             });
         }
 
         // 3) Confirmar en PayPhone (server-to-server)
-        const resp = await fetch("https://pay.payphonetodoesposible.com/api/button/V2/Confirm", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ id: resolvedPayphoneId, clientTxId }),
-        });
+        const resp = await fetch(
+            "https://pay.payphonetodoesposible.com/api/button/V2/Confirm",
+            {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                },
+                body: JSON.stringify({ id: resolvedPayphoneId, clientTxId }),
+            }
+        );
 
         const confirmJson = await resp.json().catch(() => null);
 
         if (!resp.ok || !confirmJson) {
             return NextResponse.json(
-                { ok: false, error: "No se pudo confirmar con PayPhone", detail: confirmJson ?? null },
+                {
+                    ok: false,
+                    error: "No se pudo confirmar con PayPhone",
+                    detail: confirmJson ?? null,
+                },
                 { status: 502 }
             );
         }
@@ -143,7 +189,8 @@ export async function POST(req: NextRequest) {
                 confirmJson?.status ??
                 confirmJson?.data?.status ??
                 confirmJson?.data?.transactionStatus ??
-                confirmJson?.detail?.status) ?? null;
+                confirmJson?.detail?.status) ??
+            null;
 
         const statusStr = String(statusValue ?? "").toLowerCase();
         const raw = JSON.stringify(confirmJson).toLowerCase();
@@ -161,6 +208,7 @@ export async function POST(req: NextRequest) {
                 ok: true,
                 status: "NOT_APPROVED",
                 pedidoId: pedido.id,
+                pedido: pedidoInfo,
                 payphone: confirmJson,
             });
         }
@@ -190,10 +238,16 @@ export async function POST(req: NextRequest) {
             );
         }
 
+        // ✅ Refrescar pedidoInfo por si quieres ver estado pagado inmediatamente (opcional)
+        const pedidoInfo2 = await getPedidoInfo(pedido.id);
+
         return NextResponse.json({
             ok: true,
-            status: assigned.alreadyAssigned ? "APPROVED_ALREADY_ASSIGNED" : "APPROVED_ASSIGNED",
+            status: assigned.alreadyAssigned
+                ? "APPROVED_ALREADY_ASSIGNED"
+                : "APPROVED_ASSIGNED",
             pedidoId: pedido.id,
+            pedido: pedidoInfo2 ?? pedidoInfo,
             numeros: assigned.numeros,
             payphone: confirmJson,
         });
