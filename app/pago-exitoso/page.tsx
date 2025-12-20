@@ -1,65 +1,116 @@
-"use client";
+export const dynamic = "force-dynamic";
 
-type PagoExitosoMode = "OK" | "PENDING";
+import PagoExitosoClient from "./PagoExitosoClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-type Props = {
-    mode: PagoExitosoMode;
-    title: string;
-    message: string;
-    numeros?: number[];
-};
+function pickParam(
+    sp: Record<string, string | string[] | undefined>,
+    keys: string[]
+) {
+    for (const k of keys) {
+        const v = sp[k];
+        if (!v) continue;
+        if (Array.isArray(v)) return v[0] ?? "";
+        return v;
+    }
+    return "";
+}
 
-export default function PagoExitosoClient({
-    mode,
-    title,
-    message,
-    numeros = [],
-}: Props) {
+export default async function PagoExitosoPage({
+    searchParams,
+}: {
+    searchParams: Record<string, string | string[] | undefined>;
+}) {
+    const payphoneIdStr = pickParam(searchParams, ["id", "payphoneId"]);
+    const clientTxId = pickParam(searchParams, ["clientTransactionId", "clientTxId", "tx"]);
+
+    if (!payphoneIdStr || !clientTxId) {
+        return (
+            <PagoExitosoClient
+                mode="PENDING"
+                title="Pedido recibido"
+                message="Tu pedido fue registrado. En caso de que hayas pagado, el sistema confirmará el pago o el administrador lo revisará."
+            />
+        );
+    }
+
+    const payphoneId = Number(payphoneIdStr);
+    if (!payphoneId || Number.isNaN(payphoneId)) {
+        return (
+            <PagoExitosoClient
+                mode="PENDING"
+                title="Pedido recibido"
+                message="Parámetros inválidos de PayPhone. Si pagaste, el administrador revisará tu pedido."
+            />
+        );
+    }
+
+    // ✅ URL correcta según entorno
+    const baseUrl = process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.NEXT_PUBLIC_SITE_URL || "";
+
+    const url = baseUrl ? `${baseUrl}/api/payphone/confirm` : "/api/payphone/confirm";
+
+    let data: any = null;
+
+    try {
+        const resp = await fetch(url, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payphoneId, clientTxId }),
+            cache: "no-store",
+        });
+
+        data = await resp.json().catch(() => null);
+    } catch {
+        data = null;
+    }
+
+    const isApproved =
+        data?.ok &&
+        (data.status === "APPROVED_ASSIGNED" || data.status === "APPROVED_ALREADY_ASSIGNED");
+
+    // ✅ Si está aprobado, buscamos info del pedido para la columna izquierda
+    let pedidoInfo: null | {
+        id: number;
+        nombre: string | null;
+        telefono: string | null;
+        correo: string | null;
+        cantidad_numeros: number | null;
+        total: number | null;
+        metodo_pago: string | null;
+    } = null;
+
+    if (isApproved && data?.pedidoId) {
+        const { data: pedido, error } = await supabaseAdmin
+            .from("pedidos")
+            .select("id, nombre, telefono, correo, cantidad_numeros, total, metodo_pago")
+            .eq("id", data.pedidoId)
+            .single();
+
+        if (!error && pedido) {
+            pedidoInfo = pedido as any;
+        }
+    }
+
+    if (isApproved) {
+        return (
+            <PagoExitosoClient
+                mode="OK"
+                title="Pago confirmado ✅"
+                message="Tus números fueron asignados."
+                numeros={data.numeros ?? []}
+                pedido={pedidoInfo ?? undefined}
+            />
+        );
+    }
+
     return (
-        <div className="min-h-screen bg-neutral-950 text-slate-100 flex items-center justify-center px-4">
-            <div className="w-full max-w-lg rounded-2xl border border-neutral-800 bg-neutral-900/60 p-6">
-                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">
-                    SorteoPro
-                </p>
-
-                <h1 className="mt-2 text-lg font-semibold">{title}</h1>
-                <p className="mt-2 text-sm text-slate-300">{message}</p>
-
-                {mode === "PENDING" && (
-                    <div className="mt-4 rounded-xl border border-yellow-900/40 bg-yellow-950/20 p-3">
-                        <p className="text-sm text-yellow-200">
-                            Estado: <span className="font-semibold">En verificación</span>
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                            Puedes refrescar esta página en unos segundos.
-                        </p>
-                    </div>
-                )}
-
-                {mode === "OK" && (
-                    <div className="mt-4 rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3">
-                        <p className="text-sm text-emerald-200">
-                            Estado: <span className="font-semibold">Confirmado</span>
-                        </p>
-
-                        {numeros.length > 0 && (
-                            <div className="mt-3">
-                                <p className="text-xs text-slate-400 mb-2">Tus números:</p>
-                                <div className="flex flex-wrap gap-2">
-                                    {numeros.map((n) => (
-                                        <span
-                                            key={n}
-                                            className="px-2 py-1 rounded-lg bg-neutral-800 text-sm"
-                                        >
-                                            {n}
-                                        </span>
-                                    ))}
-                                </div>
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-        </div>
+        <PagoExitosoClient
+            mode="PENDING"
+            title="Pedido recibido"
+            message="Pago pendiente de confirmación. Si pagaste y no ves tus números, refresca en unos segundos o el administrador revisará tu pedido."
+        />
     );
 }
