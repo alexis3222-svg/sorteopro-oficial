@@ -133,7 +133,7 @@ export default function HomePage() {
     selectedCantidad != null ? selectedCantidad * precioUnidad : 0;
 
   // ✅ Crear pedido SIEMPRE en backend (service role)
-  async function crearPedidoServer(): Promise<PedidoCreado> {
+  async function crearPedidoServer(clientTransactionId: string | null): Promise<PedidoCreado> {
     const r = await fetch("/api/pedidos/crear", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -148,6 +148,9 @@ export default function HomePage() {
         telefono: telefonoCliente.trim(),
         correo: correoCliente.trim(),
         metodo_pago: metodoPago,
+
+        // ✅ PRO-1: solo PayPhone lo requiere (tu API valida eso)
+        clientTransactionId,
       }),
       cache: "no-store",
     });
@@ -160,6 +163,7 @@ export default function HomePage() {
 
     return data.pedido as PedidoCreado;
   }
+
 
   // Guardar pedido + flujo según método de pago
   const handleConfirmarDatosPago = async (e: FormEvent<HTMLFormElement>) => {
@@ -179,16 +183,12 @@ export default function HomePage() {
 
     const telefonoValido = /^09\d{8}$/.test(telefonoCliente.trim());
     if (!telefonoValido) {
-      setOrderError(
-        "Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx)."
-      );
+      setOrderError("Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx).");
       return;
     }
 
     if (!correoCliente.trim()) {
-      setOrderError(
-        "El correo electrónico es obligatorio para ver tus números asignados."
-      );
+      setOrderError("El correo electrónico es obligatorio para ver tus números asignados.");
       return;
     }
 
@@ -206,8 +206,14 @@ export default function HomePage() {
     setSavingOrder(true);
 
     try {
-      // ✅ 1) Crear pedido en backend
-      const pedido = await crearPedidoServer();
+      // ✅ PRO-1: generar clientTransactionId SOLO si es PayPhone
+      const clientTransactionId =
+        metodoPago === "payphone"
+          ? (globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random()}`)
+          : null;
+
+      // ✅ 1) Crear pedido en backend (enviando clientTransactionId)
+      const pedido = await crearPedidoServer(clientTransactionId);
 
       // ✅ 2) Flujo por método
       if (metodoPago === "payphone") {
@@ -216,14 +222,14 @@ export default function HomePage() {
         const totalStr = Number(totalPaquete).toFixed(2);
         const ref = `Sorteo ${numeroActividad} - Pedido ${pedido.id}`;
 
-        // 🔥 Importante: usar tx del backend
+        // ✅ PRO-1: usar el clientTransactionId (frontend) como tx
         router.push(
-          `/pago-payphone?amount=${encodeURIComponent(
-            totalStr
-          )}&ref=${encodeURIComponent(ref)}&tx=${encodeURIComponent(pedido.tx)}`
+          `/pago-payphone?amount=${encodeURIComponent(totalStr)}` +
+          `&ref=${encodeURIComponent(ref)}` +
+          `&tx=${encodeURIComponent(clientTransactionId ?? "")}`
         );
       } else {
-        // Transferencia: pedido ya existe como pendiente (server-side)
+        // Transferencia: pedido ya existe como pendiente
         setModalStep("ok");
       }
     } catch (err: any) {
@@ -236,6 +242,7 @@ export default function HomePage() {
       setSavingOrder(false);
     }
   };
+
 
   // 🔍 Buscar números asignados por correo
   const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
