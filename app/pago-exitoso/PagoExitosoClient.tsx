@@ -1,68 +1,38 @@
 "use client";
 
-import { useMemo } from "react";
-import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 
 export default function PagoExitosoClient() {
-    const router = useRouter();
-    const sp = useSearchParams();
-
-    // PayPhone puede devolver distintos keys
-    const tx = useMemo(() => {
-        return (
-            sp.get("tx") ||
-            sp.get("clientTransactionId") ||
-            sp.get("clientTransactionID") ||
-            sp.get("id") ||
-            sp.get("reference") ||
-            ""
-        );
-    }, [sp]);
-
-    const payphoneId =
-        sp.get("payphoneId") || sp.get("payphone_id") || sp.get("transactionId") || "";
-
     return (
         <main className="min-h-screen flex items-center justify-center bg-neutral-950 px-4 text-slate-100">
             <div className="w-full max-w-md rounded-2xl bg-neutral-900 border border-neutral-800 p-6 text-center">
-                <h1 className="text-2xl font-bold text-orange-400">Pedido recibido</h1>
+                <h1 className="text-2xl font-bold text-orange-400">
+                    Pedido recibido
+                </h1>
 
-                <p className="mt-2 text-sm text-neutral-300">
-                    Gracias 🙌 Tu pedido quedó <b>registrado</b>. <br />
-                    Los números se asignarán <b>cuando el Admin confirme el pago</b>.
+                <p className="mt-3 text-sm text-neutral-300">
+                    Tu pedido fue registrado correctamente.
                 </p>
 
-                <div className="mt-4 rounded-xl bg-neutral-950/40 border border-neutral-800 p-4 text-left text-sm">
-                    {payphoneId ? (
-                        <p className="text-neutral-300">
-                            <span className="text-neutral-500">PayPhone ID:</span> {payphoneId}
-                        </p>
-                    ) : null}
+                <p className="mt-2 text-sm text-neutral-400">
+                    El pago será revisado por un administrador. <br />
+                    Una vez confirmado, se asignarán tus números automáticamente.
+                </p>
 
-                    <p className="text-neutral-300 break-all">
-                        <span className="text-neutral-500">Tx:</span> {tx || "(sin tx)"}
-                    </p>
-
-                    <p className="mt-2 text-xs text-neutral-400">
-                        Si pagaste por PayPhone y aún no ves tus números, espera a que el Admin
-                        lo confirme en el panel.
-                    </p>
-                </div>
-
-                <div className="mt-5 flex flex-col gap-3">
-                    <button
-                        onClick={() => router.push("/")}
+                <div className="mt-6 flex flex-col gap-3">
+                    <Link
+                        href="/"
                         className="rounded-xl bg-orange-500 hover:bg-orange-600 py-3 font-semibold text-black"
                     >
-                        Regresar al inicio
-                    </button>
+                        Volver al inicio
+                    </Link>
 
-                    <button
-                        onClick={() => router.push("/mi-compra")}
+                    <Link
+                        href="/mi-compra"
                         className="rounded-xl bg-neutral-800 hover:bg-neutral-700 py-3 font-semibold"
                     >
                         Ver mi compra
-                    </button>
+                    </Link>
                 </div>
             </div>
         </main>
