@@ -1,3 +1,4 @@
+// lib/asignarNumeros.ts
 import { supabaseAdmin } from "./supabaseAdmin";
 
 type ResultadoAsignacion =
@@ -9,11 +10,9 @@ type ResultadoAsignacion =
   };
 
 /**
- * ✅ ADMIN-ONLY: asigna números por pedidoId
- * Reglas:
- * - Solo asigna si el pedido está en estado "pagado"
- * - Si ya tiene números asignados, NO reasigna (idempotente)
- * - Usa RPC asignar_numeros_sorteo
+ * ✅ Asigna números por ID de pedido (única vía)
+ * - Idempotente: si ya existen números, devuelve los mismos.
+ * - Solo se debe llamar cuando el pedido ya está "pagado" o inmediatamente luego de marcarlo pagado.
  */
 export async function asignarNumerosPorPedidoId(
   pedidoId: number
@@ -23,45 +22,27 @@ export async function asignarNumerosPorPedidoId(
       return { ok: false, code: "BAD_REQUEST", error: "Falta pedidoId" };
     }
 
-    // 1) Leer pedido
+    // 1) Obtener pedido
     const { data: pedido, error: pedidoError } = await supabaseAdmin
       .from("pedidos")
-      .select("id, sorteo_id, cantidad_numeros, estado")
+      .select("id, sorteo_id, cantidad_numeros")
       .eq("id", pedidoId)
       .single();
 
     if (pedidoError || !pedido) {
-      console.error("Pedido no encontrado:", pedidoError);
       return { ok: false, code: "NOT_FOUND", error: "Pedido no encontrado" };
     }
 
-    // ✅ Regla dura del modelo ADMIN-ONLY
-    if (pedido.estado !== "pagado") {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: 'El pedido no está "pagado". Solo el ADMIN puede asignar al marcar pagado.',
-      };
-    }
-
     if (!pedido.sorteo_id) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "El pedido no tiene sorteo_id",
-      };
+      return { ok: false, code: "BAD_REQUEST", error: "El pedido no tiene sorteo_id" };
     }
 
     const cantidad = Number(pedido.cantidad_numeros || 0);
-    if (!cantidad || cantidad <= 0) {
-      return {
-        ok: false,
-        code: "BAD_REQUEST",
-        error: "El pedido no tiene cantidad_numeros válida",
-      };
+    if (cantidad <= 0) {
+      return { ok: false, code: "BAD_REQUEST", error: "cantidad_numeros inválida" };
     }
 
-    // 2) Idempotencia: si ya hay asignados → devolverlos
+    // 2) Idempotencia: ¿ya tiene números?
     const { data: existentes, error: existentesError } = await supabaseAdmin
       .from("numeros_asignados")
       .select("numero")
@@ -69,12 +50,7 @@ export async function asignarNumerosPorPedidoId(
       .order("numero", { ascending: true });
 
     if (existentesError) {
-      console.error("Error consultando numeros_asignados:", existentesError);
-      return {
-        ok: false,
-        code: "INTERNAL",
-        error: "Error consultando números existentes",
-      };
+      return { ok: false, code: "INTERNAL", error: "Error consultando números existentes" };
     }
 
     if (existentes && existentes.length > 0) {
@@ -85,7 +61,7 @@ export async function asignarNumerosPorPedidoId(
       };
     }
 
-    // 3) RPC: asignación en BD (segura)
+    // 3) RPC (la BD asigna)
     const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
       "asignar_numeros_sorteo",
       {
@@ -97,27 +73,17 @@ export async function asignarNumerosPorPedidoId(
     );
 
     if (rpcError) {
-      console.error("Error en asignar_numeros_sorteo:", rpcError);
       return {
         ok: false,
         code: "NO_STOCK",
-        error:
-          rpcError.message ||
-          "No se pudieron asignar los números (sin stock o error de BD)",
+        error: rpcError.message || "No se pudieron asignar números",
       };
     }
 
-    const numerosFinales: number[] = (asignados ?? []).map((n: any) =>
-      Number(n.numero)
-    );
-
+    const numerosFinales: number[] = (asignados ?? []).map((n: any) => Number(n.numero));
     return { ok: true, alreadyAssigned: false, numeros: numerosFinales };
   } catch (e: any) {
-    console.error("Error inesperado en asignarNumerosPorPedidoId:", e);
-    return {
-      ok: false,
-      code: "INTERNAL",
-      error: "Error interno al asignar números",
-    };
+    console.error("asignarNumerosPorPedidoId error:", e);
+    return { ok: false, code: "INTERNAL", error: "Error interno al asignar números" };
   }
 }
