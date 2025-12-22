@@ -152,15 +152,19 @@ export async function POST(req: NextRequest) {
         const confirmJson = await resp.json().catch(() => null);
 
         if (!resp.ok || !confirmJson) {
+            const text = await resp.text().catch(() => "");
             return NextResponse.json(
                 {
                     ok: false,
                     error: "No se pudo confirmar con PayPhone",
+                    httpStatus: resp.status,
                     detail: confirmJson ?? null,
+                    text,
                 },
                 { status: 502 }
             );
         }
+
 
         // 4) Interpretación de aprobado (flexible)
         const statusValue =
