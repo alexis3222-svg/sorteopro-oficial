@@ -6,8 +6,8 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = {
-    payphoneId?: number | string; // opcional
-    clientTxId: string; // obligatorio
+    payphoneId?: number | string; // opcional (viene de /pago-exitoso?id=XXXX)
+    clientTxId: string;           // obligatorio
 };
 
 function getPayphoneToken() {
@@ -16,26 +16,6 @@ function getPayphoneToken() {
         process.env.NEXT_PUBLIC_PAYPHONE_TOKEN ||
         ""
     );
-}
-
-type PedidoInfo = {
-    id: number;
-    nombre: string | null;
-    telefono: string | null;
-    correo: string | null;
-    cantidad_numeros: number | null;
-    total: number | null;
-    metodo_pago: string | null;
-};
-
-async function getPedidoInfo(pedidoId: number): Promise<PedidoInfo | null> {
-    const { data } = await supabaseAdmin
-        .from("pedidos")
-        .select("id, nombre, telefono, correo, cantidad_numeros, total, metodo_pago")
-        .eq("id", pedidoId)
-        .single();
-
-    return (data as PedidoInfo) ?? null;
 }
 
 export async function POST(req: NextRequest) {
@@ -60,11 +40,11 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 1) Buscar pedido por clientTxId (TU id)
+        // 1) Buscar pedido por clientTxId (tu UUID)
         const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
             .select(
-                "id, estado, metodo_pago, payphone_client_transaction_id, payphone_id"
+                "id, estado, metodo_pago, payphone_client_transaction_id, payphone_id, nombre, telefono, correo, cantidad_numeros, total"
             )
             .eq("payphone_client_transaction_id", clientTxId)
             .single();
@@ -76,15 +56,10 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        /**
-         * 🔐 Resolver payphoneId REAL (source of truth)
-         * Prioridad:
-         * 1) Body
-         * 2) BD
-         */
+        // 1.1) Resolver payphoneId REAL (source of truth)
         let resolvedPayphoneId: number | null = null;
 
-        // 1️⃣ viene en body
+        // Si viene en body -> usarlo
         if (
             payphoneIdRaw !== undefined &&
             payphoneIdRaw !== null &&
@@ -97,10 +72,9 @@ export async function POST(req: NextRequest) {
                     { status: 400 }
                 );
             }
-
             resolvedPayphoneId = parsed;
 
-            // Guardar en BD si aún no estaba
+            // Guardar en BD si no estaba guardado (CRÍTICO)
             if (!pedido.payphone_id) {
                 const { error: updIdErr } = await supabaseAdmin
                     .from("pedidos")
@@ -115,7 +89,7 @@ export async function POST(req: NextRequest) {
                 }
             }
         } else if (pedido.payphone_id) {
-            // 2️⃣ no viene en body, usar BD
+            // Si no viene en body -> usar BD
             resolvedPayphoneId = Number(pedido.payphone_id);
         }
 
@@ -123,16 +97,14 @@ export async function POST(req: NextRequest) {
             return NextResponse.json(
                 {
                     ok: false,
-                    error: "Falta payphoneId (no llegó y no está guardado en el pedido)",
+                    error:
+                        "Falta payphoneId (no llegó en request y no está guardado en el pedido)",
                 },
                 { status: 400 }
             );
         }
 
-        // ✅ Traer info del pedido para el modal (columna izquierda)
-        const pedidoInfo = await getPedidoInfo(pedido.id);
-
-        // ✅ 2) Idempotencia REAL (solo lectura)
+        // ✅ 2) Idempotencia (solo lectura): si ya hay números, devolverlos y ya
         const { data: rows, error: rowsErr } = await supabaseAdmin
             .from("numeros_asignados")
             .select("numero")
@@ -146,14 +118,21 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // ✅ Si ya existen números, devolvemos inmediatamente (SIN tocar PayPhone)
         if (rows && rows.length > 0) {
             return NextResponse.json({
                 ok: true,
                 status: "APPROVED_ALREADY_ASSIGNED",
                 pedidoId: pedido.id,
-                pedido: pedidoInfo,
                 numeros: rows.map((r: any) => Number(r.numero)),
+                pedido: {
+                    id: pedido.id,
+                    nombre: pedido.nombre ?? null,
+                    telefono: pedido.telefono ?? null,
+                    correo: pedido.correo ?? null,
+                    cantidad_numeros: pedido.cantidad_numeros ?? null,
+                    total: pedido.total ?? null,
+                    metodo_pago: pedido.metodo_pago ?? null,
+                },
             });
         }
 
@@ -183,7 +162,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 4) Interpretación del estado
+        // 4) Interpretación de aprobado (flexible)
         const statusValue =
             (confirmJson?.transactionStatus ??
                 confirmJson?.status ??
@@ -208,8 +187,16 @@ export async function POST(req: NextRequest) {
                 ok: true,
                 status: "NOT_APPROVED",
                 pedidoId: pedido.id,
-                pedido: pedidoInfo,
                 payphone: confirmJson,
+                pedido: {
+                    id: pedido.id,
+                    nombre: pedido.nombre ?? null,
+                    telefono: pedido.telefono ?? null,
+                    correo: pedido.correo ?? null,
+                    cantidad_numeros: pedido.cantidad_numeros ?? null,
+                    total: pedido.total ?? null,
+                    metodo_pago: pedido.metodo_pago ?? null,
+                },
             });
         }
 
@@ -228,7 +215,7 @@ export async function POST(req: NextRequest) {
             }
         }
 
-        // 6) Asignar números (PRO-1 candado está en la función)
+        // 6) Asignar números (candado PRO-1 está dentro)
         const assigned = await asignarNumerosPorPedidoId(pedido.id);
 
         if (!assigned.ok) {
@@ -238,18 +225,23 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // ✅ Refrescar pedidoInfo por si quieres ver estado pagado inmediatamente (opcional)
-        const pedidoInfo2 = await getPedidoInfo(pedido.id);
-
         return NextResponse.json({
             ok: true,
             status: assigned.alreadyAssigned
                 ? "APPROVED_ALREADY_ASSIGNED"
                 : "APPROVED_ASSIGNED",
             pedidoId: pedido.id,
-            pedido: pedidoInfo2 ?? pedidoInfo,
             numeros: assigned.numeros,
             payphone: confirmJson,
+            pedido: {
+                id: pedido.id,
+                nombre: pedido.nombre ?? null,
+                telefono: pedido.telefono ?? null,
+                correo: pedido.correo ?? null,
+                cantidad_numeros: pedido.cantidad_numeros ?? null,
+                total: pedido.total ?? null,
+                metodo_pago: pedido.metodo_pago ?? null,
+            },
         });
     } catch (e: any) {
         console.error("payphone/confirm error:", e);

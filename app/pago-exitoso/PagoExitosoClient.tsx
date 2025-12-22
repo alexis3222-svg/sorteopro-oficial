@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 type PagoExitosoMode = "OK" | "PENDING";
 
@@ -14,27 +15,88 @@ type PedidoInfo = {
     metodo_pago: string | null;
 };
 
-type Props = {
-    mode: PagoExitosoMode;
-    title: string;
-    message: string;
-    numeros?: number[];
-    pedido?: PedidoInfo;
-};
+type ConfirmResp =
+    | {
+        ok: true;
+        status: "APPROVED_ASSIGNED" | "APPROVED_ALREADY_ASSIGNED" | "NOT_APPROVED";
+        pedidoId?: number;
+        numeros?: number[];
+        pedido?: PedidoInfo;
+        payphone?: any;
+    }
+    | { ok: false; error: string };
 
-export default function PagoExitosoClient({
-    mode,
-    title,
-    message,
-    numeros = [],
-    pedido,
-}: Props) {
+export default function PagoExitosoClient() {
+    const searchParams = useSearchParams();
+
+    const payphoneId = useMemo(() => {
+        const v = searchParams.get("id");
+        return v ? Number(v) : null;
+    }, [searchParams]);
+
+    const clientTxId = useMemo(() => {
+        return (searchParams.get("clientTransactionId") || "").trim() || null;
+    }, [searchParams]);
+
+    const [loading, setLoading] = useState(true);
+    const [resp, setResp] = useState<ConfirmResp | null>(null);
+
+    const mode: PagoExitosoMode =
+        resp?.ok === true &&
+            (resp.status === "APPROVED_ASSIGNED" || resp.status === "APPROVED_ALREADY_ASSIGNED")
+            ? "OK"
+            : "PENDING";
+
+    const numeros = (resp?.ok === true ? resp.numeros : []) ?? [];
+    const pedido = (resp?.ok === true ? resp.pedido : undefined);
+
     const [open, setOpen] = useState(false);
 
-    // ✅ Auto abrir modal cuando está OK
+    // auto abrir modal cuando OK
     useEffect(() => {
         if (mode === "OK") setOpen(true);
     }, [mode]);
+
+    useEffect(() => {
+        let cancelled = false;
+
+        async function run() {
+            setLoading(true);
+            setResp(null);
+
+            if (!clientTxId) {
+                setLoading(false);
+                setResp({ ok: false, error: "Falta clientTransactionId en la URL" });
+                return;
+            }
+
+            // payphoneId puede venir null; igual intentamos (el endpoint usa BD si está guardado)
+            try {
+                const r = await fetch("/api/payphone/confirm", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ payphoneId, clientTxId }),
+                });
+
+                const j = (await r.json().catch(() => null)) as ConfirmResp | null;
+
+                if (cancelled) return;
+
+                if (!j) setResp({ ok: false, error: "Respuesta inválida del servidor" });
+                else setResp(j);
+            } catch (e: any) {
+                if (cancelled) return;
+                setResp({ ok: false, error: e?.message || "Error llamando confirm" });
+            } finally {
+                if (!cancelled) setLoading(false);
+            }
+        }
+
+        run();
+        return () => {
+            cancelled = true;
+        };
+    }, [payphoneId, clientTxId]);
 
     return (
         <div className="min-h-screen bg-neutral-950 text-slate-100 flex items-center justify-center px-4">
@@ -43,10 +105,40 @@ export default function PagoExitosoClient({
                     SorteoPro
                 </p>
 
-                <h1 className="mt-2 text-lg font-semibold">{title}</h1>
-                <p className="mt-2 text-sm text-slate-300">{message}</p>
+                <h1 className="mt-2 text-lg font-semibold">
+                    {mode === "OK" ? "Pago confirmado ✅" : "Pedido recibido"}
+                </h1>
 
-                {mode === "PENDING" && (
+                <p className="mt-2 text-sm text-slate-300">
+                    {mode === "OK"
+                        ? "Tus números fueron asignados."
+                        : "Tu pedido fue registrado. En caso de que hayas pagado, el sistema confirmará el pago o el administrador lo revisará."}
+                </p>
+
+                <div className="mt-3 text-xs text-slate-400 space-y-1">
+                    <p>
+                        <span className="text-slate-300">PayPhone ID:</span>{" "}
+                        {payphoneId ?? "—"}
+                    </p>
+                    <p className="break-all">
+                        <span className="text-slate-300">Client Tx:</span>{" "}
+                        {clientTxId ?? "—"}
+                    </p>
+                </div>
+
+                {loading && (
+                    <p className="mt-4 text-sm text-slate-300">
+                        Consultando PayPhone y validando tu transacción…
+                    </p>
+                )}
+
+                {!loading && resp?.ok === false && (
+                    <div className="mt-4 rounded-xl border border-red-900/50 bg-red-950/30 p-3">
+                        <p className="text-sm text-red-200">Error: {resp.error}</p>
+                    </div>
+                )}
+
+                {!loading && mode === "PENDING" && (
                     <div className="mt-4 rounded-xl border border-yellow-900/40 bg-yellow-950/20 p-3">
                         <p className="text-sm text-yellow-200">
                             Estado: <span className="font-semibold">En verificación</span>
@@ -57,7 +149,7 @@ export default function PagoExitosoClient({
                     </div>
                 )}
 
-                {mode === "OK" && (
+                {!loading && mode === "OK" && (
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                         <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3">
                             <p className="text-sm text-emerald-200">
@@ -78,17 +170,15 @@ export default function PagoExitosoClient({
                 )}
             </div>
 
-            {/* ✅ MODAL */}
+            {/* ✅ MODAL 2 columnas */}
             {open && mode === "OK" && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    {/* overlay */}
                     <button
                         aria-label="Cerrar"
                         onClick={() => setOpen(false)}
                         className="absolute inset-0 bg-black/70"
                     />
 
-                    {/* modal card */}
                     <div className="relative z-10 w-full max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl">
                         <div className="flex items-start justify-between gap-4">
                             <div>
@@ -111,9 +201,8 @@ export default function PagoExitosoClient({
                             </button>
                         </div>
 
-                        {/* 2 columnas */}
                         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {/* Columna izquierda: datos */}
+                            {/* izquierda */}
                             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
                                 <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
                                     Datos del comprador
@@ -131,20 +220,24 @@ export default function PagoExitosoClient({
                                     <Row
                                         label="Total"
                                         value={
-                                            pedido?.total != null ? `$${Number(pedido.total).toFixed(2)}` : "—"
+                                            pedido?.total != null
+                                                ? `$${Number(pedido.total).toFixed(2)}`
+                                                : "—"
                                         }
                                     />
                                 </div>
                             </div>
 
-                            {/* Columna derecha: números */}
+                            {/* derecha */}
                             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
                                 <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
                                     Números asignados
                                 </p>
 
                                 {numeros.length === 0 ? (
-                                    <p className="mt-4 text-sm text-slate-400">No hay números para mostrar.</p>
+                                    <p className="mt-4 text-sm text-slate-400">
+                                        No hay números para mostrar.
+                                    </p>
                                 ) : (
                                     <div className="mt-4 flex flex-wrap gap-2">
                                         {numeros.map((n) => (
