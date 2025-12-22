@@ -46,7 +46,11 @@ export default function PagoExitosoClient() {
 
     // ✅ auto-open modal cuando OK
     useEffect(() => {
-        if (resp?.ok && (resp.status === "APPROVED_ASSIGNED" || resp.status === "APPROVED_ALREADY_ASSIGNED")) {
+        if (
+            resp?.ok &&
+            (resp.status === "APPROVED_ASSIGNED" ||
+                resp.status === "APPROVED_ALREADY_ASSIGNED")
+        ) {
             setOpen(true);
         }
     }, [resp]);
@@ -92,12 +96,13 @@ export default function PagoExitosoClient() {
     }, [payphoneId, clientTxId]);
 
     const mode: PagoExitosoMode =
-        resp?.ok && (resp.status === "APPROVED_ASSIGNED" || resp.status === "APPROVED_ALREADY_ASSIGNED") ? "OK" : "PENDING";
+        resp?.ok &&
+            (resp.status === "APPROVED_ASSIGNED" ||
+                resp.status === "APPROVED_ALREADY_ASSIGNED")
+            ? "OK"
+            : "PENDING";
 
-    const title =
-        mode === "OK"
-            ? "Pago confirmado ✅"
-            : "Pedido recibido";
+    const title = mode === "OK" ? "Pago confirmado ✅" : "Pedido recibido";
 
     const message =
         mode === "OK"
@@ -107,25 +112,37 @@ export default function PagoExitosoClient() {
     const numeros = resp?.ok ? resp.numeros ?? [] : [];
     const pedido = resp?.ok ? resp.pedido : undefined;
 
+    // ✅ FIX TS: resolver pedidoId sin ternarios raros (resp puede ser null)
+    const pedidoIdLabel =
+        pedido?.id ??
+        (resp && resp.ok ? resp.pedidoId : undefined) ??
+        "—";
+
     return (
         <div className="min-h-screen bg-neutral-950 text-slate-100 flex items-center justify-center px-4">
             <div className="w-full max-w-2xl rounded-2xl border border-neutral-800 bg-neutral-900/60 p-6">
-                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">SorteoPro</p>
+                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">
+                    SorteoPro
+                </p>
 
                 <h1 className="mt-2 text-lg font-semibold">{title}</h1>
                 <p className="mt-2 text-sm text-slate-300">{message}</p>
 
                 <div className="mt-3 text-xs text-slate-400 space-y-1">
                     <p>
-                        <span className="text-slate-300">PayPhone ID:</span> {payphoneId ?? "—"}
+                        <span className="text-slate-300">PayPhone ID:</span>{" "}
+                        {payphoneId ?? "—"}
                     </p>
                     <p className="break-all">
-                        <span className="text-slate-300">Client Tx:</span> {clientTxId ?? "—"}
+                        <span className="text-slate-300">Client Tx:</span>{" "}
+                        {clientTxId ?? "—"}
                     </p>
                 </div>
 
                 {loading && (
-                    <p className="mt-4 text-sm text-slate-300">Consultando PayPhone y validando tu transacción…</p>
+                    <p className="mt-4 text-sm text-slate-300">
+                        Consultando PayPhone y validando tu transacción…
+                    </p>
                 )}
 
                 {!loading && resp?.ok === false && (
@@ -139,7 +156,9 @@ export default function PagoExitosoClient() {
                         <p className="text-sm text-yellow-200">
                             Estado: <span className="font-semibold">En verificación</span>
                         </p>
-                        <p className="mt-1 text-xs text-slate-400">Puedes refrescar esta página en unos segundos.</p>
+                        <p className="mt-1 text-xs text-slate-400">
+                            Puedes refrescar esta página en unos segundos.
+                        </p>
                     </div>
                 )}
 
@@ -150,7 +169,7 @@ export default function PagoExitosoClient() {
                                 Estado: <span className="font-semibold">Confirmado</span>
                             </p>
                             <p className="mt-1 text-xs text-slate-400">
-                                Pedido #{pedido?.id ?? resp?.ok ? resp.pedidoId ?? "—" : "—"} • {numeros.length} número(s)
+                                Pedido #{pedidoIdLabel} • {numeros.length} número(s)
                             </p>
                         </div>
 
@@ -176,9 +195,11 @@ export default function PagoExitosoClient() {
                     <div className="relative z-10 w-full max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl">
                         <div className="flex items-start justify-between gap-4">
                             <div>
-                                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">Confirmación de compra</p>
+                                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">
+                                    Confirmación de compra
+                                </p>
                                 <h2 className="mt-2 text-lg font-semibold text-slate-100">
-                                    Pedido #{pedido?.id ?? resp?.ok ? resp.pedidoId ?? "—" : "—"}
+                                    Pedido #{pedidoIdLabel}
                                 </h2>
                                 <p className="mt-1 text-sm text-slate-400">
                                     Aquí están los datos del comprador y los números asignados.
@@ -196,38 +217,56 @@ export default function PagoExitosoClient() {
                         <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
                             {/* Datos */}
                             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Datos del comprador</p>
+                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    Datos del comprador
+                                </p>
 
                                 <div className="mt-4 space-y-3 text-sm">
                                     <Row label="Nombre" value={pedido?.nombre ?? "—"} />
                                     <Row label="Correo" value={pedido?.correo ?? "—"} />
                                     <Row label="Teléfono" value={pedido?.telefono ?? "—"} />
                                     <Row label="Método" value={pedido?.metodo_pago ?? "payphone"} />
-                                    <Row label="Cantidad" value={String(pedido?.cantidad_numeros ?? numeros.length)} />
+                                    <Row
+                                        label="Cantidad"
+                                        value={String(pedido?.cantidad_numeros ?? numeros.length)}
+                                    />
                                     <Row
                                         label="Total"
-                                        value={pedido?.total != null ? `$${Number(pedido.total).toFixed(2)}` : "—"}
+                                        value={
+                                            pedido?.total != null
+                                                ? `$${Number(pedido.total).toFixed(2)}`
+                                                : "—"
+                                        }
                                     />
                                 </div>
                             </div>
 
                             {/* Números */}
                             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Números asignados</p>
+                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                                    Números asignados
+                                </p>
 
                                 {numeros.length === 0 ? (
-                                    <p className="mt-4 text-sm text-slate-400">No hay números para mostrar.</p>
+                                    <p className="mt-4 text-sm text-slate-400">
+                                        No hay números para mostrar.
+                                    </p>
                                 ) : (
                                     <div className="mt-4 flex flex-wrap gap-2">
                                         {numeros.map((n) => (
-                                            <span key={n} className="px-3 py-2 rounded-xl bg-neutral-800 text-sm text-slate-100">
+                                            <span
+                                                key={n}
+                                                className="px-3 py-2 rounded-xl bg-neutral-800 text-sm text-slate-100"
+                                            >
                                                 {n}
                                             </span>
                                         ))}
                                     </div>
                                 )}
 
-                                <p className="mt-4 text-xs text-slate-500">Consejo: toma captura de pantalla o guarda esta página.</p>
+                                <p className="mt-4 text-xs text-slate-500">
+                                    Consejo: toma captura de pantalla o guarda esta página.
+                                </p>
                             </div>
                         </div>
 
