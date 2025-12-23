@@ -2,13 +2,13 @@ export const dynamic = "force-dynamic";
 
 import AdminNumerosClient from "./AdminNumerosClient";
 
-export default function Page({
-    searchParams,
-}: {
-    searchParams?: { pedido?: string | string[] };
-}) {
-    const raw = searchParams?.pedido;
-    const pedidoStr = Array.isArray(raw) ? raw[0] : raw;
+type PageProps = {
+    searchParams?: Record<string, string | string[] | undefined>;
+};
+
+export default function Page({ searchParams }: PageProps) {
+    const pedidoRaw = searchParams?.pedido;
+    const pedidoStr = Array.isArray(pedidoRaw) ? pedidoRaw[0] : pedidoRaw;
     const pedidoId = Number(pedidoStr);
 
     if (!pedidoStr || Number.isNaN(pedidoId) || pedidoId <= 0) {
