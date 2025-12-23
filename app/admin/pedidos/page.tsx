@@ -11,10 +11,16 @@ const anton = Anton({
     weight: "400",
 });
 
+// 🔐 HEADER ADMIN (cambio mínimo)
+const ADMIN_HEADERS = {
+    "Content-Type": "application/json",
+    "x-admin-secret": process.env.NEXT_PUBLIC_ADMIN_SECRET!,
+};
+
 type PedidoRow = {
     id: number;
     created_at: string | null;
-    sorteo_id: string | null; // uuid
+    sorteo_id: string | null;
     actividad_numero: number | null;
     cantidad_numeros: number | null;
     precio_unitario: number | null;
@@ -86,10 +92,9 @@ export default function AdminPedidosPage() {
             setUpdatingId(id);
 
             if (nuevoEstado === "pagado") {
-                // 🔵 PAGADO → asignar números vía API
                 const res = await fetch("/api/admin/pedidos/marcar-pagado", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: ADMIN_HEADERS,
                     body: JSON.stringify({ pedidoId: id }),
                 });
 
@@ -104,10 +109,9 @@ export default function AdminPedidosPage() {
                     return;
                 }
             } else {
-                // 🟠 PENDIENTE o CANCELADO → liberar números + actualizar estado vía API
                 const res = await fetch("/api/admin/pedidos/cancelar", {
                     method: "POST",
-                    headers: { "Content-Type": "application/json" },
+                    headers: ADMIN_HEADERS,
                     body: JSON.stringify({ pedidoId: id, nuevoEstado }),
                 });
 
@@ -125,14 +129,10 @@ export default function AdminPedidosPage() {
                 );
             }
 
-            // 3️⃣ Refrescar en memoria
             setPedidos((prev) =>
                 prev.map((p) =>
                     p.id === id
-                        ? {
-                            ...p,
-                            estado: nuevoEstado,
-                        }
+                        ? { ...p, estado: nuevoEstado }
                         : p
                 )
             );
@@ -140,6 +140,10 @@ export default function AdminPedidosPage() {
             setUpdatingId(null);
         }
     };
+
+    // ⛔️ TODO lo demás queda EXACTAMENTE IGUAL (no lo toco)
+    // copiarNumerosPedido, métricas, CSV, UI, tabla, etc.
+
 
     // copiar números para WhatsApp (SOLO LEE, no asigna)
     const copiarNumerosPedido = async (pedido: PedidoRow) => {
