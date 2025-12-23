@@ -16,13 +16,20 @@ type PedidoResumen = {
 
 type Stats = {
     totalPedidos: number;
-    totalNumeros: number;
-    totalRecaudado: number;
+    totalNumeros: number; // ✅ solo pagados/confirmados
+    totalRecaudado: number; // ✅ solo pagados/confirmados
     pedidosPendientes: number;
-    pedidosPagados: number;
+    pedidosPagados: number; // ✅ incluye confirmado
 };
 
-type SorteoActivo = any; // usamos "any" para ser flexibles con los nombres de columnas
+type SorteoActivo = any;
+
+function normEstado(v: any): string {
+    return String(v ?? "pendiente").trim().toLowerCase();
+}
+function isPagadoEstado(e: string): boolean {
+    return e === "pagado" || e === "confirmado";
+}
 
 export default function AdminHomePage() {
     const [pedidos, setPedidos] = useState<PedidoResumen[]>([]);
@@ -39,9 +46,7 @@ export default function AdminHomePage() {
             const nuevasAlertas: string[] = [];
 
             try {
-                // 📦 1) Cargar TODOS los pedidos (para KPIs + últimos)
-                // 📦 1) Cargar TODOS los pedidos (para KPIs + últimos)
-                // Pedimos * para evitar errores por nombres de columnas diferentes
+                // 1) Pedidos
                 const { data: pedidosRaw, error: pedidosError } = await supabase
                     .from("pedidos")
                     .select("*")
@@ -49,55 +54,37 @@ export default function AdminHomePage() {
 
                 if (pedidosError) {
                     console.error("Error cargando pedidos:", JSON.stringify(pedidosError, null, 2));
-                    // No rompemos el dashboard completo, solo mostramos mensaje arriba
                     setErrorGeneral("No se pudieron cargar los pedidos.");
                     setLoading(false);
                     return;
                 }
 
-                // Normalizamos a la estructura que usa el dashboard
                 const pedidosNorm: PedidoResumen[] = (pedidosRaw || []).map((p: any) => ({
                     id: p.id,
                     created_at: p.created_at,
-                    total: p.total ?? p.monto_total ?? 0,
-                    cantidad_numeros:
-                        p.cantidad_numeros ??
-                        p.cantidad ??
-                        p.cant_numeros ??
-                        0,
-                    estado: p.estado ?? p.status ?? p.estado_pago ?? null,
-                    cliente_nombre:
-                        p.cliente_nombre ??
-                        p.nombre_cliente ??
-                        p.nombre ??
-                        null,
+                    total: Number(p.total ?? p.monto_total ?? 0) || 0,
+                    cantidad_numeros: Number(p.cantidad_numeros ?? p.cantidad ?? p.cant_numeros ?? 0) || 0,
+                    estado: normEstado(p.estado ?? p.status ?? p.estado_pago),
+                    cliente_nombre: (p.cliente_nombre ?? p.nombre_cliente ?? p.nombre ?? null) as any,
                 }));
 
                 setPedidos(pedidosNorm);
 
-
-                // 🧮 2) Calcular estadísticas globales (MISMA REGLA que /admin/pedidos)
-                const normEstado = (e?: string | null) => (e || "").toLowerCase().trim();
-                const esPagado = (e?: string | null) => {
-                    const x = normEstado(e);
-                    return x === "pagado" || x === "confirmado";
-                };
-
+                // ✅ 2) Stats COHERENTES con /admin/pedidos
                 const totalPedidos = pedidosNorm.length;
 
-                // ✅ Solo contamos números y dinero cuando el pedido está pagado/confirmado
-                const totalNumeros = pedidosNorm.reduce((acc, p) => {
-                    return acc + (esPagado(p.estado) ? Number(p.cantidad_numeros || 0) : 0);
-                }, 0);
+                const pedidosPagados = pedidosNorm.filter((p) => isPagadoEstado(normEstado(p.estado))).length;
+                const pedidosPendientes = pedidosNorm.filter((p) => normEstado(p.estado) === "pendiente").length;
 
                 const totalRecaudado = pedidosNorm.reduce((acc, p) => {
-                    return acc + (esPagado(p.estado) ? Number(p.total || 0) : 0);
+                    const e = normEstado(p.estado);
+                    return isPagadoEstado(e) ? acc + (p.total ?? 0) : acc;
                 }, 0);
 
-                // ✅ Pendiente = NO pagado/confirmado (incluye: pendiente, pendiente_transferencia, etc.)
-                const pedidosPendientes = pedidosNorm.filter((p) => !esPagado(p.estado)).length;
-                const pedidosPagados = pedidosNorm.filter((p) => esPagado(p.estado)).length;
-
+                const totalNumeros = pedidosNorm.reduce((acc, p) => {
+                    const e = normEstado(p.estado);
+                    return isPagadoEstado(e) ? acc + (p.cantidad_numeros ?? 0) : acc;
+                }, 0);
 
                 setStats({
                     totalPedidos,
@@ -107,17 +94,15 @@ export default function AdminHomePage() {
                     pedidosPagados,
                 });
 
-                // 🔔 Alertas simples basadas en pedidos
+                // Alertas
                 if (pedidosPendientes > 0) {
-                    nuevasAlertas.push(
-                        `Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`
-                    );
+                    nuevasAlertas.push(`Tienes ${pedidosPendientes} pedido(s) pendiente(s) de pago.`);
                 }
                 if (totalPedidos === 0) {
                     nuevasAlertas.push("Aún no se han registrado pedidos en el sistema.");
                 }
 
-                // 🎯 3) Cargar sorteo activo (muy flexible con columnas)
+                // 3) Sorteo activo
                 const { data: sorteoData, error: sorteoError } = await supabase
                     .from("sorteos")
                     .select("*")
@@ -128,7 +113,6 @@ export default function AdminHomePage() {
 
                 if (sorteoError) {
                     console.error("Error cargando sorteo activo:", sorteoError);
-                    // No rompemos el dashboard, solo no mostramos info del sorteo
                 } else if (sorteoData) {
                     setSorteoActivo(sorteoData);
                 } else {
@@ -136,9 +120,7 @@ export default function AdminHomePage() {
                 }
             } catch (err: any) {
                 console.error(err);
-                setErrorGeneral(
-                    err?.message || "Ocurrió un error al cargar el panel."
-                );
+                setErrorGeneral(err?.message || "Ocurrió un error al cargar el panel.");
             } finally {
                 setAlertas(nuevasAlertas);
                 setLoading(false);
@@ -148,7 +130,6 @@ export default function AdminHomePage() {
         cargarDashboard();
     }, []);
 
-    // 🧠 Derivados del sorteo activo (soportando distintos nombres de columnas)
     const sorteoTitulo: string | null = useMemo(() => {
         if (!sorteoActivo) return null;
         return (
@@ -185,15 +166,11 @@ export default function AdminHomePage() {
 
     const sorteoId: string | null = sorteoActivo?.id || null;
 
-    // 🧾 Últimos 5 pedidos
-    const ultimosPedidos = useMemo(() => {
-        return pedidos.slice(0, 5);
-    }, [pedidos]);
+    const ultimosPedidos = useMemo(() => pedidos.slice(0, 5), [pedidos]);
 
     return (
         <main className="min-h-screen bg-[#050608] text-slate-50">
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-12 space-y-8">
-                {/* Encabezado principal */}
                 <header className="space-y-3">
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                         Casa Bikers • Admin
@@ -207,77 +184,52 @@ export default function AdminHomePage() {
                     </p>
                 </header>
 
-                {/* Errores generales */}
                 {errorGeneral && (
                     <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                         {errorGeneral}
                     </div>
                 )}
 
-                {/* Panel principal */}
                 {loading ? (
                     <div className="flex items-center justify-center py-16 text-sm text-slate-400">
                         Cargando información del panel...
                     </div>
                 ) : (
                     <>
-                        {/* Fila: KPIs + sorteo activo */}
                         <section className="grid gap-4 md:grid-cols-3">
-                            {/* KPIs */}
                             <div className="md:col-span-2 space-y-4">
                                 <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                                    {/* Total pedidos */}
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Total de pedidos</p>
-                                        <p className="mt-2 text-2xl font-semibold">
-                                            {stats?.totalPedidos ?? 0}
-                                        </p>
+                                        <p className="mt-2 text-2xl font-semibold">{stats?.totalPedidos ?? 0}</p>
                                     </div>
 
-                                    {/* Números vendidos */}
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Números vendidos</p>
-                                        <p className="mt-2 text-2xl font-semibold">
-                                            {stats?.totalNumeros ?? 0}
-                                        </p>
+                                        <p className="mt-2 text-2xl font-semibold">{stats?.totalNumeros ?? 0}</p>
                                     </div>
 
-                                    {/* Total recaudado */}
                                     <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                         <p className="text-xs text-slate-400">Total recaudado</p>
                                         <p className="mt-2 text-2xl font-semibold">
-                                            $
-                                            {stats
-                                                ? stats.totalRecaudado.toFixed(2)
-                                                : "0.00"}
+                                            ${stats ? stats.totalRecaudado.toFixed(2) : "0.00"}
                                         </p>
                                     </div>
                                 </div>
 
                                 <div className="grid gap-4 sm:grid-cols-2">
-                                    {/* Pedidos pagados */}
                                     <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3">
-                                        <p className="text-xs text-emerald-200">
-                                            Pedidos pagados
-                                        </p>
-                                        <p className="mt-2 text-xl font-semibold">
-                                            {stats?.pedidosPagados ?? 0}
-                                        </p>
+                                        <p className="text-xs text-emerald-200">Pedidos pagados</p>
+                                        <p className="mt-2 text-xl font-semibold">{stats?.pedidosPagados ?? 0}</p>
                                     </div>
 
-                                    {/* Pedidos pendientes */}
                                     <div className="rounded-xl border border-yellow-500/40 bg-yellow-500/10 px-4 py-3">
-                                        <p className="text-xs text-yellow-100">
-                                            Pedidos pendientes
-                                        </p>
-                                        <p className="mt-2 text-xl font-semibold">
-                                            {stats?.pedidosPendientes ?? 0}
-                                        </p>
+                                        <p className="text-xs text-yellow-100">Pedidos pendientes</p>
+                                        <p className="mt-2 text-xl font-semibold">{stats?.pedidosPendientes ?? 0}</p>
                                     </div>
                                 </div>
                             </div>
 
-                            {/* Sorteo activo */}
                             <div className="rounded-xl border border-orange-500/60 bg-gradient-to-b from-orange-500/20 via-slate-900/80 to-slate-950 px-4 py-4 flex flex-col justify-between">
                                 <div className="space-y-1">
                                     <p className="text-xs font-semibold tracking-[0.2em] uppercase text-orange-300">
@@ -289,9 +241,7 @@ export default function AdminHomePage() {
                                                 {sorteoTitulo || "Sorteo en curso"}
                                             </h2>
                                             <p className="text-xs text-orange-100/80">
-                                                {sorteoActividadNumero
-                                                    ? `Actividad #${sorteoActividadNumero}`
-                                                    : "Actividad sin número definido"}
+                                                {sorteoActividadNumero ? `Actividad #${sorteoActividadNumero}` : "Actividad sin número definido"}
                                             </p>
                                             {sorteoProgresoLabel && (
                                                 <p className="mt-2 text-xs font-medium text-orange-100">
@@ -325,11 +275,8 @@ export default function AdminHomePage() {
                             </div>
                         </section>
 
-                        {/* Accesos rápidos */}
                         <section className="space-y-3">
-                            <h2 className="text-sm font-semibold text-slate-200">
-                                Módulos disponibles
-                            </h2>
+                            <h2 className="text-sm font-semibold text-slate-200">Módulos disponibles</h2>
                             <div className="flex flex-wrap gap-3">
                                 <Link
                                     href="/admin/numeros"
@@ -352,26 +299,17 @@ export default function AdminHomePage() {
                             </div>
                         </section>
 
-                        {/* Fila: Últimos pedidos + Alertas */}
                         <section className="grid gap-4 md:grid-cols-3">
-                            {/* Últimos pedidos */}
                             <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4">
                                 <div className="flex items-center justify-between mb-3">
-                                    <h2 className="text-sm font-semibold text-slate-200">
-                                        Últimos pedidos
-                                    </h2>
-                                    <Link
-                                        href="/admin/pedidos"
-                                        className="text-[11px] text-orange-300 hover:text-orange-200"
-                                    >
+                                    <h2 className="text-sm font-semibold text-slate-200">Últimos pedidos</h2>
+                                    <Link href="/admin/pedidos" className="text-[11px] text-orange-300 hover:text-orange-200">
                                         Ver todos →
                                     </Link>
                                 </div>
 
                                 {ultimosPedidos.length === 0 ? (
-                                    <p className="text-xs text-slate-400">
-                                        Aún no se registran pedidos.
-                                    </p>
+                                    <p className="text-xs text-slate-400">Aún no se registran pedidos.</p>
                                 ) : (
                                     <div className="overflow-x-auto text-xs">
                                         <table className="min-w-full text-left">
@@ -386,76 +324,56 @@ export default function AdminHomePage() {
                                                 </tr>
                                             </thead>
                                             <tbody>
-                                                {ultimosPedidos.map((p) => (
-                                                    <tr
-                                                        key={p.id}
-                                                        className="border-b border-slate-800/60 last:border-0"
-                                                    >
-                                                        <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">
-                                                            #{p.id}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            {p.cliente_nombre || "—"}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle text-slate-300">
-                                                            {p.created_at
-                                                                ? new Date(p.created_at).toLocaleString(
-                                                                    "es-EC",
-                                                                    {
+                                                {ultimosPedidos.map((p) => {
+                                                    const e = normEstado(p.estado);
+                                                    const paid = isPagadoEstado(e);
+
+                                                    const badgeClass = paid
+                                                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40"
+                                                        : e === "pendiente"
+                                                            ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
+                                                            : "bg-slate-700/60 text-slate-200 border border-slate-600";
+
+                                                    return (
+                                                        <tr key={p.id} className="border-b border-slate-800/60 last:border-0">
+                                                            <td className="py-1.5 pr-3 align-middle font-mono text-[11px] text-orange-300">
+                                                                #{p.id}
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">{p.cliente_nombre || "—"}</td>
+                                                            <td className="py-1.5 pr-3 align-middle text-slate-300">
+                                                                {p.created_at
+                                                                    ? new Date(p.created_at).toLocaleString("es-EC", {
                                                                         dateStyle: "short",
                                                                         timeStyle: "short",
-                                                                    }
-                                                                )
-                                                                : "-"}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            {p.total
-                                                                ? `$${p.total.toFixed(2)}`
-                                                                : "$0.00"}
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            <span
-                                                                className={[
-                                                                    "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                                                                    ["pagado", "confirmado"].includes((p.estado || "").toLowerCase())
-
-                                                                        ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40"
-                                                                        !["pagado", "confirmado"].includes((p.estado || "").toLowerCase())
-
-                                                                        ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
-                                                                        : "bg-slate-700/60 text-slate-200 border border-slate-600",
-                                                                ]
-                                                                    .filter(Boolean)
-                                                                    .join(" ")}
-                                                            >
-                                                                {p.estado || "N/A"}
-                                                            </span>
-                                                        </td>
-                                                        <td className="py-1.5 pr-3 align-middle">
-                                                            <Link
-                                                                href={`/admin/pedidos?pedido=${p.id}`}
-                                                                className="text-[11px] text-orange-300 hover:text-orange-200"
-                                                            >
-                                                                Ver detalle
-                                                            </Link>
-                                                        </td>
-                                                    </tr>
-                                                ))}
+                                                                    })
+                                                                    : "-"}
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">
+                                                                {p.total ? `$${p.total.toFixed(2)}` : "$0.00"}
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">
+                                                                <span className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${badgeClass}`}>
+                                                                    {e || "n/a"}
+                                                                </span>
+                                                            </td>
+                                                            <td className="py-1.5 pr-3 align-middle">
+                                                                <Link href={`/admin/pedidos?pedido=${p.id}`} className="text-[11px] text-orange-300 hover:text-orange-200">
+                                                                    Ver detalle
+                                                                </Link>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>
                                 )}
                             </div>
 
-                            {/* Alertas del sistema */}
                             <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4">
-                                <h2 className="text-sm font-semibold text-slate-200 mb-2">
-                                    Alertas del sistema
-                                </h2>
+                                <h2 className="text-sm font-semibold text-slate-200 mb-2">Alertas del sistema</h2>
                                 {alertas.length === 0 ? (
-                                    <p className="text-xs text-slate-400">
-                                        Todo se ve bien por ahora. 🎯
-                                    </p>
+                                    <p className="text-xs text-slate-400">Todo se ve bien por ahora. 🎯</p>
                                 ) : (
                                     <ul className="space-y-1 text-xs text-slate-200">
                                         {alertas.map((a, idx) => (
