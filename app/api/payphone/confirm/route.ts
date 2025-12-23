@@ -116,16 +116,15 @@ export async function POST(req: NextRequest) {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
+                "Accept": "application/json",
                 Authorization: `Bearer ${token}`,
             },
-            // ✅ MUY IMPORTANTE: clientTransactionId (no clientTxId)
             body: JSON.stringify({
-                id: resolvedPayphoneId,
-                clientTransactionId: clientTxId,
+                id: Number(resolvedPayphoneId),
+                clientTxId: String(clientTxId),
             }),
-
-
         });
+
 
         const rawText = await resp.text().catch(() => "");
         let confirmJson: any = null;
