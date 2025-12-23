@@ -126,7 +126,11 @@ export async function POST(req: NextRequest) {
                 Authorization: `Bearer ${token}`,
             },
             // ✅ MUY IMPORTANTE: clientTransactionId (no clientTxId)
-            body: JSON.stringify({ id: resolvedPayphoneId, clientTxId: clientTxId }),
+            body: JSON.stringify({
+                id: resolvedPayphoneId,
+                clientTransactionId: clientTxId,
+            }),
+
 
         });
 
