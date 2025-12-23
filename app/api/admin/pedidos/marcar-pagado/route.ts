@@ -1,122 +1,81 @@
-// app/api/admin/pedidos/marcar-pagado/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
         const body = await req.json().catch(() => null);
         const pedidoId = Number(body?.pedidoId);
 
         if (!pedidoId || Number.isNaN(pedidoId)) {
             return NextResponse.json(
-                { ok: false, error: "Falta el pedidoId válido" },
+                { ok: false, error: "Falta pedidoId válido" },
                 { status: 400 }
             );
         }
 
-        // 1) Leer el pedido
-        const { data: pedido, error: pedidoError } = await supabaseAdmin
+        // 1) Leer pedido para modo
+        const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
-            .select("id, estado")
+            .select("id, metodo_pago")
             .eq("id", pedidoId)
-            .maybeSingle();
+            .single();
 
-        if (pedidoError) {
-            console.error("Error obteniendo pedido:", pedidoError);
-            return NextResponse.json(
-                { ok: false, error: "Error obteniendo el pedido" },
-                { status: 500 }
-            );
-        }
-
-        if (!pedido) {
+        if (pedidoErr || !pedido) {
             return NextResponse.json(
                 { ok: false, error: "Pedido no encontrado" },
                 { status: 404 }
             );
         }
 
-        // 2) Si ya tiene números asignados, respondemos idempotente
-        const { data: existentes, error: exErr } = await supabaseAdmin
-            .from("numeros_asignados")
-            .select("numero")
-            .eq("pedido_id", pedido.id)
-            .order("numero", { ascending: true });
+        // 2) adminId: usa el que ya tienes (sin secretos nuevos)
+        //    Si luego quieres, lo cambiamos a auth real.
+        const adminId = "1510ca81-fd6a-4d3a-a4c9-ef286ed58145";
 
-        if (exErr) {
-            console.error("Error consultando numeros_asignados:", exErr);
+        // 3) modo según método
+        const metodo = (pedido.metodo_pago || "").toLowerCase();
+        const modo = metodo === "transferencia" ? "transferencia_admin" : "manual_admin";
+
+        // 4) RPC ÚNICA
+        const { data, error: rpcErr } = await supabaseAdmin.rpc(
+            "admin_aprobar_pedido_y_asignar",
+            {
+                p_pedido_id: pedidoId,
+                p_admin_id: adminId,
+                p_modo: modo,
+            }
+        );
+
+        if (rpcErr) {
+            console.error("RPC admin_aprobar_pedido_y_asignar error:", rpcErr);
             return NextResponse.json(
-                { ok: false, error: "Error consultando números existentes" },
+                { ok: false, error: rpcErr.message || "Error en RPC" },
                 { status: 500 }
             );
         }
 
-        if (existentes && existentes.length > 0) {
-            return NextResponse.json({
-                ok: true,
-                alreadyAssigned: true,
-                numeros: existentes.map((n: any) => n.numero as number),
-            });
+        const row = Array.isArray(data) ? data[0] : data;
+
+        if (!row?.ok) {
+            return NextResponse.json(
+                { ok: false, error: "No se pudo aprobar y asignar" },
+                { status: 500 }
+            );
         }
-
-        // 3) Marcar como pagado (si no lo está ya)
-        if (pedido.estado !== "pagado") {
-            const { error: updateError } = await supabaseAdmin
-                .from("pedidos")
-                .update({ estado: "pagado" })
-                .eq("id", pedido.id);
-
-            if (updateError) {
-                console.error("Error actualizando pedido:", updateError);
-                return NextResponse.json(
-                    { ok: false, error: "No se pudo marcar como pagado" },
-                    { status: 500 }
-                );
-            }
-        }
-
-        // 4) Asignar números usando la función PRO (idempotente)
-        const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
-            "asignar_numeros_pedido",
-            { p_pedido_id: pedido.id }
-        );
-
-        if (rpcError) {
-            console.error("Error RPC asignar_numeros_pedido:", rpcError);
-
-            const msg = rpcError.message || "";
-
-            if (msg.includes("SIN_NUMEROS_DISPONIBLES")) {
-                return NextResponse.json(
-                    { ok: false, error: "No hay números disponibles" },
-                    { status: 400 }
-                );
-            }
-
-            if (msg.includes("PEDIDO_NO_PAGADO")) {
-                return NextResponse.json(
-                    { ok: false, error: "El pedido aún no está pagado en BD" },
-                    { status: 400 }
-                );
-            }
-
-            return NextResponse.json({ ok: false, error: `RPC: ${msg}` }, { status: 500 });
-        }
-
-        const numeros: number[] = (rpcData as number[]) || [];
 
         return NextResponse.json({
             ok: true,
-            alreadyAssigned: false,
-            numeros,
+            pedidoId,
+            alreadyAssigned: !!row.already_assigned,
+            numeros: row.numeros || [],
+            modo,
         });
     } catch (e: any) {
-        console.error("Error inesperado en marcar-pagado:", e);
+        console.error("marcar-pagado error:", e);
         return NextResponse.json(
-            { ok: false, error: e?.message || "Error inesperado" },
+            { ok: false, error: String(e?.message || e) || "Error interno" },
             { status: 500 }
         );
     }
