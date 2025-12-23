@@ -1,24 +1,25 @@
 // app/admin/numeros/page.tsx
-import AdminNumerosClient from "./AdminNumerosClient";
-
 export const dynamic = "force-dynamic";
+
+import AdminNumerosClient from "./AdminNumerosClient";
 
 export default function AdminNumerosPage({
     searchParams,
 }: {
     searchParams: { pedido?: string };
 }) {
-    const pedidoId = Number(searchParams?.pedido ?? "");
+    const pedidoRaw = searchParams?.pedido ?? "";
+    const pedidoId = Number(pedidoRaw);
 
-    if (!pedidoId || Number.isNaN(pedidoId)) {
+    if (!pedidoRaw || Number.isNaN(pedidoId) || pedidoId <= 0) {
         return (
-            <main className="min-h-screen flex items-center justify-center p-6 text-center">
-                <div>
-                    <p className="text-sm text-red-400">
-                        Falta el parámetro <b>pedido</b> en la URL.
+            <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center p-6">
+                <div className="text-center">
+                    <p className="text-red-400 font-semibold">
+                        Falta el parámetro <span className="text-red-300">pedido</span> en la URL.
                     </p>
-                    <p className="text-xs text-slate-400 mt-2">
-                        Ej: /admin/numeros?pedido=310
+                    <p className="mt-2 text-xs text-slate-400">
+                        Ej: <span className="text-slate-200">/admin/numeros?pedido=310</span>
                     </p>
                 </div>
             </main>
