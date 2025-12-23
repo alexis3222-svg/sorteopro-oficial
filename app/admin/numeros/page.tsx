@@ -2,12 +2,20 @@ export const dynamic = "force-dynamic";
 
 import AdminNumerosClient from "./AdminNumerosClient";
 
-type PageProps = {
-    searchParams?: Record<string, string | string[] | undefined>;
-};
+type SearchParams = Record<string, string | string[] | undefined>;
 
-export default function Page({ searchParams }: PageProps) {
-    const pedidoRaw = searchParams?.pedido;
+export default async function Page({
+    searchParams,
+}: {
+    // en algunos runtimes llega como Promise
+    searchParams?: SearchParams | Promise<SearchParams>;
+}) {
+    const sp: SearchParams | undefined =
+        searchParams && typeof (searchParams as any).then === "function"
+            ? await (searchParams as Promise<SearchParams>)
+            : (searchParams as SearchParams | undefined);
+
+    const pedidoRaw = sp?.pedido;
     const pedidoStr = Array.isArray(pedidoRaw) ? pedidoRaw[0] : pedidoRaw;
     const pedidoId = Number(pedidoStr);
 
@@ -28,5 +36,3 @@ export default function Page({ searchParams }: PageProps) {
 
     return <AdminNumerosClient pedidoId={pedidoId} />;
 }
-
-// deploy-marker: 2025-12-23T01:17:02
