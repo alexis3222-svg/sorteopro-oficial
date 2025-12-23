@@ -3,15 +3,20 @@ export const dynamic = "force-dynamic";
 
 import AdminNumerosClient from "./AdminNumerosClient";
 
+type SP = { pedido?: string | string[] };
+
 export default function AdminNumerosPage({
     searchParams,
 }: {
-    searchParams: { pedido?: string };
+    searchParams?: SP;
 }) {
-    const pedidoRaw = searchParams?.pedido ?? "";
-    const pedidoId = Number(pedidoRaw);
+    const raw = searchParams?.pedido;
 
-    if (!pedidoRaw || Number.isNaN(pedidoId) || pedidoId <= 0) {
+    // Soporta string o array
+    const pedidoStr = Array.isArray(raw) ? raw[0] : raw;
+    const pedidoId = Number(pedidoStr);
+
+    if (!pedidoStr || Number.isNaN(pedidoId) || pedidoId <= 0) {
         return (
             <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center p-6">
                 <div className="text-center">

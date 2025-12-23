@@ -2,9 +2,9 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabaseClient";
 import Link from "next/link";
 import { Anton } from "next/font/google";
+import { supabase } from "@/lib/supabaseClient";
 
 const anton = Anton({ subsets: ["latin"], weight: "400" });
 
@@ -36,6 +36,17 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
         [pedido?.estado]
     );
     const isPagado = estado === "pagado" || estado === "confirmado";
+
+    const actividadLabel = pedido?.actividad_numero
+        ? `Actividad #${pedido.actividad_numero}`
+        : "Actividad";
+
+    const fechaLabel = pedido?.created_at
+        ? new Date(pedido.created_at).toLocaleString("es-EC")
+        : "-";
+
+    const totalLabel =
+        pedido?.total != null ? `$${Number(pedido.total).toFixed(2)}` : "-";
 
     async function cargar() {
         setLoading(true);
@@ -88,14 +99,6 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [pedidoId]);
 
-    const titulo = pedido?.actividad_numero
-        ? `Actividad #${pedido.actividad_numero}`
-        : "Actividad";
-
-    const fechaLabel = pedido?.created_at
-        ? new Date(pedido.created_at).toLocaleString("es-EC")
-        : "-";
-
     const numerosTexto = numeros
         .map((n) => n.numero.toString().padStart(5, "0"))
         .join(", ");
@@ -112,7 +115,7 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
                             Números del pedido #{pedidoId}
                         </h1>
                         <p className="mt-1 text-xs md:text-sm text-slate-400">
-                            {titulo} • {fechaLabel}
+                            {actividadLabel} • {fechaLabel} • {totalLabel}
                         </p>
                     </div>
 
@@ -197,12 +200,15 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
                                     <p className="mt-2 text-sm text-red-300">
                                         El pedido está PAGADO pero aún no hay números asignados.
                                         <br />
-                                        Presiona <span className="font-semibold">Recargar</span> o revisa que al marcar PAGADO no haya salido error.
+                                        Presiona <span className="font-semibold">Recargar</span>.
                                     </p>
                                 ) : (
                                     <>
                                         <p className="mt-2 text-xs text-slate-400">
-                                            Total: <span className="font-semibold text-slate-200">{numeros.length}</span>
+                                            Total:{" "}
+                                            <span className="font-semibold text-slate-200">
+                                                {numeros.length}
+                                            </span>
                                         </p>
 
                                         <div className="mt-3 flex flex-wrap gap-2">
@@ -219,12 +225,11 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
                                         <div className="mt-4 flex flex-wrap gap-2">
                                             <button
                                                 onClick={async () => {
-                                                    const text = numerosTexto;
                                                     if (navigator.clipboard?.writeText) {
-                                                        await navigator.clipboard.writeText(text);
+                                                        await navigator.clipboard.writeText(numerosTexto);
                                                         alert("Lista de números copiada.");
                                                     } else {
-                                                        alert(text);
+                                                        alert(numerosTexto);
                                                     }
                                                 }}
                                                 className="rounded-full border border-white/20 bg-white/5 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.16em] hover:bg-white/10"
