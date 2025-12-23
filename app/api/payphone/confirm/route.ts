@@ -126,7 +126,8 @@ export async function POST(req: NextRequest) {
                 Authorization: `Bearer ${token}`,
             },
             // ✅ MUY IMPORTANTE: clientTransactionId (no clientTxId)
-            body: JSON.stringify({ id: resolvedPayphoneId, clientTransactionId: clientTxId }),
+            body: JSON.stringify({ id: resolvedPayphoneId, clientTxId: clientTxId }),
+
         });
 
         const confirmJson = await resp.json().catch(() => null);
