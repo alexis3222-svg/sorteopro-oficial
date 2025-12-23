@@ -121,8 +121,9 @@ export async function POST(req: NextRequest) {
             },
             body: JSON.stringify({
                 id: Number(resolvedPayphoneId),
-                clientTxId: String(clientTxId),
-            }),
+                clientTransactionId: String(clientTxId),
+            })
+
         });
 
 
