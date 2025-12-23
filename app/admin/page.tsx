@@ -76,22 +76,28 @@ export default function AdminHomePage() {
                 setPedidos(pedidosNorm);
 
 
-                // 🧮 2) Calcular estadísticas globales
+                // 🧮 2) Calcular estadísticas globales (MISMA REGLA que /admin/pedidos)
+                const normEstado = (e?: string | null) => (e || "").toLowerCase().trim();
+                const esPagado = (e?: string | null) => {
+                    const x = normEstado(e);
+                    return x === "pagado" || x === "confirmado";
+                };
+
                 const totalPedidos = pedidosNorm.length;
-                const totalNumeros = pedidosNorm.reduce(
-                    (acc, p) => acc + (p.cantidad_numeros || 0),
-                    0
-                );
-                const totalRecaudado = pedidosNorm.reduce(
-                    (acc, p) => acc + (p.total || 0),
-                    0
-                );
-                const pedidosPendientes = pedidosNorm.filter(
-                    (p) => p.estado === "pendiente"
-                ).length;
-                const pedidosPagados = pedidosNorm.filter(
-                    (p) => p.estado === "pagado"
-                ).length;
+
+                // ✅ Solo contamos números y dinero cuando el pedido está pagado/confirmado
+                const totalNumeros = pedidosNorm.reduce((acc, p) => {
+                    return acc + (esPagado(p.estado) ? Number(p.cantidad_numeros || 0) : 0);
+                }, 0);
+
+                const totalRecaudado = pedidosNorm.reduce((acc, p) => {
+                    return acc + (esPagado(p.estado) ? Number(p.total || 0) : 0);
+                }, 0);
+
+                // ✅ Pendiente = NO pagado/confirmado (incluye: pendiente, pendiente_transferencia, etc.)
+                const pedidosPendientes = pedidosNorm.filter((p) => !esPagado(p.estado)).length;
+                const pedidosPagados = pedidosNorm.filter((p) => esPagado(p.estado)).length;
+
 
                 setStats({
                     totalPedidos,
@@ -411,11 +417,13 @@ export default function AdminHomePage() {
                                                             <span
                                                                 className={[
                                                                     "inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold",
-                                                                    p.estado === "pagado"
+                                                                    ["pagado", "confirmado"].includes((p.estado || "").toLowerCase())
+
                                                                         ? "bg-emerald-500/15 text-emerald-300 border border-emerald-500/40"
-                                                                        : p.estado === "pendiente"
-                                                                            ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
-                                                                            : "bg-slate-700/60 text-slate-200 border border-slate-600",
+                                                                        !["pagado", "confirmado"].includes((p.estado || "").toLowerCase())
+
+                                                                        ? "bg-yellow-500/10 text-yellow-300 border border-yellow-500/40"
+                                                                        : "bg-slate-700/60 text-slate-200 border border-slate-600",
                                                                 ]
                                                                     .filter(Boolean)
                                                                     .join(" ")}
