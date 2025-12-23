@@ -12,19 +12,12 @@ type Body = {
 };
 
 function getPayphoneToken() {
-    // ✅ RECOMENDADO: usa solo variables server-only
-    // Crea estas 2 vars en Vercel:
-    // PAYPHONE_TOKEN_TEST (para modo Prueba)
-    // PAYPHONE_TOKEN_LIVE (para Producción)
-    //
-    // Y decide con: PAYPHONE_ENV="test"|"live"
-    const env = (process.env.PAYPHONE_ENV || "").toLowerCase(); // "test" o "live"
+    const env = (process.env.PAYPHONE_ENV || "").toLowerCase(); // "test" | "live"
     if (env === "live") return process.env.PAYPHONE_TOKEN_LIVE || "";
     if (env === "test") return process.env.PAYPHONE_TOKEN_TEST || "";
-
-    // fallback (si aún no lo configuras)
-    return process.env.PAYPHONE_TOKEN || process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "";
+    return process.env.PAYPHONE_TOKEN || "";
 }
+
 
 export async function POST(req: NextRequest) {
     try {
