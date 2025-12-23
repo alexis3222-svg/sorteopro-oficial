@@ -134,14 +134,38 @@ export async function POST(req: NextRequest) {
 
         });
 
-        const confirmJson = await resp.json().catch(() => null);
+        const rawText = await resp.text().catch(() => "");
+        let confirmJson: any = null;
+        try {
+            confirmJson = rawText ? JSON.parse(rawText) : null;
+        } catch {
+            confirmJson = null;
+        }
 
-        if (!resp.ok || !confirmJson) {
+        if (!resp.ok) {
             return NextResponse.json(
-                { ok: false, error: "No se pudo confirmar con PayPhone", detail: confirmJson ?? null },
+                {
+                    ok: false,
+                    error: "PayPhone Confirm respondió error",
+                    payphone_http_status: resp.status,
+                    payphone_body: confirmJson ?? rawText,
+                },
                 { status: 502 }
             );
         }
+
+        if (!confirmJson) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error: "PayPhone Confirm no devolvió JSON",
+                    payphone_http_status: resp.status,
+                    payphone_body: rawText,
+                },
+                { status: 502 }
+            );
+        }
+
 
         // 5) Interpretación de aprobado (tolerante)
         const statusValue =
