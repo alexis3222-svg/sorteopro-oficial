@@ -1,23 +1,31 @@
 // app/api/admin/pedidos/cancelar/route.ts
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export async function POST(req: Request) {
-    try {
-        const { pedidoId, nuevoEstado } = await req.json();
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-        if (!pedidoId) {
-            return NextResponse.json(
-                { ok: false, error: "Falta el pedidoId" },
-                { status: 400 }
-            );
+function assertAdmin(req: NextRequest) {
+    const secret = req.headers.get("x-admin-secret");
+    if (!secret || secret !== process.env.ADMIN_SECRET) {
+        throw new Error("UNAUTHORIZED");
+    }
+}
+
+export async function POST(req: NextRequest) {
+    try {
+        assertAdmin(req);
+
+        const body = await req.json().catch(() => null);
+        const pedidoId = Number(body?.pedidoId);
+        const nuevoEstado = String(body?.nuevoEstado || "").toLowerCase();
+
+        if (!pedidoId || Number.isNaN(pedidoId)) {
+            return NextResponse.json({ ok: false, error: "Falta el pedidoId" }, { status: 400 });
         }
 
         if (nuevoEstado !== "pendiente" && nuevoEstado !== "cancelado") {
-            return NextResponse.json(
-                { ok: false, error: "Estado no permitido" },
-                { status: 400 }
-            );
+            return NextResponse.json({ ok: false, error: "Estado no permitido" }, { status: 400 });
         }
 
         // 1) verificar que el pedido existe
@@ -29,17 +37,11 @@ export async function POST(req: Request) {
 
         if (pedidoError) {
             console.error("Error obteniendo pedido:", pedidoError);
-            return NextResponse.json(
-                { ok: false, error: "Error obteniendo pedido" },
-                { status: 500 }
-            );
+            return NextResponse.json({ ok: false, error: "Error obteniendo pedido" }, { status: 500 });
         }
 
         if (!pedido) {
-            return NextResponse.json(
-                { ok: false, error: "Pedido no encontrado" },
-                { status: 404 }
-            );
+            return NextResponse.json({ ok: false, error: "Pedido no encontrado" }, { status: 404 });
         }
 
         // 2) liberar números (si tiene)
@@ -50,8 +52,6 @@ export async function POST(req: Request) {
 
         if (rpcError) {
             console.error("Error RPC liberar_numeros_pedido:", rpcError);
-
-            // 🔥 ahora devolvemos el mensaje REAL del RPC
             return NextResponse.json(
                 {
                     ok: false,
@@ -77,14 +77,24 @@ export async function POST(req: Request) {
             );
         }
 
+        // ✅ liberados puede venir como:
+        // - number (cantidad liberada)
+        // - array (lista de números liberados)
+        // - null
         return NextResponse.json({
             ok: true,
             liberados: liberados ?? 0,
         });
     } catch (e: any) {
-        console.error("Error inesperado en cancelar:", e);
+        const msg = String(e?.message || e);
+
+        if (msg === "UNAUTHORIZED") {
+            return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+        }
+
+        console.error("ADMIN cancelar error:", e);
         return NextResponse.json(
-            { ok: false, error: e?.message || "Error inesperado en cancelar" },
+            { ok: false, error: msg || "Error interno" },
             { status: 500 }
         );
     }
