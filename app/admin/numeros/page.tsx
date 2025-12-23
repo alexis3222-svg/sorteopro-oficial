@@ -1,18 +1,13 @@
-// app/admin/numeros/page.tsx
 export const dynamic = "force-dynamic";
 
 import AdminNumerosClient from "./AdminNumerosClient";
 
-type SP = { pedido?: string | string[] };
-
-export default function AdminNumerosPage({
+export default function Page({
     searchParams,
 }: {
-    searchParams?: SP;
+    searchParams?: { pedido?: string | string[] };
 }) {
     const raw = searchParams?.pedido;
-
-    // Soporta string o array
     const pedidoStr = Array.isArray(raw) ? raw[0] : raw;
     const pedidoId = Number(pedidoStr);
 
