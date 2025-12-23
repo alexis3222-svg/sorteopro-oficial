@@ -2,7 +2,6 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
 
 type Props = { pedidoId: number };
@@ -22,17 +21,20 @@ type PedidoInfo = {
 type NumeroAsignado = { numero: number };
 
 export default function AdminNumerosClient({ pedidoId }: Props) {
-    const [loading, setLoading] = useState(true);
+    const [fase, setFase] = useState<string>("render");
     const [pedido, setPedido] = useState<PedidoInfo | null>(null);
     const [numeros, setNumeros] = useState<NumeroAsignado[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         (async () => {
-            setLoading(true);
+            setFase("useEffect: start");
             setError(null);
 
-            // Pedido
+            console.log("[AdminNumerosClient] pedidoId =", pedidoId);
+
+            // 1) Pedido
+            setFase("fetch pedido...");
             const { data: p, error: pe } = await supabase
                 .from("pedidos")
                 .select(
@@ -42,19 +44,20 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
                 .maybeSingle();
 
             if (pe) {
-                console.error("pedidos select error:", pe);
-                setError(pe.message || "Error leyendo pedido");
-                setLoading(false);
+                console.error("[AdminNumerosClient] pedidos error:", pe);
+                setError("pedidos: " + (pe.message || "error"));
+                setFase("error en pedido");
                 return;
             }
             if (!p) {
-                setError("Pedido no encontrado");
-                setLoading(false);
+                setError("Pedido no encontrado en pedidos");
+                setFase("pedido null");
                 return;
             }
             setPedido(p as PedidoInfo);
 
-            // Números asignados (esto debe mostrar 11..15 en pedido 340 según tu BD)
+            // 2) Números
+            setFase("fetch numeros_asignados...");
             const { data: ns, error: ne } = await supabase
                 .from("numeros_asignados")
                 .select("numero")
@@ -62,86 +65,68 @@ export default function AdminNumerosClient({ pedidoId }: Props) {
                 .order("numero", { ascending: true });
 
             if (ne) {
-                console.error("numeros_asignados select error:", ne);
-                setError(ne.message || "Error leyendo números");
-                setLoading(false);
+                console.error("[AdminNumerosClient] numeros_asignados error:", ne);
+                setError("numeros_asignados: " + (ne.message || "error"));
+                setFase("error en numeros");
                 return;
             }
 
             setNumeros((ns || []) as NumeroAsignado[]);
-            setLoading(false);
+            setFase("ok");
         })();
     }, [pedidoId]);
 
-    if (loading) {
-        return (
-            <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center">
-                <p className="text-slate-400">Cargando…</p>
-            </main>
-        );
-    }
-
-    if (error) {
-        return (
-            <main className="min-h-screen bg-[#050609] text-slate-100 flex items-center justify-center p-6">
-                <div className="max-w-lg text-center">
-                    <p className="text-red-400 font-semibold">{error}</p>
-                    <Link
-                        href="/admin/pedidos"
-                        className="inline-block mt-4 rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] hover:bg-white/10"
-                    >
-                        Volver a pedidos
-                    </Link>
-                </div>
-            </main>
-        );
-    }
-
-    const actividad = pedido?.actividad_numero ? `Actividad #${pedido.actividad_numero}` : "Actividad";
-    const nombre = pedido?.nombre?.trim() || "—";
-    const tel = pedido?.telefono || "—";
-    const estado = (pedido?.estado || "pendiente").toUpperCase();
-
     return (
-        <main className="min-h-screen bg-[#050609] text-slate-100">
-            <div className="mx-auto max-w-5xl px-4 py-8">
-                <header className="flex items-center justify-between gap-3">
-                    <div>
-                        <p className="text-xs text-slate-400">{actividad}</p>
-                        <h1 className="text-xl font-semibold">Pedido #{pedidoId}</h1>
-                        <p className="text-xs text-slate-400">
-                            {nombre} • {tel} • {estado}
+        <main className="min-h-screen bg-[#050609] text-slate-100 p-6">
+            <div className="mx-auto max-w-3xl rounded-2xl border border-white/10 bg-white/5 p-4">
+                <h1 className="text-lg font-semibold">DEBUG /admin/numeros</h1>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-slate-400">pedidoId</p>
+                        <p className="text-slate-100 font-semibold">{pedidoId}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-slate-400">fase</p>
+                        <p className="text-slate-100 font-semibold">{fase}</p>
+                    </div>
+
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-slate-400">pedido cargado</p>
+                        <p className="text-slate-100 font-semibold">
+                            {pedido ? `sí (estado: ${pedido.estado})` : "no"}
                         </p>
                     </div>
 
-                    <Link
-                        href="/admin/pedidos"
-                        className="rounded-full border border-white/15 bg-white/5 px-4 py-2 text-xs font-semibold uppercase tracking-[0.16em] hover:bg-white/10"
-                    >
-                        ← Pedidos
-                    </Link>
-                </header>
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                        <p className="text-slate-400">números encontrados</p>
+                        <p className="text-slate-100 font-semibold">{numeros.length}</p>
+                    </div>
+                </div>
 
-                <section className="mt-6 rounded-2xl border border-white/10 bg-white/5 p-4">
-                    <h2 className="text-sm font-semibold">Números asignados</h2>
+                {error ? (
+                    <div className="mt-4 rounded-xl border border-red-500/30 bg-red-500/10 p-3 text-sm text-red-300">
+                        {error}
+                    </div>
+                ) : null}
 
-                    {numeros.length === 0 ? (
-                        <p className="mt-2 text-sm text-yellow-300">
-                            Este pedido no tiene números en <code>numeros_asignados</code>.
-                        </p>
-                    ) : (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                            {numeros.map((n) => (
-                                <span
-                                    key={n.numero}
-                                    className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold"
-                                >
-                                    {n.numero.toString().padStart(5, "0")}
-                                </span>
-                            ))}
-                        </div>
-                    )}
-                </section>
+                {numeros.length ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                        {numeros.map((n) => (
+                            <span
+                                key={n.numero}
+                                className="rounded-full border border-white/15 bg-white/5 px-3 py-1 text-xs font-semibold"
+                            >
+                                {String(n.numero).padStart(5, "0")}
+                            </span>
+                        ))}
+                    </div>
+                ) : (
+                    <p className="mt-4 text-sm text-slate-400">
+                        (Si aquí sigue en 0 pero en la BD sí hay, veremos el error arriba o en consola.)
+                    </p>
+                )}
             </div>
         </main>
     );
