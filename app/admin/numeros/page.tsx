@@ -28,3 +28,5 @@ export default function Page({ searchParams }: PageProps) {
 
     return <AdminNumerosClient pedidoId={pedidoId} />;
 }
+
+// deploy-marker: 2025-12-23T01:17:02
