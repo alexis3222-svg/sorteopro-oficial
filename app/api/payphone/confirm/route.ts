@@ -134,14 +134,14 @@ export async function POST(req: NextRequest) {
             {
                 method: "POST",
                 headers: {
-                    Authorization: `bearer ${token}`, // 👈 EXACTO, con "Bearer "
+                    Authorization: `Bearer ${token}`, // ✅ B MAYÚSCULA (OBLIGATORIO)
                     "Content-Type": "application/json",
+                    Accept: "application/json",
                 },
                 body: JSON.stringify({
                     id: Number(resolvedPayphoneId),
                     clientTxId: String(clientTxId),
                 }),
-
             }
         );
 
