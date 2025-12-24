@@ -112,19 +112,20 @@ export async function POST(req: NextRequest) {
         }
 
         // 4) Confirmar en PayPhone (server-to-server)
-        const resp = await fetch("https://pay.payphonetodoesposible.com/api/button/V2/Confirm", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json",
-                "Accept": "application/json",
-                Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-                id: Number(resolvedPayphoneId),
-                clientTransactionId: String(clientTxId),
-            })
-
-        });
+        const resp = await fetch(
+            "https://pay.payphonetodoesposible.com/api/button/V2/Confirm",
+            {
+                method: "POST",
+                headers: {
+                    Authorization: `Bearer ${token}`, // 👈 EXACTO, con "Bearer "
+                    "Content-Type": "application/json",
+                },
+                body: JSON.stringify({
+                    id: Number(resolvedPayphoneId),
+                    clientTransactionId: String(clientTxId),
+                }),
+            }
+        );
 
 
         const rawText = await resp.text().catch(() => "");
