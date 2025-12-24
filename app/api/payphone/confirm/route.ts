@@ -7,9 +7,11 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 type Body = {
-    payphoneId?: number | string; // opcional
-    clientTxId: string; // obligatorio (tu clientTransactionId)
+    payphoneId?: number | string;
+    clientTxId?: string;
+    clientTransactionId?: string; // 👈 aceptar también este
 };
+
 
 function getPayphoneToken() {
     const env = (process.env.PAYPHONE_ENV || "").toLowerCase(); // "test" | "live"
@@ -23,7 +25,8 @@ export async function POST(req: NextRequest) {
     try {
         const body = (await req.json().catch(() => null)) as Body | null;
 
-        const clientTxId = (body?.clientTxId || "").trim();
+        const clientTxId = String(body?.clientTxId || body?.clientTransactionId || "").trim();
+
         const payphoneIdRaw = body?.payphoneId;
 
         if (!clientTxId) {
@@ -34,6 +37,7 @@ export async function POST(req: NextRequest) {
         if (!token) {
             return NextResponse.json({ ok: false, error: "Falta token PayPhone en el servidor" }, { status: 500 });
         }
+
         // ✅ DEBUG seguro: detectar si el token del backend NO es el mismo que usa el frontend
         const publicToken = (process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "").trim();
         if (publicToken && token.trim() !== publicToken) {
@@ -135,8 +139,9 @@ export async function POST(req: NextRequest) {
                 },
                 body: JSON.stringify({
                     id: Number(resolvedPayphoneId),
-                    clientTransactionId: String(clientTxId),
+                    clientTxId: String(clientTxId),
                 }),
+
             }
         );
 
