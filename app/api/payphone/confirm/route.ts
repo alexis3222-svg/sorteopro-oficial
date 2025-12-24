@@ -33,20 +33,13 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "Falta parámetro: clientTxId" }, { status: 400 });
         }
 
-        const token = getPayphoneToken();
-        if (!token) {
-            return NextResponse.json({ ok: false, error: "Falta token PayPhone en el servidor" }, { status: 500 });
-        }
+        const token = getPayphoneToken()
+            .replace(/^"+|"+$/g, "") // quita comillas al inicio/fin si las hay
+            .trim();                 // quita espacios/saltos de línea
 
-        // ✅ DEBUG seguro: detectar si el token del backend NO es el mismo que usa el frontend
-        const publicToken = (process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "").trim();
-        if (publicToken && token.trim() !== publicToken) {
+        if (!token) {
             return NextResponse.json(
-                {
-                    ok: false,
-                    error: "TOKEN_MISMATCH",
-                    hint: "El backend está usando un token distinto al del Payment Box. Deben ser el MISMO token de Producción.",
-                },
+                { ok: false, error: "Falta token PayPhone en el servidor (vacío tras normalizar)" },
                 { status: 500 }
             );
         }
