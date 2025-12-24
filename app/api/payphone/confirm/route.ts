@@ -34,6 +34,19 @@ export async function POST(req: NextRequest) {
         if (!token) {
             return NextResponse.json({ ok: false, error: "Falta token PayPhone en el servidor" }, { status: 500 });
         }
+        // ✅ DEBUG seguro: detectar si el token del backend NO es el mismo que usa el frontend
+        const publicToken = (process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "").trim();
+        if (publicToken && token.trim() !== publicToken) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error: "TOKEN_MISMATCH",
+                    hint: "El backend está usando un token distinto al del Payment Box. Deben ser el MISMO token de Producción.",
+                },
+                { status: 500 }
+            );
+        }
+
 
         // 1) Buscar pedido por tu clientTransactionId
         const { data: pedido, error: pedidoErr } = await supabaseAdmin
@@ -117,7 +130,7 @@ export async function POST(req: NextRequest) {
             {
                 method: "POST",
                 headers: {
-                    Authorization: `Bearer ${token}`, // 👈 EXACTO, con "Bearer "
+                    Authorization: `bearer ${token}`, // 👈 EXACTO, con "Bearer "
                     "Content-Type": "application/json",
                 },
                 body: JSON.stringify({
