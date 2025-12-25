@@ -34,9 +34,8 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "Falta parámetro: clientTxId" }, { status: 400 });
         }
 
-        const token = getPayphoneToken()
-            .replace(/^"+|"+$/g, "") // quita comillas al inicio/fin si las hay
-            .trim();                 // quita espacios/saltos de línea
+        const token = (getPayphoneToken() || "").trim();
+
 
         if (!token) {
             return NextResponse.json(
@@ -123,6 +122,14 @@ export async function POST(req: NextRequest) {
         }
 
         // 4) Confirmar en PayPhone (server-to-server)
+        console.log("[payphone/confirm] env:", process.env.PAYPHONE_ENV);
+        console.log("[payphone/confirm] tokenLen:", token.length, "tokenLast6:", token.slice(-6));
+        console.log("[payphone/confirm] sending:", {
+
+            id: Number(resolvedPayphoneId),
+            clientTxId: String(clientTxId).trim(),
+        });
+
         const resp = await fetch(
             "https://pay.payphonetodoesposible.com/api/button/V2/Confirm",
             {
@@ -134,8 +141,9 @@ export async function POST(req: NextRequest) {
                 },
                 body: JSON.stringify({
                     id: Number(resolvedPayphoneId),
-                    clientTransactionId: String(clientTxId),
+                    clientTxId: String(clientTxId).trim(),
                 }),
+
 
             }
         );
@@ -150,6 +158,9 @@ export async function POST(req: NextRequest) {
         }
 
         if (!resp.ok) {
+            console.log("[payphone/confirm] payphone status:", resp.status);
+            console.log("[payphone/confirm] payphone raw:", rawText?.slice(0, 400));
+
             return NextResponse.json(
                 {
                     ok: false,
