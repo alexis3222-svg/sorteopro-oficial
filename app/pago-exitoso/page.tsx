@@ -21,13 +21,16 @@ export default function PagoExitosoPage() {
   );
 }
 
+function sleep(ms: number) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
 function PagoExitosoInner() {
   const searchParams = useSearchParams();
   const didRun = useRef(false);
-
   const [msg, setMsg] = useState("Confirmando pago…");
 
-  const payphoneId = searchParams.get("id"); // transactionId
+  const payphoneId = searchParams.get("id");
   const clientTxId = searchParams.get("clientTransactionId");
 
   useEffect(() => {
@@ -40,46 +43,41 @@ function PagoExitosoInner() {
     }
 
     (async () => {
-      try {
-        const r = await fetch("/api/payphone/confirm", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ payphoneId, clientTxId }),
-        });
+      setMsg("Validando tu pago… (puede tardar unos segundos)");
 
-        const t = await r.text();
-        let j: any = null;
+      // 8 intentos, 5s entre intentos
+      for (let i = 1; i <= 8; i++) {
         try {
-          j = t ? JSON.parse(t) : null;
+          const r = await fetch("/api/payphone/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ payphoneId, clientTxId }),
+          });
+
+          const j = await r.json().catch(() => null);
+
+          if (r.ok && j?.ok) {
+            if (j.status === "APPROVED_ASSIGNED" || j.status === "APPROVED_ALREADY_ASSIGNED") {
+              setMsg("Pago confirmado correctamente ✅");
+              return;
+            }
+            if (j.status === "NOT_APPROVED") {
+              setMsg(`Pago recibido, validando… (intento ${i}/8)`);
+            } else {
+              setMsg(`Validando… (intento ${i}/8)`);
+            }
+          } else {
+            // No decir “falló” todavía; PayPhone a veces no responde bien al instante.
+            setMsg(`Validando… (intento ${i}/8)`);
+          }
         } catch {
-          j = null;
+          setMsg(`Validando… (intento ${i}/8)`);
         }
 
-        if (!r.ok || !j) {
-          setMsg("No se pudo confirmar el pago.");
-          console.error("confirm non-json or http error", { http: r.status, body: t });
-          return;
-        }
-
-
-        if (!j.ok) {
-          setMsg("No se pudo confirmar el pago.");
-          console.error(j);
-          return;
-        }
-
-        if (
-          j.status === "APPROVED_ASSIGNED" ||
-          j.status === "APPROVED_ALREADY_ASSIGNED"
-        ) {
-          setMsg("Pago confirmado correctamente ✅");
-        } else {
-          setMsg("Pago recibido, pendiente de validación.");
-        }
-      } catch (err) {
-        console.error(err);
-        setMsg("Error confirmando el pago.");
+        await sleep(5000);
       }
+
+      setMsg("Estamos validando tu pago. Si ya pagaste y no confirma, contáctanos con tu comprobante.");
     })();
   }, [payphoneId, clientTxId]);
 

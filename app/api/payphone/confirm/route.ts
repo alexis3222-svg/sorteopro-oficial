@@ -9,30 +9,23 @@ export const dynamic = "force-dynamic";
 type Body = {
     payphoneId?: number | string;
     clientTxId?: string;
-    clientTransactionId?: string; // aceptar también este (viene del query param de PayPhone)
+    clientTransactionId?: string; // viene en la URL de respuesta
 };
 
-// ✅ Normaliza y elige el token correcto para backend (SIN exponerlo en frontend)
-function getPayphoneTokenSafe() {
-    const env = String(process.env.PAYPHONE_ENV || "").toLowerCase().trim(); // "live" | "test"
-    const clean = (v: string) => String(v || "").replace(/^"+|"+$/g, "").trim();
+function normalizeToken(raw: string) {
+    return (raw || "").replace(/^"+|"+$/g, "").trim();
+}
 
-    // Prioridad: tokens privados del backend
-    if (env === "live") {
-        const t = clean(process.env.PAYPHONE_TOKEN_LIVE || "");
-        if (t) return t;
-    }
-    if (env === "test") {
-        const t = clean(process.env.PAYPHONE_TOKEN_TEST || "");
-        if (t) return t;
-    }
-
-    // Fallback genérico (privado)
-    const t = clean(process.env.PAYPHONE_TOKEN || "");
-    if (t) return t;
-
-    // Último fallback (NO recomendado, pero te salva si ya lo usas así)
-    return clean(process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "");
+function getPayphoneToken() {
+    // ✅ Recomendado: token secreto del backend (Vercel Env)
+    // Fallback: NEXT_PUBLIC... solo si aún estás migrando
+    const env = (process.env.PAYPHONE_ENV || "").toLowerCase(); // "live" | "test"
+    if (env === "live") return normalizeToken(process.env.PAYPHONE_TOKEN_LIVE || "");
+    if (env === "test") return normalizeToken(process.env.PAYPHONE_TOKEN_TEST || "");
+    return (
+        normalizeToken(process.env.PAYPHONE_TOKEN || "") ||
+        normalizeToken(process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "")
+    );
 }
 
 export async function POST(req: NextRequest) {
@@ -46,20 +39,15 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "Falta parámetro: clientTxId" }, { status: 400 });
         }
 
-        const token = getPayphoneTokenSafe();
+        const token = getPayphoneToken();
         if (!token) {
-            return NextResponse.json(
-                { ok: false, error: "Falta token PayPhone en el servidor" },
-                { status: 500 }
-            );
+            return NextResponse.json({ ok: false, error: "Falta token PayPhone en el servidor" }, { status: 500 });
         }
 
-        // 1) Buscar pedido por clientTxId (tu clientTransactionId guardado)
+        // 1) Buscar pedido por clientTransactionId
         const { data: pedido, error: pedidoErr } = await supabaseAdmin
             .from("pedidos")
-            .select(
-                "id, estado, metodo_pago, payphone_client_transaction_id, payphone_id, nombre, telefono, correo, cantidad_numeros, total"
-            )
+            .select("id, estado, metodo_pago, payphone_client_transaction_id, payphone_id, nombre, telefono, correo, cantidad_numeros, total")
             .eq("payphone_client_transaction_id", clientTxId)
             .single();
 
@@ -67,10 +55,9 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "Pedido no encontrado para ese clientTxId" }, { status: 404 });
         }
 
-        // 2) Resolver payphoneId REAL (source of truth)
+        // 2) Resolver payphoneId
         let resolvedPayphoneId: number | null = null;
 
-        // A) viene en body (ideal: viene desde /pago-exitoso?id=XXXX)
         if (payphoneIdRaw !== undefined && payphoneIdRaw !== null && String(payphoneIdRaw).trim() !== "") {
             const parsed = Number(payphoneIdRaw);
             if (!parsed || Number.isNaN(parsed)) {
@@ -78,7 +65,6 @@ export async function POST(req: NextRequest) {
             }
             resolvedPayphoneId = parsed;
         } else if (pedido.payphone_id) {
-            // B) si no viene en body, usar BD
             resolvedPayphoneId = Number(pedido.payphone_id);
         }
 
@@ -89,7 +75,7 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 2.1) Guardar payphone_id si aún no está guardado
+        // 2.1) Guardar payphone_id si aún no está
         if (!pedido.payphone_id) {
             const { error: updIdErr } = await supabaseAdmin
                 .from("pedidos")
@@ -118,39 +104,37 @@ export async function POST(req: NextRequest) {
                 status: "APPROVED_ALREADY_ASSIGNED",
                 pedidoId: pedido.id,
                 numeros: rows.map((r: any) => Number(r.numero)),
-                pedido: {
-                    id: pedido.id,
-                    nombre: pedido.nombre,
-                    telefono: pedido.telefono,
-                    correo: pedido.correo,
-                    cantidad_numeros: pedido.cantidad_numeros,
-                    total: pedido.total,
-                    metodo_pago: pedido.metodo_pago,
-                },
             });
         }
 
-        // 4) Confirmar en PayPhone (server-to-server)
-        console.log("[payphone/confirm] env:", String(process.env.PAYPHONE_ENV || ""));
-        console.log("[payphone/confirm] tokenLen:", token.length, "tokenLast6:", token.slice(-6));
-        console.log("[payphone/confirm] sending:", {
-            id: Number(resolvedPayphoneId),
-            clientTxId: clientTxId,
-        });
+        // 4) Confirm PayPhone (server-to-server)
+        // ✅ Doc: body usa { id, clientTxId } y en Fetch agregan Referer :contentReference[oaicite:2]{index=2}
+        const siteUrl =
+            process.env.NEXT_PUBLIC_SITE_URL ||
+            req.headers.get("origin") ||
+            req.headers.get("referer") ||
+            "https://casabikers.vercel.app";
+
+        const controller = new AbortController();
+        const t = setTimeout(() => controller.abort(), 20000);
 
         const resp = await fetch("https://pay.payphonetodoesposible.com/api/button/V2/Confirm", {
             method: "POST",
             headers: {
-                Authorization: `Bearer ${token.trim()}`, // ✅ Bearer + token limpio
+                Authorization: `Bearer ${token}`,
                 "Content-Type": "application/json",
                 Accept: "application/json",
+                // ✅ CLAVE (por docs)
+                Referer: siteUrl,
+                Origin: siteUrl,
+                "User-Agent": "CasaBikers/PayPhoneConfirm",
             },
-            // ✅ CLAVE: el body debe llevar clientTxId (NO clientTransactionId)
             body: JSON.stringify({
                 id: Number(resolvedPayphoneId),
-                clientTxId: clientTxId,
+                clientTxId: String(clientTxId),
             }),
-        });
+            signal: controller.signal,
+        }).finally(() => clearTimeout(t));
 
         const rawText = await resp.text().catch(() => "");
         let confirmJson: any = null;
@@ -160,15 +144,15 @@ export async function POST(req: NextRequest) {
             confirmJson = null;
         }
 
-        console.log("[payphone/confirm] payphone http:", resp.status);
+        // Si PayPhone devuelve HTML runtime error, lo dejamos visible en logs del server (pero no explota el cliente)
         if (!resp.ok) {
-            console.log("[payphone/confirm] payphone raw (first 400):", rawText?.slice(0, 400));
+            // IMPORTANTE: no lo trates como “pago fallido” inmediato. Lo manejamos como “reintentar”.
             return NextResponse.json(
                 {
                     ok: false,
-                    error: "PayPhone Confirm respondió error",
+                    error: "PAYPHONE_CONFIRM_HTTP_ERROR",
                     payphone_http_status: resp.status,
-                    payphone_body: confirmJson ?? rawText, // puede venir HTML si hay runtime error
+                    payphone_body: confirmJson ?? rawText,
                 },
                 { status: 502 }
             );
@@ -176,42 +160,18 @@ export async function POST(req: NextRequest) {
 
         if (!confirmJson) {
             return NextResponse.json(
-                {
-                    ok: false,
-                    error: "PayPhone Confirm no devolvió JSON",
-                    payphone_http_status: resp.status,
-                    payphone_body: rawText,
-                },
+                { ok: false, error: "PAYPHONE_CONFIRM_NO_JSON", payphone_http_status: resp.status, payphone_body: rawText },
                 { status: 502 }
             );
         }
 
-        // 5) Determinar si está aprobado (robusto)
+        // 5) Aprobado según docs: statusCode 3 / transactionStatus Approved :contentReference[oaicite:3]{index=3}
+        const statusCode = Number(confirmJson?.statusCode ?? confirmJson?.data?.statusCode ?? NaN);
         const transactionStatus = String(
-            confirmJson?.transactionStatus ??
-            confirmJson?.data?.transactionStatus ??
-            confirmJson?.detail?.transactionStatus ??
-            ""
-        )
-            .trim()
-            .toLowerCase();
+            confirmJson?.transactionStatus ?? confirmJson?.data?.transactionStatus ?? ""
+        ).toLowerCase();
 
-        const statusCodeRaw =
-            confirmJson?.statusCode ??
-            confirmJson?.data?.statusCode ??
-            confirmJson?.detail?.statusCode ??
-            confirmJson?.status ??
-            confirmJson?.data?.status ??
-            confirmJson?.detail?.status;
-
-        const statusCodeNum = Number(statusCodeRaw);
-        const rawLower = JSON.stringify(confirmJson).toLowerCase();
-
-        const isApproved =
-            transactionStatus === "approved" ||
-            rawLower.includes('"transactionstatus":"approved"') ||
-            // PayPhone suele usar statusCode=3 para aprobado en ejemplos
-            statusCodeNum === 3;
+        const isApproved = statusCode === 3 || transactionStatus === "approved";
 
         if (!isApproved) {
             return NextResponse.json({
@@ -219,33 +179,19 @@ export async function POST(req: NextRequest) {
                 status: "NOT_APPROVED",
                 pedidoId: pedido.id,
                 payphone: confirmJson,
-                pedido: {
-                    id: pedido.id,
-                    nombre: pedido.nombre,
-                    telefono: pedido.telefono,
-                    correo: pedido.correo,
-                    cantidad_numeros: pedido.cantidad_numeros,
-                    total: pedido.total,
-                    metodo_pago: pedido.metodo_pago,
-                },
             });
         }
 
-        // 6) Marcar pedido como pagado
+        // 6) Marcar pedido pagado
         if (pedido.estado !== "pagado") {
-            const { error: updErr } = await supabaseAdmin
-                .from("pedidos")
-                .update({ estado: "pagado" })
-                .eq("id", pedido.id);
-
+            const { error: updErr } = await supabaseAdmin.from("pedidos").update({ estado: "pagado" }).eq("id", pedido.id);
             if (updErr) {
                 return NextResponse.json({ ok: false, error: "No se pudo marcar pedido como pagado" }, { status: 500 });
             }
         }
 
-        // 7) Asignar números (candado PRO-1 dentro)
+        // 7) Asignar números
         const assigned = await asignarNumerosPorPedidoId(pedido.id);
-
         if (!assigned.ok) {
             return NextResponse.json({ ok: false, code: assigned.code, error: assigned.error }, { status: 500 });
         }
@@ -256,15 +202,6 @@ export async function POST(req: NextRequest) {
             pedidoId: pedido.id,
             numeros: assigned.numeros,
             payphone: confirmJson,
-            pedido: {
-                id: pedido.id,
-                nombre: pedido.nombre,
-                telefono: pedido.telefono,
-                correo: pedido.correo,
-                cantidad_numeros: pedido.cantidad_numeros,
-                total: pedido.total,
-                metodo_pago: pedido.metodo_pago,
-            },
         });
     } catch (e: any) {
         console.error("payphone/confirm error:", e);
