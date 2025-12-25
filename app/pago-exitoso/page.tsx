@@ -47,7 +47,20 @@ function PagoExitosoInner() {
           body: JSON.stringify({ payphoneId, clientTxId }),
         });
 
-        const j = await r.json();
+        const t = await r.text();
+        let j: any = null;
+        try {
+          j = t ? JSON.parse(t) : null;
+        } catch {
+          j = null;
+        }
+
+        if (!r.ok || !j) {
+          setMsg("No se pudo confirmar el pago.");
+          console.error("confirm non-json or http error", { http: r.status, body: t });
+          return;
+        }
+
 
         if (!j.ok) {
           setMsg("No se pudo confirmar el pago.");
