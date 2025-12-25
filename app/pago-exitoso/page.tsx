@@ -30,7 +30,6 @@ function PagoExitosoInner() {
 
   const [msg, setMsg] = useState("Confirmando pago…");
 
-  // ✅ SOLO usamos clientTransactionId para consultar estado
   const clientTxId = searchParams.get("clientTransactionId");
 
   useEffect(() => {
@@ -45,11 +44,13 @@ function PagoExitosoInner() {
     (async () => {
       setMsg("Estamos validando tu pago…");
 
-      // ✅ consultar estado cada 5s durante 5 minutos (60 intentos)
+      // ⏱️ 60 intentos = 5 minutos (cada 5s)
       for (let i = 1; i <= 60; i++) {
         try {
-          const r = await fetch(`/api/pedidos/estado?clientTxId=${encodeURIComponent(clientTxId)}`);
-          const j = await r.json().catch(() => null);
+          const r = await fetch(
+            `/api/pedidos/estado?clientTxId=${clientTxId}`
+          );
+          const j = await r.json();
 
           if (j?.estado === "pagado") {
             setMsg("Pago confirmado correctamente ✅");
@@ -72,12 +73,13 @@ function PagoExitosoInner() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 text-white">
-      <div className="text-center space-y-2">
+      <div className="text-center space-y-3">
         <h1 className="text-xl font-semibold">Pago PayPhone</h1>
         <p className="text-sm text-slate-300">{msg}</p>
+        <p className="text-xs text-slate-500">
+          No cierres esta ventana mientras validamos.
+        </p>
       </div>
     </div>
   );
 }
-
-
