@@ -1,12 +1,18 @@
-/** @type {import('next').NextConfig} */
-const nextConfig = {
-    images: {
-        remotePatterns: [
+import type { NextConfig } from "next";
+
+const nextConfig: NextConfig = {
+    async headers() {
+        return [
             {
-                protocol: "https",
-                hostname: "zagvvpwvbuzqseclsucm.supabase.co",
+                source: "/:path*",
+                headers: [
+                    {
+                        key: "Referrer-Policy",
+                        value: "origin-when-cross-origin",
+                    },
+                ],
             },
-        ],
+        ];
     },
 };
 
