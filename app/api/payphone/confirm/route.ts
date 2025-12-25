@@ -14,11 +14,12 @@ type Body = {
 
 
 function getPayphoneToken() {
-    const env = (process.env.PAYPHONE_ENV || "").toLowerCase(); // "test" | "live"
-    if (env === "live") return process.env.PAYPHONE_TOKEN_LIVE || "";
-    if (env === "test") return process.env.PAYPHONE_TOKEN_TEST || "";
-    return process.env.PAYPHONE_TOKEN || "";
+    // ✅ Usar el MISMO token que usa el Payment Box (ya probado OK)
+    return (process.env.NEXT_PUBLIC_PAYPHONE_TOKEN || "")
+        .replace(/^"+|"+$/g, "")
+        .trim();
 }
+
 
 
 export async function POST(req: NextRequest) {
