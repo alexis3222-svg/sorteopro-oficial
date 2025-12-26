@@ -10,12 +10,17 @@ const PAYPHONE_CONFIRM_URL =
     "https://pay.payphonetodoesposible.com/api/button/V2/Confirm";
 
 function getPayphoneTokenServerOnly() {
-    // ✅ PRODUCCIÓN: SOLO server-only
-    const token = (process.env.PAYPHONE_TOKEN || "").replace(/^"+|"+$/g, "").trim();
-    return token;
+    // ✅ server-only (acepta ambos nombres para producción real)
+    const tokenRaw =
+        process.env.PAYPHONE_TOKEN || process.env.PAYPHONE_TOKEN_LIVE || "";
+    return tokenRaw.replace(/^"+|"+$/g, "").trim();
 }
 
-function buildRedirect(urlBase: URL, path: string, params: Record<string, string>) {
+function buildRedirect(
+    urlBase: URL,
+    path: string,
+    params: Record<string, string>
+) {
     const u = new URL(path, urlBase.origin);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     return u;
@@ -32,15 +37,18 @@ function parseTx(txRaw: unknown) {
     return tx ? tx : null;
 }
 
+// ✅ detector robusto (sin inventar "approved")
 function isPayphoneApproved(confirmJson: any): boolean {
     if (!confirmJson) return false;
 
-    // Casos más comunes
+    // casos comunes
     if (confirmJson.success === true) return true;
 
     const status =
-        confirmJson.status ??
         confirmJson.transactionStatus ??
+        confirmJson.status ??
+        confirmJson.data?.transactionStatus ??
+        confirmJson.data?.status ??
         confirmJson.state ??
         confirmJson.message ??
         "";
@@ -51,12 +59,11 @@ function isPayphoneApproved(confirmJson: any): boolean {
     if (s.includes("success")) return true;
     if (s.includes("aprob")) return true;
 
-    // Algunos payloads devuelven statusCode 200 como aprobado
+    // algunos payloads usan statusCode
     if (confirmJson.statusCode === 200) return true;
 
     return false;
 }
-
 
 async function confirmWithPayPhone(id: number, clientTransactionId: string) {
     const token = getPayphoneTokenServerOnly();
@@ -112,7 +119,14 @@ async function processPayment(id: number, clientTransactionId: string) {
 
     // 2) Confirm con PayPhone (server-to-server)
     const confirm = await confirmWithPayPhone(id, clientTransactionId);
+
     if (!confirm.ok) {
+        console.log("[payphone-confirm] failed", {
+            reason: confirm.reason,
+            http: confirm.httpStatus,
+            pedidoId: pedido.id,
+        });
+
         return {
             ok: true as const,
             approved: false as const,
@@ -123,13 +137,25 @@ async function processPayment(id: number, clientTransactionId: string) {
         };
     }
 
-    const approved = isPayphoneApproved(confirmJson);
+    const approved = isPayphoneApproved(confirm.json);
 
     if (!approved) {
-        console.log("[confirm] NOT approved", confirmJson);
-        return pendingResponse;
-    }
+        console.log("[payphone-confirm] NOT approved", {
+            pedidoId: pedido.id,
+            http: confirm.httpStatus,
+            // recorte para logs:
+            preview: JSON.stringify(confirm.json).slice(0, 400),
+        });
 
+        return {
+            ok: true as const,
+            approved: false as const,
+            pending: true as const,
+            reason: "not_approved",
+            pedidoId: pedido.id,
+            payphone_http_status: confirm.httpStatus,
+        };
+    }
 
     // 3) Marcar pagado (idempotente) + guardar payphone_id juntos
     if (pedido.estado !== "pagado") {
@@ -144,11 +170,13 @@ async function processPayment(id: number, clientTransactionId: string) {
             })
             .eq("id", pedido.id);
     } else if (!pedido.payphone_id) {
-        // si ya estaba pagado pero faltaba id, lo completamos
-        await supabaseAdmin.from("pedidos").update({ payphone_id: id }).eq("id", pedido.id);
+        await supabaseAdmin
+            .from("pedidos")
+            .update({ payphone_id: id })
+            .eq("id", pedido.id);
     }
 
-    // 4) Asignar números (tu función debe ser idempotente)
+    // 4) Asignar números (idempotente)
     const assigned = await asignarNumerosPorPedidoId(pedido.id);
 
     return {
@@ -162,15 +190,20 @@ async function processPayment(id: number, clientTransactionId: string) {
 
 // ✅ PayPhone llega por GET (Return/Response URL)
 export async function GET(req: NextRequest) {
+    console.log("[payphone-webhook] HIT", req.nextUrl.toString());
+
     const id = parseId(req.nextUrl.searchParams.get("id"));
     const tx = parseTx(req.nextUrl.searchParams.get("clientTransactionId"));
 
-    // Redirecciones UX
     const successURL = (params: Record<string, string>) =>
-        NextResponse.redirect(buildRedirect(req.nextUrl, "/pago-exitoso", params), { status: 302 });
+        NextResponse.redirect(buildRedirect(req.nextUrl, "/pago-exitoso", params), {
+            status: 302,
+        });
 
     const failURL = (params: Record<string, string>) =>
-        NextResponse.redirect(buildRedirect(req.nextUrl, "/pago-fallido", params), { status: 302 });
+        NextResponse.redirect(buildRedirect(req.nextUrl, "/pago-fallido", params), {
+            status: 302,
+        });
 
     if (!id || !tx) {
         return failURL({ reason: "missing_params" });
@@ -178,22 +211,18 @@ export async function GET(req: NextRequest) {
 
     const result = await processPayment(id, tx);
 
-    // Pedido no existe: mandamos a fallido, sin reintentos
     if (!result.ok && result.code === "pedido_not_found") {
         return failURL({ tx, reason: "pedido_not_found" });
     }
 
-    // Confirm falló / no aprobado: se queda pendiente -> UX de "verificando"
     if (result.ok && (result.pending || !result.approved)) {
-        // ✅ Aquí tu /pago-exitoso puede mostrar "Verificando..." y hacer polling a /api/pedidos/estado
         return successURL({ tx, status: "pending" });
     }
 
-    // Aprobado
     return successURL({ tx, status: "approved" });
 }
 
-// ✅ POST opcional (por si alguna integración interna te lo manda)
+// ✅ POST opcional
 export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({} as any));
     const id = parseId(body?.id ?? body?.payphoneId);
