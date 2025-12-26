@@ -32,24 +32,31 @@ function parseTx(txRaw: unknown) {
     return tx ? tx : null;
 }
 
-function isApprovedConfirm(confirmJson: any) {
-    // Preferimos campos explícitos si existen
-    const ts =
-        confirmJson?.transactionStatus ??
-        confirmJson?.data?.transactionStatus ??
-        confirmJson?.status ??
-        confirmJson?.data?.status ??
-        null;
+function isPayphoneApproved(confirmJson: any): boolean {
+    if (!confirmJson) return false;
 
-    const tsStr = String(ts ?? "").toLowerCase();
+    // Casos más comunes
+    if (confirmJson.success === true) return true;
 
-    // Casos comunes (ajustable si tu respuesta real difiere)
-    if (tsStr === "approved" || tsStr === "success") return true;
-    if (tsStr === "2") return true; // algunos providers usan 2=aprobado
+    const status =
+        confirmJson.status ??
+        confirmJson.transactionStatus ??
+        confirmJson.state ??
+        confirmJson.message ??
+        "";
 
-    // Si no hay señal clara, NO asumimos aprobado
+    const s = String(status).toLowerCase();
+
+    if (s.includes("approved")) return true;
+    if (s.includes("success")) return true;
+    if (s.includes("aprob")) return true;
+
+    // Algunos payloads devuelven statusCode 200 como aprobado
+    if (confirmJson.statusCode === 200) return true;
+
     return false;
 }
+
 
 async function confirmWithPayPhone(id: number, clientTransactionId: string) {
     const token = getPayphoneTokenServerOnly();
@@ -116,18 +123,13 @@ async function processPayment(id: number, clientTransactionId: string) {
         };
     }
 
-    const approved = isApprovedConfirm(confirm.json);
+    const approved = isPayphoneApproved(confirmJson);
 
     if (!approved) {
-        // opcional: podrías setear estado "rechazado" si tu negocio lo requiere
-        return {
-            ok: true as const,
-            approved: false as const,
-            pending: true as const,
-            reason: "not_approved",
-            pedidoId: pedido.id,
-        };
+        console.log("[confirm] NOT approved", confirmJson);
+        return pendingResponse;
     }
+
 
     // 3) Marcar pagado (idempotente) + guardar payphone_id juntos
     if (pedido.estado !== "pagado") {
