@@ -6,54 +6,58 @@ import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function getPayphoneToken() {
-    // ✅ token server-only recomendado: PAYPHONE_TOKEN
-    // (si no lo tienes aún, usa el NEXT_PUBLIC como fallback para no frenarte)
-    return (
-        process.env.PAYPHONE_TOKEN ||
-        process.env.NEXT_PUBLIC_PAYPHONE_TOKEN ||
-        ""
-    )
-        .replace(/^"+|"+$/g, "")
-        .trim();
+const PAYPHONE_CONFIRM_URL =
+    "https://pay.payphonetodoesposible.com/api/button/V2/Confirm";
+
+function getPayphoneTokenServerOnly() {
+    // ✅ PRODUCCIÓN: SOLO server-only
+    const token = (process.env.PAYPHONE_TOKEN || "").replace(/^"+|"+$/g, "").trim();
+    return token;
 }
 
-async function handle(idRaw: string | null, clientTransactionIdRaw: string | null) {
-    const id = Number(String(idRaw || "").trim());
-    const clientTransactionId = String(clientTransactionIdRaw || "").trim();
+function buildRedirect(urlBase: URL, path: string, params: Record<string, string>) {
+    const u = new URL(path, urlBase.origin);
+    for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
+    return u;
+}
 
-    if (!id || Number.isNaN(id) || !clientTransactionId) {
-        return NextResponse.json(
-            { ok: false, error: "Faltan parámetros: id y/o clientTransactionId" },
-            { status: 400 }
-        );
-    }
+function parseId(idRaw: unknown) {
+    const n = Number(String(idRaw ?? "").trim());
+    if (!n || Number.isNaN(n)) return null;
+    return n;
+}
 
-    // 1) Buscar pedido por clientTransactionId
-    const { data: pedido, error: pedidoErr } = await supabaseAdmin
-        .from("pedidos")
-        .select("id, estado, payphone_id, payphone_client_transaction_id")
-        .eq("payphone_client_transaction_id", clientTransactionId)
-        .single();
+function parseTx(txRaw: unknown) {
+    const tx = String(txRaw ?? "").trim();
+    return tx ? tx : null;
+}
 
-    if (pedidoErr || !pedido) {
-        // Importante: responder 200 para que PayPhone no reintente eternamente con error
-        return NextResponse.json({ ok: true, ignored: true, reason: "pedido_not_found" }, { status: 200 });
-    }
+function isApprovedConfirm(confirmJson: any) {
+    // Preferimos campos explícitos si existen
+    const ts =
+        confirmJson?.transactionStatus ??
+        confirmJson?.data?.transactionStatus ??
+        confirmJson?.status ??
+        confirmJson?.data?.status ??
+        null;
 
-    // 2) Guardar payphone_id si no está
-    if (!pedido.payphone_id) {
-        await supabaseAdmin.from("pedidos").update({ payphone_id: id }).eq("id", pedido.id);
-    }
+    const tsStr = String(ts ?? "").toLowerCase();
 
-    // 3) Intentar Confirm (según doc oficial: body usa clientTxId) :contentReference[oaicite:1]{index=1}
-    const token = getPayphoneToken();
+    // Casos comunes (ajustable si tu respuesta real difiere)
+    if (tsStr === "approved" || tsStr === "success") return true;
+    if (tsStr === "2") return true; // algunos providers usan 2=aprobado
+
+    // Si no hay señal clara, NO asumimos aprobado
+    return false;
+}
+
+async function confirmWithPayPhone(id: number, clientTransactionId: string) {
+    const token = getPayphoneTokenServerOnly();
     if (!token) {
-        // sin token no podemos confirmar: no marcamos pagado
-        return NextResponse.json({ ok: true, pending: true, reason: "no_token" }, { status: 200 });
+        return { ok: false as const, reason: "no_token", httpStatus: 0, json: null };
     }
 
-    const resp = await fetch("https://pay.payphonetodoesposible.com/api/button/V2/Confirm", {
+    const resp = await fetch(PAYPHONE_CONFIRM_URL, {
         method: "POST",
         headers: {
             Authorization: `Bearer ${token}`,
@@ -62,93 +66,144 @@ async function handle(idRaw: string | null, clientTransactionIdRaw: string | nul
         },
         body: JSON.stringify({
             id,
-            clientTxId: clientTransactionId, // ✅ así lo pide PayPhone
+            clientTxId: clientTransactionId,
         }),
     });
 
-    const rawText = await resp.text().catch(() => "");
-    let confirmJson: any = null;
+    const text = await resp.text().catch(() => "");
+    let json: any = null;
     try {
-        confirmJson = rawText ? JSON.parse(rawText) : null;
+        json = text ? JSON.parse(text) : null;
     } catch {
-        confirmJson = null;
+        json = null;
     }
 
-    // Si PayPhone responde error (a veces devuelve HTML runtime), NO marcamos pagado
-    if (!resp.ok || !confirmJson) {
-        return NextResponse.json(
-            {
-                ok: true,
-                pending: true,
-                reason: "confirm_failed",
-                payphone_http_status: resp.status,
-            },
-            { status: 200 }
-        );
+    if (!resp.ok || !json) {
+        return {
+            ok: false as const,
+            reason: "confirm_failed",
+            httpStatus: resp.status,
+            json,
+            rawText: text?.slice(0, 500) || "",
+        };
     }
 
-    // 4) Detectar aprobado (tolerante)
-    const statusValue =
-        confirmJson?.transactionStatus ??
-        confirmJson?.status ??
-        confirmJson?.data?.status ??
-        confirmJson?.data?.transactionStatus ??
-        confirmJson?.detail?.status ??
-        null;
+    return { ok: true as const, httpStatus: resp.status, json };
+}
 
-    const statusStr = String(statusValue ?? "").toLowerCase();
-    const raw = JSON.stringify(confirmJson).toLowerCase();
+async function processPayment(id: number, clientTransactionId: string) {
+    // 1) Buscar pedido
+    const { data: pedido, error: pedidoErr } = await supabaseAdmin
+        .from("pedidos")
+        .select("id, estado, payphone_id, payphone_client_transaction_id")
+        .eq("payphone_client_transaction_id", clientTransactionId)
+        .single();
 
-    const isApproved =
-        statusStr === "approved" ||
-        statusStr === "success" ||
-        statusStr === "2" ||
-        raw.includes('"approved"') ||
-        raw.includes('"status":2') ||
-        raw.includes('"status":"2"');
-
-    if (!isApproved) {
-        // No aprobado: no marcamos pagado
-        return NextResponse.json({ ok: true, pending: true, reason: "not_approved" }, { status: 200 });
+    if (pedidoErr || !pedido) {
+        return { ok: false as const, code: "pedido_not_found" as const };
     }
 
-    // 5) Marcar pagado (idempotente)
+    // 2) Confirm con PayPhone (server-to-server)
+    const confirm = await confirmWithPayPhone(id, clientTransactionId);
+    if (!confirm.ok) {
+        return {
+            ok: true as const,
+            approved: false as const,
+            pending: true as const,
+            reason: confirm.reason,
+            pedidoId: pedido.id,
+            payphone_http_status: confirm.httpStatus,
+        };
+    }
+
+    const approved = isApprovedConfirm(confirm.json);
+
+    if (!approved) {
+        // opcional: podrías setear estado "rechazado" si tu negocio lo requiere
+        return {
+            ok: true as const,
+            approved: false as const,
+            pending: true as const,
+            reason: "not_approved",
+            pedidoId: pedido.id,
+        };
+    }
+
+    // 3) Marcar pagado (idempotente) + guardar payphone_id juntos
     if (pedido.estado !== "pagado") {
         await supabaseAdmin
             .from("pedidos")
-            .update({ estado: "pagado", aprobado_at: new Date().toISOString() })
+            .update({
+                estado: "pagado",
+                payphone_id: pedido.payphone_id ?? id,
+                aprobado_at: new Date().toISOString(),
+                // opcional recomendado si tienes columna jsonb:
+                // payphone_confirm_payload: confirm.json,
+            })
             .eq("id", pedido.id);
+    } else if (!pedido.payphone_id) {
+        // si ya estaba pagado pero faltaba id, lo completamos
+        await supabaseAdmin.from("pedidos").update({ payphone_id: id }).eq("id", pedido.id);
     }
 
-    // 6) Asignar números (idempotente interno)
+    // 4) Asignar números (tu función debe ser idempotente)
     const assigned = await asignarNumerosPorPedidoId(pedido.id);
 
-    return NextResponse.json(
-        {
-            ok: true,
-            status: assigned.ok
-                ? assigned.alreadyAssigned
-                    ? "APPROVED_ALREADY_ASSIGNED"
-                    : "APPROVED_ASSIGNED"
-                : "APPROVED_BUT_ASSIGN_FAILED",
-            pedidoId: pedido.id,
-            numeros: assigned.ok ? assigned.numeros : [],
-        },
-        { status: 200 }
-    );
+    return {
+        ok: true as const,
+        approved: true as const,
+        pending: false as const,
+        pedidoId: pedido.id,
+        assigned,
+    };
 }
 
-// ✅ PayPhone llega por GET con query params
+// ✅ PayPhone llega por GET (Return/Response URL)
 export async function GET(req: NextRequest) {
-    const id = req.nextUrl.searchParams.get("id");
-    const clientTransactionId = req.nextUrl.searchParams.get("clientTransactionId");
-    return handle(id, clientTransactionId);
+    const id = parseId(req.nextUrl.searchParams.get("id"));
+    const tx = parseTx(req.nextUrl.searchParams.get("clientTransactionId"));
+
+    // Redirecciones UX
+    const successURL = (params: Record<string, string>) =>
+        NextResponse.redirect(buildRedirect(req.nextUrl, "/pago-exitoso", params), { status: 302 });
+
+    const failURL = (params: Record<string, string>) =>
+        NextResponse.redirect(buildRedirect(req.nextUrl, "/pago-fallido", params), { status: 302 });
+
+    if (!id || !tx) {
+        return failURL({ reason: "missing_params" });
+    }
+
+    const result = await processPayment(id, tx);
+
+    // Pedido no existe: mandamos a fallido, sin reintentos
+    if (!result.ok && result.code === "pedido_not_found") {
+        return failURL({ tx, reason: "pedido_not_found" });
+    }
+
+    // Confirm falló / no aprobado: se queda pendiente -> UX de "verificando"
+    if (result.ok && (result.pending || !result.approved)) {
+        // ✅ Aquí tu /pago-exitoso puede mostrar "Verificando..." y hacer polling a /api/pedidos/estado
+        return successURL({ tx, status: "pending" });
+    }
+
+    // Aprobado
+    return successURL({ tx, status: "approved" });
 }
 
-// ✅ Si alguna integración te manda POST, también lo soportamos
+// ✅ POST opcional (por si alguna integración interna te lo manda)
 export async function POST(req: NextRequest) {
     const body = await req.json().catch(() => ({} as any));
-    const id = String(body?.id ?? body?.payphoneId ?? "");
-    const clientTransactionId = String(body?.clientTransactionId ?? body?.clientTxId ?? "");
-    return handle(id, clientTransactionId);
+    const id = parseId(body?.id ?? body?.payphoneId);
+    const tx = parseTx(body?.clientTransactionId ?? body?.clientTxId);
+
+    if (!id || !tx) {
+        return NextResponse.json(
+            { ok: false, error: "Faltan parámetros: id y/o clientTransactionId" },
+            { status: 400 }
+        );
+    }
+
+    const result = await processPayment(id, tx);
+    return NextResponse.json(result, { status: 200 });
 }
