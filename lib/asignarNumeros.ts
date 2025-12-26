@@ -9,11 +9,15 @@ type ResultadoAsignacion =
     error: string;
   };
 
+// 👇 Debe ser SERVER-ONLY (no NEXT_PUBLIC)
+const ADMIN_USER_ID = (process.env.SUPABASE_ADMIN_USER_ID || "")
+  .replace(/^"+|"+$/g, "")
+  .trim();
+
 /**
  * ✅ Asigna números por ID de pedido (única vía)
  * - Idempotente: si ya existen números, devuelve los mismos.
  * - 🔒 Candado PRO-1: SOLO asigna si pedido.estado === "pagado"
- * - Tolerante a concurrencia: si el RPC falla por UNIQUE, re-lee existentes y devuelve.
  */
 export async function asignarNumerosPorPedidoId(
   pedidoId: number
@@ -68,9 +72,7 @@ export async function asignarNumerosPorPedidoId(
         .eq("pedido_id", pedido.id)
         .order("numero", { ascending: true });
 
-      if (error) {
-        return { ok: false as const, error };
-      }
+      if (error) return { ok: false as const, error };
       return { ok: true as const, data: data ?? [] };
     };
 
@@ -91,21 +93,29 @@ export async function asignarNumerosPorPedidoId(
       };
     }
 
-    // 3) RPC (la BD asigna) - debe ser atómico del lado BD
-    const { data: asignados, error: rpcError } = await supabaseAdmin.rpc(
-      "asignar_numeros_sorteo",
+    // 3) ✅ Motor real de asignación (el que ya tienes en la BD)
+    // public.admin_aprobar_pedido_y_asignar(p_pedido_id bigint, p_admin_id uuid, p_modo text)
+    if (!ADMIN_USER_ID) {
+      return {
+        ok: false,
+        code: "INTERNAL",
+        error:
+          "Falta SUPABASE_ADMIN_USER_ID en variables de entorno (UUID del usuario admin).",
+      };
+    }
+
+    const { data: rpcData, error: rpcError } = await supabaseAdmin.rpc(
+      "admin_aprobar_pedido_y_asignar",
       {
-        p_sorteo_id: pedido.sorteo_id,
         p_pedido_id: pedido.id,
-        p_cantidad: cantidad,
-        p_estado: "pagado",
+        p_admin_id: ADMIN_USER_ID,
+        // modo: solo informativo para auditoría si tu función lo usa
+        p_modo: "auto",
       }
     );
 
     if (rpcError) {
-      // ✅ Tolerancia a concurrencia:
-      // Si otro proceso asignó al mismo tiempo, puede fallar por UNIQUE.
-      // Re-leemos existentes y si ya están, devolvemos OK idempotente.
+      // Re-leer por idempotencia (por si asignó pero el RPC respondió raro)
       const recheck = await leerExistentes();
       if (recheck.ok && recheck.data.length > 0) {
         return {
@@ -122,23 +132,23 @@ export async function asignarNumerosPorPedidoId(
       };
     }
 
-    const numerosFinales: number[] = (asignados ?? []).map((n: any) =>
-      Number(n.numero)
-    );
-
-    // Si por alguna razón el RPC devolvió vacío, intentamos leer una vez (defensivo)
-    if (numerosFinales.length === 0) {
-      const recheck = await leerExistentes();
-      if (recheck.ok && recheck.data.length > 0) {
-        return {
-          ok: true,
-          alreadyAssigned: true,
-          numeros: recheck.data.map((n: any) => Number(n.numero)),
-        };
-      }
+    // 4) Leer asignados sí o sí (más confiable que depender del retorno del RPC)
+    const finalRes = await leerExistentes();
+    if (!finalRes.ok) {
+      return {
+        ok: false,
+        code: "INTERNAL",
+        error: "Error leyendo números asignados después del RPC",
+      };
     }
 
-    return { ok: true, alreadyAssigned: false, numeros: numerosFinales };
+    const numerosFinales = finalRes.data.map((n: any) => Number(n.numero));
+
+    return {
+      ok: true,
+      alreadyAssigned: false,
+      numeros: numerosFinales,
+    };
   } catch (e: any) {
     console.error("asignarNumerosPorPedidoId error:", e);
     return {
