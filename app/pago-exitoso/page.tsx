@@ -1,3 +1,4 @@
+// app/pago-exitoso/page.tsx
 "use client";
 
 import { Suspense, useEffect, useRef, useState } from "react";
@@ -30,27 +31,28 @@ function PagoExitosoInner() {
 
   const [msg, setMsg] = useState("Confirmando pago…");
 
-  const clientTxId = searchParams.get("clientTransactionId");
+  const clientTxId = searchParams.get("clientTransactionId"); // tu UUID
+  const payphoneId = searchParams.get("id"); // transactionId PayPhone (opcional para mostrar)
 
   useEffect(() => {
     if (didRun.current) return;
     didRun.current = true;
 
     if (!clientTxId) {
-      setMsg("Faltan datos del pago.");
+      setMsg("Faltan datos del pago (clientTransactionId).");
       return;
     }
 
     (async () => {
       setMsg("Estamos validando tu pago…");
 
-      // ⏱️ 60 intentos = 5 minutos (cada 5s)
+      // ✅ Aquí ya NO llamamos /confirm; dependemos del webhook + estado en BD
       for (let i = 1; i <= 60; i++) {
         try {
-          const r = await fetch(
-            `/api/pedidos/estado?clientTxId=${clientTxId}`
-          );
-          const j = await r.json();
+          const r = await fetch(`/api/pedidos/estado?clientTxId=${encodeURIComponent(clientTxId)}`, {
+            cache: "no-store",
+          });
+          const j = await r.json().catch(() => null);
 
           if (j?.estado === "pagado") {
             setMsg("Pago confirmado correctamente ✅");
@@ -73,12 +75,11 @@ function PagoExitosoInner() {
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-neutral-950 text-white">
-      <div className="text-center space-y-3">
+      <div className="text-center space-y-2">
         <h1 className="text-xl font-semibold">Pago PayPhone</h1>
+        <p className="text-xs text-slate-400">{payphoneId ? `Transacción #${payphoneId}` : ""}</p>
         <p className="text-sm text-slate-300">{msg}</p>
-        <p className="text-xs text-slate-500">
-          No cierres esta ventana mientras validamos.
-        </p>
+        <p className="text-[11px] text-slate-500">No cierres esta ventana mientras validamos.</p>
       </div>
     </div>
   );
