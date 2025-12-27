@@ -7,7 +7,8 @@ import type { ReactNode } from "react";
 export const metadata: Metadata = {
   title: "Casa Bikers",
   description: "Plataforma de Casa Bikers",
-};
+}; import Link from "next/link";
+
 
 export default function RootLayout({
   children,
@@ -29,12 +30,22 @@ export default function RootLayout({
             </div>
           </main>
 
-          {/* ────────────── FOOTER ────────────── */}
-          <footer className="w-full border-t border-slate-200 bg-white">
-            <div className="mx-auto max-w-6xl px-4 py-3 md:px-6 md:py-4 text-[10px] md:text-[11px] text-slate-500 text-center">
-              <p>Created for: Alexis Amaguay Vásquez</p>
+          {/* ------------ FOOTER ------------ */}
+          <footer className="mt-10 w-full border-t border-slate-200 bg-white">
+            <div className="mx-auto max-w-6xl px-4 py-4 text-center">
+              <Link
+                href="/terminos-y-condiciones"
+                className="text-xs text-slate-600 hover:underline"
+              >
+                Términos y condiciones
+              </Link>
+
+              <p className="mt-2 text-[10px] md:text-[11px] text-slate-400">
+                Created for Alexis Amaguay Vásquez
+              </p>
             </div>
           </footer>
+
 
         </div>
       </body>
