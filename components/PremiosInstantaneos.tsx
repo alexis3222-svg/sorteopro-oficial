@@ -66,15 +66,17 @@ export function PremiosInstantaneos() {
         <section className="w-full bg-gray-100 py-10 md:py-14">
             <div className="mx-auto max-w-5xl px-4 text-center">
                 <h2
-                    className={`${anton.className} text-lg md:text-2xl uppercase tracking-[0.18em]`}
+                    className={`${anton.className} text-base md:text-xl uppercase tracking-[0.12em]`}
                 >
                     ¡PREMIOS INSTANTÁNEOS!
                 </h2>
 
-                <p className="mt-3 text-sm md:text-base text-gray-600 max-w-3xl mx-auto">
+
+                <p className="mt-2 text-xs md:text-sm text-gray-600 max-w-3xl mx-auto">
                     ¡Hay 10 números bendecidos con premios en efectivo! Realiza tu compra y
                     revisa si tienes uno de los siguientes números:
                 </p>
+
 
                 {loading ? (
                     <p className="mt-6 text-sm text-slate-500">
@@ -85,26 +87,30 @@ export function PremiosInstantaneos() {
                         No hay premios instantáneos configurados todavía.
                     </div>
                 ) : (
-                    <div className="mt-8 grid grid-cols-2 md:grid-cols-5 gap-x-10 gap-y-6">
+                    <div className="mt-7 grid grid-cols-2 md:grid-cols-5 gap-x-10 gap-y-5">
+
                         {premios.map(({ numero }) => {
                             const entregado = entregados.has(numero);
 
                             return (
                                 <div key={numero} className="space-y-1">
                                     <p
-                                        className={`${anton.className} text-2xl md:text-3xl tracking-[0.25em] ${entregado
-                                                ? "line-through text-slate-400"
-                                                : "text-slate-900"
-                                            }`}
+                                        className={[
+                                            anton.className,
+                                            "text-xl md:text-2xl tracking-[0.14em] text-slate-900",
+                                            entregado ? "line-through decoration-[2px] text-slate-400" : "",
+                                        ].join(" ")}
                                     >
                                         {String(numero).padStart(5, "0")}
                                     </p>
 
-                                    {entregado && (
-                                        <p className="text-sm text-slate-500">
-                                            ¡Premio Entregado!
-                                        </p>
+
+                                    {entregado ? (
+                                        <p className="text-[11px] md:text-xs text-slate-500">¡Premio Entregado!</p>
+                                    ) : (
+                                        <p className="text-[11px] md:text-xs text-transparent">.</p>
                                     )}
+
                                 </div>
                             );
                         })}
