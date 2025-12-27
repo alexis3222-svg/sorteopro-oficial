@@ -212,10 +212,14 @@ export default function PagoExitosoClient() {
                                 </div>
 
                                 <h2
-                                    className={`${anton.className} mt-3 text-3xl md:text-4xl uppercase tracking-[0.10em] leading-tight`}
+                                    className={`${anton.className} mt-3 uppercase leading-snug ${tituloGrande.length > 40
+                                            ? "text-xl md:text-2xl tracking-[0.06em]"
+                                            : "text-2xl md:text-3xl tracking-[0.08em]"
+                                        }`}
                                 >
                                     {tituloGrande}
                                 </h2>
+
 
                                 {sorteo?.imagen_url ? (
                                     <img
