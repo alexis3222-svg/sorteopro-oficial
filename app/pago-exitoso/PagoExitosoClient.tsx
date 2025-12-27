@@ -18,7 +18,9 @@ type PedidoRow = {
     actividad_numero: number | null;
     metodo_pago: string | null;
     created_at: string | null;
-    tx?: string | null;
+
+    // ✅ tu columna real
+    payphone_client_transaction_id?: string | null;
 };
 
 type SorteoRow = {
@@ -54,38 +56,32 @@ export default function PagoExitosoClient() {
             setLoading(true);
             setSoftMsg(null);
 
-            // 1) Resolver pedido
             let pedidoRow: PedidoRow | null = null;
 
+            // 1) pedido por id (si viene)
             if (pedidoId) {
                 const { data, error } = await supabase
                     .from("pedidos")
                     .select(
-                        "id,nombre,telefono,estado,cantidad_numeros,sorteo_id,actividad_numero,metodo_pago,created_at"
+                        "id,nombre,telefono,estado,cantidad_numeros,sorteo_id,actividad_numero,metodo_pago,created_at,payphone_client_transaction_id"
                     )
                     .eq("id", pedidoId)
                     .maybeSingle();
 
                 if (!error) pedidoRow = (data as any) ?? null;
-            } else if (tx) {
-                // ✅ Fallback ultra seguro por si la columna NO se llama "tx"
-                const candidates = ["tx", "client_transaction_id", "clientTransactionId", "payphone_tx"];
+            }
 
-                for (const col of candidates) {
-                    const { data, error } = await supabase
-                        .from("pedidos")
-                        .select(
-                            "id,nombre,telefono,estado,cantidad_numeros,sorteo_id,actividad_numero,metodo_pago,created_at"
-                        )
-                        .filter(col, "eq", tx)
+            // 2) pedido por tx (PayPhone) -> ✅ columna real
+            if (!pedidoRow && tx) {
+                const { data, error } = await supabase
+                    .from("pedidos")
+                    .select(
+                        "id,nombre,telefono,estado,cantidad_numeros,sorteo_id,actividad_numero,metodo_pago,created_at,payphone_client_transaction_id"
+                    )
+                    .eq("payphone_client_transaction_id", tx)
+                    .maybeSingle();
 
-                        .maybeSingle();
-
-                    if (!error && data) {
-                        pedidoRow = data as any;
-                        break;
-                    }
-                }
+                if (!error) pedidoRow = (data as any) ?? null;
             }
 
             if (cancelled) return;
@@ -101,7 +97,7 @@ export default function PagoExitosoClient() {
 
             setPedido(pedidoRow);
 
-            // 2) Sorteo (título grande izquierda)
+            // 3) sorteo (para título grande)
             if (pedidoRow.sorteo_id) {
                 const { data } = await supabase
                     .from("sorteos")
@@ -112,7 +108,7 @@ export default function PagoExitosoClient() {
                 if (!cancelled) setSorteo((data as any) ?? null);
             }
 
-            // 3) Números asignados (retry suave por latencia)
+            // 4) números asignados (retry suave)
             await cargarNumerosConRetry(pedidoRow.id);
 
             if (!cancelled) setLoading(false);
@@ -140,7 +136,7 @@ export default function PagoExitosoClient() {
                     }
                 }
 
-                setSoftMsg("Asignando tus números… (esto puede tardar unos segundos)");
+                setSoftMsg("Asignando tus números…");
                 await new Promise((r) => setTimeout(r, 2000));
             }
         }
@@ -156,42 +152,60 @@ export default function PagoExitosoClient() {
     const actividadLabel = pedido?.actividad_numero ?? sorteo?.actividad_numero ?? "—";
 
     return (
-        <div className="min-h-screen bg-[#F4F4F5] text-neutral-900">
-            {/* banda naranja arriba */}
-            <div className="w-full bg-[#ff6600] text-black">
-                <div className="mx-auto max-w-6xl px-4 py-2 text-center text-[11px] font-bold tracking-[0.35em] uppercase">
-                    ACTIVIDAD #{actividadLabel}
-                </div>
-            </div>
+        <div className="min-h-screen bg-neutral-50 text-neutral-900">
+            <div className="mx-auto max-w-5xl px-4 py-10">
+                {/* Card única */}
+                <div className="rounded-3xl bg-white shadow-[0_18px_60px_rgba(0,0,0,0.10)] ring-1 ring-black/5 overflow-hidden">
+                    {/* Header minimal */}
+                    <div className="px-6 pt-7 pb-5">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="flex items-start gap-3">
+                                <div className="mt-1 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-emerald-50 ring-1 ring-emerald-100">
+                                    <span className="text-emerald-700 text-lg">✓</span>
+                                </div>
 
-            <div className="mx-auto max-w-6xl px-4 py-10">
-                {/* Card blanca centrada */}
-                <div className="mx-auto w-full max-w-5xl rounded-2xl bg-white shadow-[0_20px_50px_rgba(0,0,0,0.12)] ring-1 ring-black/5 overflow-hidden">
-                    {/* Header */}
-                    <div className="flex flex-col gap-2 border-b border-neutral-200 px-6 py-6 md:flex-row md:items-center md:justify-between">
-                        <div>
-                            <h1 className="text-2xl font-extrabold">
-                                ¡Pago confirmado! <span className="align-middle">✅</span>
-                            </h1>
-                            <p className="mt-1 text-sm text-neutral-600">
-                                Ya estás participando oficialmente. Guarda esta información.
-                            </p>
+                                <div>
+                                    <h1 className="text-2xl font-extrabold tracking-tight">
+                                        Pago confirmado
+                                    </h1>
+                                    <p className="mt-1 text-sm text-neutral-600">
+                                        Ya estás participando oficialmente. Guarda esta información.
+                                    </p>
+
+                                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                                        <Chip>Actividad #{actividadLabel}</Chip>
+                                        {status ? <Chip>PayPhone: {status}</Chip> : null}
+                                        {pedido?.id ? <Chip>Pedido #{pedido.id}</Chip> : null}
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-2 md:justify-end">
+                                <button
+                                    onClick={() => router.push("/")}
+                                    className="rounded-2xl bg-black px-4 py-2 text-sm font-semibold text-white hover:opacity-90"
+                                >
+                                    Volver al inicio
+                                </button>
+                                <button
+                                    onClick={() => router.push("/")}
+                                    className="rounded-2xl border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold hover:bg-neutral-50"
+                                >
+                                    Comprar más
+                                </button>
+                            </div>
                         </div>
-
-                        {status ? (
-                            <span className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs text-neutral-700">
-                                Estado PayPhone: <b className="ml-1">{status}</b>
-                            </span>
-                        ) : null}
                     </div>
 
-                    {/* 2 columnas */}
+                    <div className="h-px bg-neutral-100" />
+
+                    {/* Body 2 columnas minimal */}
                     <div className="grid gap-6 px-6 py-6 md:grid-cols-2">
-                        {/* Izquierda: premio + datos */}
-                        <div className="space-y-5">
+                        {/* Izq: premio + datos */}
+                        <div className="space-y-4">
                             <div className="rounded-2xl border border-neutral-200 bg-white p-5">
-                                <div className="text-[11px] font-bold tracking-[0.35em] uppercase text-[#ff6600]">
-                                    PREMIO / SORTEO
+                                <div className="text-[11px] font-bold tracking-[0.35em] uppercase text-neutral-500">
+                                    Premio / Sorteo
                                 </div>
 
                                 <h2
@@ -200,10 +214,6 @@ export default function PagoExitosoClient() {
                                     {tituloGrande}
                                 </h2>
 
-                                <p className="mt-3 text-sm text-neutral-600">
-                                    Mientras más números tengas, más oportunidades tendrás de ganar.
-                                </p>
-
                                 {sorteo?.imagen_url ? (
                                     <img
                                         src={sorteo.imagen_url}
@@ -211,33 +221,34 @@ export default function PagoExitosoClient() {
                                         className="mt-4 h-44 w-full rounded-2xl object-cover border border-neutral-200"
                                     />
                                 ) : null}
+
+                                <p className="mt-4 text-sm text-neutral-600">
+                                    Mientras más números tengas, más oportunidades tendrás de ganar.
+                                </p>
                             </div>
 
                             <div className="rounded-2xl border border-neutral-200 bg-white p-5">
                                 <div className="text-[11px] font-bold tracking-[0.35em] uppercase text-neutral-500">
-                                    DATOS DEL PARTICIPANTE
+                                    Datos del participante
                                 </div>
 
                                 <div className="mt-4 grid grid-cols-2 gap-3">
                                     <FieldLight label="Nombre" value={pedido?.nombre ?? "—"} />
                                     <FieldLight label="Teléfono" value={pedido?.telefono ?? "—"} />
-                                    <FieldLight label="Pedido" value={pedido ? `#${pedido.id}` : "—"} />
-                                    <FieldLight
-                                        label="Paquete"
-                                        value={pedido?.cantidad_numeros ? `x${pedido.cantidad_numeros}` : "—"}
-                                    />
                                     <FieldLight label="Método" value={pedido?.metodo_pago ?? "PayPhone"} />
                                     <FieldLight label="Estado" value={pedido?.estado ?? "—"} />
+                                    <FieldLight label="Paquete" value={pedido?.cantidad_numeros ? `x${pedido.cantidad_numeros}` : "—"} />
+                                    <FieldLight label="Tx" value={tx ? `${tx.slice(0, 10)}…` : "—"} />
                                 </div>
                             </div>
                         </div>
 
-                        {/* Derecha: números */}
+                        {/* Der: números */}
                         <div className="rounded-2xl border border-neutral-200 bg-white p-5">
                             <div className="flex items-start justify-between gap-3">
                                 <div>
                                     <div className="text-[11px] font-bold tracking-[0.35em] uppercase text-neutral-500">
-                                        TUS NÚMEROS
+                                        Tus números
                                     </div>
                                     <h3 className="mt-2 text-lg font-bold">Números asignados</h3>
                                     <p className="mt-1 text-sm text-neutral-600">
@@ -251,31 +262,31 @@ export default function PagoExitosoClient() {
                             </div>
 
                             {softMsg ? (
-                                <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                                <div className="mt-4 rounded-2xl border border-neutral-200 bg-neutral-50 p-3 text-sm text-neutral-700">
                                     {softMsg}
                                 </div>
                             ) : null}
 
                             <div className="mt-4">
                                 {loading && numeros.length === 0 ? (
-                                    <div className="grid grid-cols-4 gap-2">
-                                        {Array.from({ length: 12 }).map((_, i) => (
+                                    <div className="grid grid-cols-5 gap-2">
+                                        {Array.from({ length: 15 }).map((_, i) => (
                                             <div
                                                 key={i}
-                                                className="h-10 rounded-xl border border-neutral-200 bg-neutral-100 animate-pulse"
+                                                className="h-10 rounded-2xl border border-neutral-200 bg-neutral-100 animate-pulse"
                                             />
                                         ))}
                                     </div>
                                 ) : numeros.length === 0 ? (
-                                    <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
+                                    <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 text-sm text-neutral-700">
                                         Aún no aparecen tus números. Refresca en unos segundos.
                                     </div>
                                 ) : (
-                                    <div className="grid grid-cols-4 gap-2 md:grid-cols-5">
+                                    <div className="grid grid-cols-5 gap-2 md:grid-cols-6">
                                         {numeros.map((n) => (
                                             <span
                                                 key={n}
-                                                className="inline-flex items-center justify-center rounded-xl border border-neutral-200 bg-white px-2 py-2 text-sm font-extrabold"
+                                                className="inline-flex items-center justify-center rounded-2xl border border-neutral-200 bg-white px-2 py-2 text-sm font-extrabold"
                                             >
                                                 {String(n).padStart(3, "0")}
                                             </span>
@@ -284,26 +295,16 @@ export default function PagoExitosoClient() {
                                 )}
                             </div>
 
-                            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                                <button
-                                    onClick={() => router.push("/")}
-                                    className="rounded-xl bg-[#ff6600] px-5 py-3 text-sm font-extrabold text-black hover:opacity-90"
-                                >
-                                    Volver al inicio
-                                </button>
-
-                                <button
-                                    onClick={() => router.push("/")}
-                                    className="rounded-xl border border-neutral-200 bg-white px-5 py-3 text-sm font-semibold hover:bg-neutral-50"
-                                >
-                                    Comprar más números
-                                </button>
-                            </div>
-
                             <p className="mt-4 text-xs text-neutral-500">
-                                Tip: haz captura de pantalla para guardar tus números.
+                                Tip: haz una captura de pantalla para guardar tus números.
                             </p>
                         </div>
+                    </div>
+
+                    <div className="h-px bg-neutral-100" />
+
+                    <div className="px-6 py-4 text-xs text-neutral-500">
+                        Si necesitas soporte, conserva tu número de pedido.
                     </div>
                 </div>
             </div>
@@ -311,9 +312,17 @@ export default function PagoExitosoClient() {
     );
 }
 
+function Chip({ children }: { children: React.ReactNode }) {
+    return (
+        <span className="inline-flex items-center rounded-full border border-neutral-200 bg-neutral-50 px-3 py-1 text-xs font-semibold text-neutral-700">
+            {children}
+        </span>
+    );
+}
+
 function FieldLight({ label, value }: { label: string; value: string }) {
     return (
-        <div className="rounded-xl border border-neutral-200 bg-neutral-50 p-3">
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-3">
             <div className="text-[11px] font-bold tracking-[0.30em] uppercase text-neutral-500">
                 {label}
             </div>
