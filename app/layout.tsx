@@ -3,11 +3,12 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { SiteHeader } from "../components/SiteHeader";
 import type { ReactNode } from "react";
+import Link from "next/link";
 
 export const metadata: Metadata = {
   title: "Casa Bikers",
   description: "Plataforma de Casa Bikers",
-}; import Link from "next/link";
+};
 
 
 export default function RootLayout({
