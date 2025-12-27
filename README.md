@@ -169,8 +169,6 @@ Archivo clave:
 
 ⚠️ Todo el desarrollo nuevo debe ir en:
 
-
-
 ---
 
 ## 🧯 Recuperación / respaldo
@@ -277,3 +275,45 @@ Recomendación: guardar `affiliate_id` (mejor integridad), pero también mantene
   - **contraseña:** password
 - Nota: aunque el usuario vea “Nombre Apellido”, internamente se guarda como `username` único para evitar duplicados.
 
+4) Reglas de negocio (para README / Spec)
+
+Retiro mínimo: $20 (sobre wallet.balance_available)
+
+Un retiro crea un registro requested
+
+Admin lo marca paid y recién ahí:
+
+se descuenta saldo
+
+se registra retiro
+
+se notifica por WhatsApp
+
+Datos bancarios:
+
+se guardan en affiliate_payout_profiles
+
+el socio puede actualizarlos con “Cambiar cuenta”
+
+5) WhatsApp “pago exitoso” (sin romper nada)
+
+Como aún no has dicho qué proveedor usas:
+
+Twilio / Meta WhatsApp Cloud / otro gateway
+
+lo dejamos como stub (función sendWhatsapp()), para conectar luego.
+
+✅ La idea es que el botón de admin llame:
+POST /api/admin/withdrawals/mark-paid
+
+Ese endpoint:
+
+valida admin
+
+cambia estado
+
+actualiza wallet
+
+lee payout profile
+
+envía WhatsApp
