@@ -1,36 +1,192 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🎟️ SorteoPro / CasaBikers
 
-## Getting Started
+Plataforma de sorteos online en producción, con pagos, asignación automática de números, premios instantáneos y panel administrativo.
 
-First, run the development server:
+---
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## 🧠 Estado actual del proyecto (IMPORTANTE)
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+✅ **Producción activa**  
+✅ Pagos PayPhone funcionando (confirmación server-to-server)  
+✅ Transferencias manuales desde Admin  
+✅ Asignación de números:
+- Única
+- Aleatoria
+- Idempotente
+- Solo si `pedido.estado = 'pagado'`
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+✅ Premios instantáneos (números bendecidos) visibles en Home  
+✅ Página de Términos y Condiciones  
+🚧 Próximo desarrollo: **Sistema de referidos + billetera + QR**
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+⚠️ **Checkpoint estable:**  
+Git tag: `v1.0-stable`  
+(no tocar lógica crítica sin branch)
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 🧱 Stack técnico
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **Frontend:** Next.js 14 (App Router)
+- **Lenguaje:** TypeScript
+- **UI:** TailwindCSS
+- **Backend:** API Routes (Next.js)
+- **Base de datos:** Supabase (PostgreSQL)
+- **Auth:** Supabase Auth (Admin)
+- **Pagos:** PayPhone (token web)
+- **Deploy:** Vercel
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 📂 Estructura del proyecto
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+/app
+├─ page.tsx → Home (sorteo activo)
+├─ layout.tsx → Layout global + footer
+├─ terminos-y-condiciones/
+│ └─ page.tsx → Página legal
+├─ pago-payphone/
+├─ pago-exitoso/
+├─ pago-fallido/
+├─ mi-compra/
+├─ admin/
+│ ├─ page.tsx → Dashboard admin
+│ ├─ pedidos/
+│ ├─ numeros/
+│ └─ sorteos/[id]/
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+/components
+├─ PremiosInstantaneos.tsx → Números bendecidos (PF style)
+├─ SorteoCarousel.tsx
+├─ ProgressBar.tsx
+├─ PayphoneBox.tsx
+├─ TicketPackageCard.tsx
+├─ SiteHeader.tsx
+└─ ...
+
+/lib
+├─ supabaseClient.ts → Cliente público
+├─ supabaseAdmin.ts → Cliente service role
+└─ asignarNumeros.ts → Lógica central de asignación
+
+/app/api
+├─ pedidos/
+│ ├─ crear/
+│ ├─ asignar/
+│ └─ cancelar/
+├─ payphone/
+│ ├─ button/
+│ └─ webhook/ (NO TOCAR)
+└─ admin/
+└─ pedidos/marcar-pagado/
+
+
+---
+
+## 🗄️ Esquema de Base de Datos (resumen)
+
+### Tablas clave
+
+- **sorteos**
+  - id (uuid)
+  - titulo
+  - estado (activo / cerrado)
+  - actividad_numero
+  - total_numeros
+  - precio_numero
+
+- **pedidos**
+  - id
+  - sorteo_id
+  - correo
+  - estado (`pendiente | pagado`)
+  - metodo_pago (`payphone | transferencia`)
+  - payphone_client_transaction_id
+  - aprobado_por / aprobado_at
+
+- **numeros_asignados**
+  - id
+  - sorteo_id
+  - pedido_id
+  - numero (int)
+  - UNIQUE(sorteo_id, numero)
+
+- **numeros_bendecidos**
+  - id
+  - sorteo_id
+  - numero (int)
+
+---
+
+## 🔐 Reglas de negocio críticas (NO ROMPER)
+
+- ❌ **Nunca** asignar números si `pedido.estado !== 'pagado'`
+- ❌ No duplicar números bajo ningún escenario
+- ❌ No tocar webhook PayPhone salvo extrema necesidad
+- ✅ Toda asignación pasa por **una sola función**
+- ✅ Transferencia y PayPhone usan la misma lógica final
+- ✅ Asignación idempotente (si ya asignó, no reasigna)
+
+---
+
+## 💳 Pagos PayPhone (resumen)
+
+- Usa **token web**
+- Confirmación:
+  - `/api/payphone/button/V2/Confirm`
+- Redirección GET con:
+  - `tx`
+  - `status`
+- Confirmación **server-to-server**
+- Reversos automáticos ya resueltos
+- Logs mínimos (producción estable)
+
+---
+
+## 🎁 Premios Instantáneos
+
+- Se gestionan desde la tabla `numeros_bendecidos`
+- Se muestran en Home
+- Si un número existe en `numeros_asignados`:
+  - Se tacha
+  - Muestra “¡Premio Entregado!”
+- UI estilo Proyectos Flores (PF)
+
+Archivo clave:
+
+
+---
+
+## 🚧 Próximo desarrollo planificado
+
+### Sistema de referidos
+- Socios / afiliados
+- QR único por socio
+- Link con tracking
+- Billetera interna
+- Comisiones por venta
+- Panel para socios
+
+⚠️ Todo el desarrollo nuevo debe ir en:
+
+
+
+---
+
+## 🧯 Recuperación / respaldo
+
+- Git tag estable: `v1.0-stable`
+- Backups automáticos Supabase activos
+- Deployments versionados en Vercel
+
+---
+
+## 🧑‍💻 Nota para colaboradores / IA
+
+Este proyecto ya está en producción.  
+Cualquier cambio debe ser:
+- Quirúrgico
+- Reversible
+- Justificado
+- Sin refactors innecesarios
+
