@@ -1,295 +1,295 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
+import { Anton } from "next/font/google";
+import { supabase } from "@/lib/supabaseClient";
 
-type PagoExitosoMode = "OK" | "PENDING";
+const anton = Anton({ subsets: ["latin"], weight: "400" });
 
-type PedidoInfo = {
+type PedidoRow = {
     id: number;
     nombre: string | null;
     telefono: string | null;
-    correo: string | null;
+    estado: string | null;
     cantidad_numeros: number | null;
-    total: number | null;
+    sorteo_id: string | null;
+    actividad_numero: number | null;
     metodo_pago: string | null;
+    created_at: string | null;
+    tx?: string | null;
 };
 
-type ConfirmResp =
-    | {
-        ok: true;
-        status: "APPROVED_ASSIGNED" | "APPROVED_ALREADY_ASSIGNED" | "NOT_APPROVED";
-        pedidoId?: number;
-        numeros?: number[];
-        pedido?: PedidoInfo;
-        payphone?: any;
-    }
-    | { ok: false; error: string; detail?: any };
+type SorteoRow = {
+    id: string;
+    titulo: string | null;
+    actividad_numero: number | null;
+    precio_numero: number | null;
+    imagen_url?: string | null;
+};
 
 export default function PagoExitosoClient() {
+    const router = useRouter();
     const sp = useSearchParams();
 
-    const payphoneId = useMemo(() => {
-        const v = sp.get("id"); // PayPhone devuelve ?id=...
-        return v ? Number(v) : null;
-    }, [sp]);
-
-    const clientTxId = useMemo(() => {
-        return (sp.get("clientTransactionId") || "").trim() || null;
-    }, [sp]);
+    const tx = sp.get("tx");
+    const status = sp.get("status");
+    const pedidoIdParam = sp.get("id");
+    const pedidoId = useMemo(() => (pedidoIdParam ? Number(pedidoIdParam) : null), [pedidoIdParam]);
 
     const [loading, setLoading] = useState(true);
-    const [resp, setResp] = useState<ConfirmResp | null>(null);
-
-    // modal
-    const [open, setOpen] = useState(false);
-
-    // ✅ auto-open modal cuando OK
-    useEffect(() => {
-        if (
-            resp?.ok &&
-            (resp.status === "APPROVED_ASSIGNED" ||
-                resp.status === "APPROVED_ALREADY_ASSIGNED")
-        ) {
-            setOpen(true);
-        }
-    }, [resp]);
+    const [pedido, setPedido] = useState<PedidoRow | null>(null);
+    const [sorteo, setSorteo] = useState<SorteoRow | null>(null);
+    const [numeros, setNumeros] = useState<number[]>([]);
+    const [softMsg, setSoftMsg] = useState<string | null>(null);
 
     useEffect(() => {
         let cancelled = false;
 
-        async function run() {
+        async function cargar() {
             setLoading(true);
-            setResp(null);
+            setSoftMsg(null);
 
-            if (!clientTxId) {
+            // 1) Resolver pedido
+            let pedidoRow: PedidoRow | null = null;
+
+            if (pedidoId) {
+                const { data, error } = await supabase
+                    .from("pedidos")
+                    .select("id,nombre,telefono,estado,cantidad_numeros,sorteo_id,actividad_numero,metodo_pago,created_at")
+                    .eq("id", pedidoId)
+                    .maybeSingle();
+
+                if (!error) pedidoRow = (data as any) ?? null;
+            } else if (tx) {
+                // ⚠️ Ajusta "tx" si tu columna se llama diferente (clientTransactionId, etc.)
+                const { data, error } = await supabase
+                    .from("pedidos")
+                    .select("id,nombre,telefono,estado,cantidad_numeros,sorteo_id,actividad_numero,metodo_pago,created_at")
+                    .eq("tx", tx)
+                    .maybeSingle();
+
+                if (!error) pedidoRow = (data as any) ?? null;
+            }
+
+            if (cancelled) return;
+
+            if (!pedidoRow) {
+                setPedido(null);
+                setSorteo(null);
+                setNumeros([]);
+                setSoftMsg("No pudimos cargar tu pedido aún. Refresca en unos segundos.");
                 setLoading(false);
-                setResp({ ok: false, error: "Falta clientTransactionId en la URL" });
                 return;
             }
 
-            try {
-                const r = await fetch("/api/payphone/confirm", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    // payphoneId puede venir, pero el endpoint también puede usar BD si no viene
-                    body: JSON.stringify({ payphoneId, clientTxId }),
-                });
+            setPedido(pedidoRow);
 
-                const j = (await r.json().catch(() => null)) as ConfirmResp | null;
+            // 2) Sorteo (título grande izquierda)
+            if (pedidoRow.sorteo_id) {
+                const { data } = await supabase
+                    .from("sorteos")
+                    .select("id,titulo,actividad_numero,precio_numero,imagen_url")
+                    .eq("id", pedidoRow.sorteo_id)
+                    .maybeSingle();
+
+                if (!cancelled) setSorteo((data as any) ?? null);
+            }
+
+            // 3) Números asignados (retry suave por latencia)
+            await cargarNumerosConRetry(pedidoRow.id);
+
+            if (!cancelled) setLoading(false);
+        }
+
+        async function cargarNumerosConRetry(pedidoIdReal: number) {
+            for (let i = 0; i < 6; i++) {
+                const { data, error } = await supabase
+                    .from("numeros_asignados")
+                    .select("numero")
+                    .eq("pedido_id", pedidoIdReal)
+                    .order("numero", { ascending: true });
+
                 if (cancelled) return;
 
-                if (!j) setResp({ ok: false, error: "Respuesta inválida del servidor" });
-                else setResp(j);
-            } catch (e: any) {
-                if (cancelled) return;
-                setResp({ ok: false, error: e?.message || "Error llamando confirm" });
-            } finally {
-                if (!cancelled) setLoading(false);
+                if (!error) {
+                    const nums = (data ?? []).map((r: any) => Number(r.numero)).filter((n) => Number.isFinite(n));
+                    if (nums.length > 0) {
+                        setNumeros(nums);
+                        setSoftMsg(null);
+                        return;
+                    }
+                }
+
+                setSoftMsg("Asignando tus números… (esto puede tardar unos segundos)");
+                await new Promise((r) => setTimeout(r, 2000));
             }
         }
 
-        run();
+        void cargar();
+
         return () => {
             cancelled = true;
         };
-    }, [payphoneId, clientTxId]);
+    }, [pedidoId, tx]);
 
-    const mode: PagoExitosoMode =
-        resp?.ok &&
-            (resp.status === "APPROVED_ASSIGNED" ||
-                resp.status === "APPROVED_ALREADY_ASSIGNED")
-            ? "OK"
-            : "PENDING";
-
-    const title = mode === "OK" ? "Pago confirmado ✅" : "Pedido recibido";
-
-    const message =
-        mode === "OK"
-            ? "Tus números fueron asignados. Revisa el detalle."
-            : "Tu pedido fue registrado. En caso de que hayas pagado, el sistema confirmará el pago o el administrador lo revisará.";
-
-    const numeros = resp?.ok ? resp.numeros ?? [] : [];
-    const pedido = resp?.ok ? resp.pedido : undefined;
-
-    // ✅ FIX TS: resolver pedidoId sin ternarios raros (resp puede ser null)
-    const pedidoIdLabel =
-        pedido?.id ??
-        (resp && resp.ok ? resp.pedidoId : undefined) ??
-        "—";
+    const tituloGrande = sorteo?.titulo ?? "Sorteo activo";
+    const actividadLabel = pedido?.actividad_numero ?? sorteo?.actividad_numero ?? "—";
 
     return (
-        <div className="min-h-screen bg-neutral-950 text-slate-100 flex items-center justify-center px-4">
-            <div className="w-full max-w-2xl rounded-2xl border border-neutral-800 bg-neutral-900/60 p-6">
-                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">
-                    SorteoPro
-                </p>
-
-                <h1 className="mt-2 text-lg font-semibold">{title}</h1>
-                <p className="mt-2 text-sm text-slate-300">{message}</p>
-
-                <div className="mt-3 text-xs text-slate-400 space-y-1">
-                    <p>
-                        <span className="text-slate-300">PayPhone ID:</span>{" "}
-                        {payphoneId ?? "—"}
-                    </p>
-                    <p className="break-all">
-                        <span className="text-slate-300">Client Tx:</span>{" "}
-                        {clientTxId ?? "—"}
-                    </p>
+        <div className="min-h-screen bg-neutral-950 text-slate-100">
+            <div className="w-full bg-[#ff6600] text-black">
+                <div className="mx-auto max-w-6xl px-4 py-2 text-center text-[11px] font-bold tracking-[0.35em] uppercase">
+                    Actividad #{actividadLabel}
                 </div>
-
-                {loading && (
-                    <p className="mt-4 text-sm text-slate-300">
-                        Consultando PayPhone y validando tu transacción…
-                    </p>
-                )}
-
-                {!loading && resp?.ok === false && (
-                    <div className="mt-4 rounded-xl border border-red-900/50 bg-red-950/30 p-3">
-                        <p className="text-sm text-red-200">Error: {resp.error}</p>
-                    </div>
-                )}
-
-                {mode === "PENDING" && (
-                    <div className="mt-4 rounded-xl border border-yellow-900/40 bg-yellow-950/20 p-3">
-                        <p className="text-sm text-yellow-200">
-                            Estado: <span className="font-semibold">En verificación</span>
-                        </p>
-                        <p className="mt-1 text-xs text-slate-400">
-                            Puedes refrescar esta página en unos segundos.
-                        </p>
-                    </div>
-                )}
-
-                {mode === "OK" && (
-                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                        <div className="rounded-xl border border-emerald-900/40 bg-emerald-950/20 p-3">
-                            <p className="text-sm text-emerald-200">
-                                Estado: <span className="font-semibold">Confirmado</span>
-                            </p>
-                            <p className="mt-1 text-xs text-slate-400">
-                                Pedido #{pedidoIdLabel} • {numeros.length} número(s)
-                            </p>
-                        </div>
-
-                        <button
-                            onClick={() => setOpen(true)}
-                            className="inline-flex items-center justify-center rounded-xl bg-orange-500 px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-orange-400"
-                        >
-                            Ver detalles
-                        </button>
-                    </div>
-                )}
             </div>
 
-            {/* MODAL 2 columnas */}
-            {open && mode === "OK" && (
-                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-                    <button
-                        aria-label="Cerrar"
-                        onClick={() => setOpen(false)}
-                        className="absolute inset-0 bg-black/70"
-                    />
-
-                    <div className="relative z-10 w-full max-w-3xl rounded-2xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl">
-                        <div className="flex items-start justify-between gap-4">
-                            <div>
-                                <p className="text-xs uppercase tracking-[0.25em] text-orange-400">
-                                    Confirmación de compra
-                                </p>
-                                <h2 className="mt-2 text-lg font-semibold text-slate-100">
-                                    Pedido #{pedidoIdLabel}
-                                </h2>
-                                <p className="mt-1 text-sm text-slate-400">
-                                    Aquí están los datos del comprador y los números asignados.
-                                </p>
-                            </div>
-
-                            <button
-                                onClick={() => setOpen(false)}
-                                className="rounded-xl border border-neutral-700 px-3 py-2 text-sm text-slate-200 hover:bg-neutral-900"
-                            >
-                                Cerrar
-                            </button>
+            <div className="mx-auto flex max-w-6xl items-center justify-center px-4 py-10">
+                <div className="w-full max-w-4xl rounded-2xl border border-neutral-800 bg-neutral-900/40 shadow-lg">
+                    <div className="flex flex-col gap-2 border-b border-neutral-800 px-6 py-6 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <h1 className="text-xl font-semibold">
+                                ¡Pago confirmado! <span className="align-middle">✅</span>
+                            </h1>
+                            <p className="mt-1 text-sm text-slate-300">
+                                Ya estás participando oficialmente. Guarda esta información.
+                            </p>
                         </div>
 
-                        <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-2">
-                            {/* Datos */}
-                            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                                    Datos del comprador
+                        <div className="text-xs text-slate-400">
+                            {status ? (
+                                <span className="rounded-full border border-neutral-800 bg-neutral-950/40 px-3 py-1">
+                                    Estado PayPhone: <span className="text-slate-200">{status}</span>
+                                </span>
+                            ) : null}
+                        </div>
+                    </div>
+
+                    <div className="grid gap-6 px-6 py-6 md:grid-cols-2">
+                        <div>
+                            <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-5">
+                                <p className="text-[11px] uppercase tracking-[0.25em] text-orange-400">
+                                    Premio / Sorteo
                                 </p>
 
-                                <div className="mt-4 space-y-3 text-sm">
-                                    <Row label="Nombre" value={pedido?.nombre ?? "—"} />
-                                    <Row label="Correo" value={pedido?.correo ?? "—"} />
-                                    <Row label="Teléfono" value={pedido?.telefono ?? "—"} />
-                                    <Row label="Método" value={pedido?.metodo_pago ?? "payphone"} />
-                                    <Row
-                                        label="Cantidad"
-                                        value={String(pedido?.cantidad_numeros ?? numeros.length)}
+                                <h2 className={`${anton.className} mt-2 text-2xl md:text-3xl uppercase tracking-[0.12em] text-white`}>
+                                    {tituloGrande}
+                                </h2>
+
+                                <p className="mt-2 text-xs text-slate-400">
+                                    Si quieres aumentar tus probabilidades, puedes comprar más números desde el inicio.
+                                </p>
+
+                                {sorteo?.imagen_url ? (
+                                    <img
+                                        src={sorteo.imagen_url}
+                                        alt={tituloGrande}
+                                        className="mt-4 h-40 w-full rounded-xl object-cover border border-neutral-800"
                                     />
-                                    <Row
-                                        label="Total"
-                                        value={
-                                            pedido?.total != null
-                                                ? `$${Number(pedido.total).toFixed(2)}`
-                                                : "—"
-                                        }
-                                    />
-                                </div>
+                                ) : null}
                             </div>
 
-                            {/* Números */}
-                            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/40 p-4">
-                                <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                                    Números asignados
+                            <div className="mt-4 rounded-xl border border-neutral-800 bg-neutral-950/30 p-5">
+                                <p className="text-[11px] uppercase tracking-[0.25em] text-slate-400">
+                                    Datos del participante
                                 </p>
 
-                                {numeros.length === 0 ? (
-                                    <p className="mt-4 text-sm text-slate-400">
-                                        No hay números para mostrar.
+                                <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+                                    <Field label="Nombre" value={pedido?.nombre ?? "—"} />
+                                    <Field label="Teléfono" value={pedido?.telefono ?? "—"} />
+                                    <Field label="Pedido" value={pedido ? `#${pedido.id}` : "—"} />
+                                    <Field label="Paquete" value={pedido?.cantidad_numeros ? `x${pedido.cantidad_numeros}` : "—"} />
+                                    <Field label="Método" value={pedido?.metodo_pago ?? "PayPhone"} />
+                                    <Field label="Estado" value={pedido?.estado ?? "—"} />
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-neutral-800 bg-neutral-950/30 p-5">
+                            <div className="flex items-start justify-between gap-3">
+                                <div>
+                                    <p className="text-[11px] uppercase tracking-[0.25em] text-emerald-300">
+                                        Tus números
                                     </p>
+                                    <h3 className="mt-2 text-lg font-semibold">Números asignados</h3>
+                                    <p className="mt-1 text-xs text-slate-400">
+                                        Estos números ya están registrados y participan en el sorteo.
+                                    </p>
+                                </div>
+
+                                <span className="rounded-full border border-emerald-500/20 bg-emerald-500/10 px-3 py-1 text-xs text-emerald-300">
+                                    {numeros.length > 0 ? `${numeros.length} números` : "Cargando…"}
+                                </span>
+                            </div>
+
+                            {softMsg ? (
+                                <div className="mt-4 rounded-lg border border-amber-500/20 bg-amber-500/10 p-3 text-sm text-amber-200">
+                                    {softMsg}
+                                </div>
+                            ) : null}
+
+                            <div className="mt-4">
+                                {loading && numeros.length === 0 ? (
+                                    <div className="grid grid-cols-4 gap-2">
+                                        {Array.from({ length: 12 }).map((_, i) => (
+                                            <div
+                                                key={i}
+                                                className="h-9 rounded-lg border border-neutral-800 bg-neutral-900/50 animate-pulse"
+                                            />
+                                        ))}
+                                    </div>
+                                ) : numeros.length === 0 ? (
+                                    <div className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-4 text-sm text-slate-300">
+                                        Aún no aparecen tus números. Refresca en unos segundos.
+                                    </div>
                                 ) : (
-                                    <div className="mt-4 flex flex-wrap gap-2">
+                                    <div className="grid grid-cols-4 gap-2 md:grid-cols-5">
                                         {numeros.map((n) => (
                                             <span
                                                 key={n}
-                                                className="px-3 py-2 rounded-xl bg-neutral-800 text-sm text-slate-100"
+                                                className="inline-flex items-center justify-center rounded-lg border border-neutral-800 bg-neutral-900 px-2 py-2 text-sm font-semibold text-white"
                                             >
-                                                {n}
+                                                {String(n).padStart(3, "0")}
                                             </span>
                                         ))}
                                     </div>
                                 )}
+                            </div>
 
-                                <p className="mt-4 text-xs text-slate-500">
-                                    Consejo: toma captura de pantalla o guarda esta página.
-                                </p>
+                            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <button
+                                    onClick={() => router.push("/")}
+                                    className="rounded-xl bg-[#ff6600] px-5 py-3 text-sm font-semibold text-black hover:opacity-90"
+                                >
+                                    Volver al inicio
+                                </button>
+
+                                <Link
+                                    href={`/admin/numeros?pedido=${pedido?.id ?? ""}`}
+                                    className="text-xs text-slate-400 hover:text-white"
+                                >
+                                    (Solo admin) Ver en panel
+                                </Link>
                             </div>
                         </div>
+                    </div>
 
-                        <div className="mt-6 flex justify-end">
-                            <button
-                                onClick={() => (window.location.href = "/")}
-                                className="rounded-xl bg-white px-4 py-2 text-sm font-semibold text-neutral-950 hover:bg-slate-200"
-                            >
-                                Ir al inicio
-                            </button>
-                        </div>
+                    <div className="border-t border-neutral-800 px-6 py-4 text-xs text-slate-500">
+                        Si necesitas soporte, conserva el número de pedido.
                     </div>
                 </div>
-            )}
+            </div>
         </div>
     );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function Field({ label, value }: { label: string; value: string }) {
     return (
-        <div className="flex items-start justify-between gap-3">
-            <span className="text-slate-400">{label}</span>
-            <span className="text-slate-100 text-right break-all">{value}</span>
+        <div className="rounded-lg border border-neutral-800 bg-neutral-900/30 p-3">
+            <div className="text-[11px] uppercase tracking-[0.18em] text-slate-400">{label}</div>
+            <div className="mt-1 text-sm font-semibold text-white">{value}</div>
         </div>
     );
 }
