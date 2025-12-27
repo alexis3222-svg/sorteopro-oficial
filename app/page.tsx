@@ -6,6 +6,7 @@ import { SorteoCarousel } from "../components/SorteoCarousel";
 import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
+import { PremiosInstantaneos } from "@/components/PremiosInstantaneos";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -507,6 +508,8 @@ export default function HomePage() {
           )}
         </div>
       </section>
+      {/* 🎁 SECCIÓN: PREMIOS INSTANTÁNEOS */}
+      <PremiosInstantaneos />
 
       {/* MODAL COMPRA */}
       {isModalOpen && selectedCantidad != null && (
