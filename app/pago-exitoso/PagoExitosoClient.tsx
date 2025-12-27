@@ -152,10 +152,13 @@ export default function PagoExitosoClient() {
     const actividadLabel = pedido?.actividad_numero ?? sorteo?.actividad_numero ?? "—";
 
     return (
-        <div className="min-h-screen bg-neutral-50 text-neutral-900">
-            <div className="mx-auto max-w-5xl px-4 py-10">
+        <div className="min-h-screen bg-white text-neutral-900">
+
+            <div className="mx-auto max-w-5xl px-4 py-6">
+
                 {/* Card única */}
-                <div className="rounded-3xl bg-white shadow-[0_18px_60px_rgba(0,0,0,0.10)] ring-1 ring-black/5 overflow-hidden">
+                <div className="rounded-3xl bg-white border border-neutral-200 overflow-hidden">
+
                     {/* Header minimal */}
                     <div className="px-6 pt-7 pb-5">
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
