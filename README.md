@@ -190,3 +190,90 @@ Cualquier cambio debe ser:
 - Justificado
 - Sin refactors innecesarios
 
+## 🤝 Sistema de Referidos / Afiliados (Spec v1)
+
+Objetivo:
+- Permitir que socios (taxis, streamers, promotores) refieran compras mediante un link/QR único.
+- Pagar comisión automática por cada pedido que pase a `pagado`.
+- Mostrar una billetera (panel web) con saldo, historial y retiros.
+
+### 🧩 Conceptos
+- **Affiliate (afiliado):** socio que refiere (ej: TAXI048 / STREAMER12).
+- **Referral code:** código público que viaja en URL (ej: `?ref=TAXI048`).
+- **Commission:** % fijo por venta (v1: 10% del total del pedido).
+- **Wallet:** saldo acumulado por comisiones (disponible / pendiente / retirado).
+
+### ✅ Reglas críticas (NO romper pagos)
+- No se toca la lógica PayPhone.
+- El cálculo de comisión ocurre SOLO cuando el pedido queda en `pagado`.
+- Debe ser idempotente: una venta no genera comisión 2 veces.
+
+### 🔗 Flujo (mínimo)
+1) Afiliado comparte link/QR: `https://casabikers.vercel.app/?ref=TAXI048`
+2) En Home, al abrir con `ref`, se guarda en cookie/localStorage.
+3) Cuando se crea el pedido, se persiste `affiliate_id` (o `ref_code`) dentro de `pedidos`.
+4) Cuando el pedido pasa a `pagado` (PayPhone confirm / admin transferencia):
+   - Se registra una venta en `affiliate_sales`
+   - Se calcula comisión (10%)
+   - Se suma a la billetera
+
+### 🗄️ Tablas nuevas (Supabase)
+1) `affiliates`
+- id (uuid)
+- code (text UNIQUE) ej: TAXI048
+- nombre (text)
+- telefono (text)
+- correo (text)
+- password_hash (text)  ← usuario+contraseña tradicional
+- is_active (bool)
+- created_at
+
+2) `affiliate_wallets`
+- affiliate_id (uuid PK/FK)
+- balance_available (numeric)  ← lo que puede retirar
+- balance_pending (numeric)    ← por seguridad, opcional (v1 puede ser 0)
+- balance_withdrawn (numeric)
+- updated_at
+
+3) `affiliate_sales`
+- id (uuid)
+- affiliate_id (uuid FK)
+- pedido_id (int UNIQUE)       ← idempotencia fuerte
+- sorteo_id (uuid)
+- monto_pedido (numeric)
+- porcentaje (numeric)         ← 0.10
+- comision (numeric)
+- status (text)                ← credited | reversed
+- created_at
+
+4) `affiliate_withdrawals` (fase 2)
+- id (uuid)
+- affiliate_id (uuid)
+- amount (numeric)
+- method (text)                ← transferencia, efectivo, etc
+- status (text)                ← requested, approved, paid, rejected
+- created_at
+
+### 🧷 Campo nuevo en pedidos
+- `affiliate_id` (uuid nullable)  o `affiliate_code` (text nullable)
+
+Recomendación: guardar `affiliate_id` (mejor integridad), pero también mantener `affiliate_code` para auditoría.
+
+### 🧮 Comisión (v1)
+- comisión = monto_pedido * 0.10
+- Se acredita SOLO cuando `pedido.estado = 'pagado'`
+- La venta se crea UNA sola vez por pedido (UNIQUE(pedido_id))
+
+### 🔐 Login afiliado (tradicional)
+- Endpoint: `/api/affiliate/login`
+- Sesión: cookie httpOnly (JWT simple) o sesión en tabla (fase 2)
+- Panel: `/afiliado` (responsive)
+  - saldo
+  - ventas
+  - QR
+  - solicitar retiro
+- El afiliado ingresa con:
+  - **usuario:** `username` (se muestra como “Nombre Apellido” en UI)
+  - **contraseña:** password
+- Nota: aunque el usuario vea “Nombre Apellido”, internamente se guarda como `username` único para evitar duplicados.
+
