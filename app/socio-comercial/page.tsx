@@ -36,10 +36,20 @@ export default function SocioComercialPage() {
         // console.log({ n, a, em, u, pLen: p.length, cpLen: cp.length });
 
         // ✅ Validaciones mínimas correctas
-        if (!n || !a || !em || !u || !p || !cp) {
-            setErrorMsg("Faltan campos obligatorios.");
+        const missing: string[] = [];
+        if (!n) missing.push("Nombres");
+        if (!a) missing.push("Apellidos");
+        if (!em) missing.push("Email");
+        if (!u) missing.push("Usuario");
+        if (!p) missing.push("Contraseña");
+        if (!cp) missing.push("Confirmar contraseña");
+
+        if (missing.length > 0) {
+            setErrorMsg(`Faltan campos obligatorios: ${missing.join(", ")}`);
+            console.log("DEBUG missing:", { n, a, em, u, p, cp }); // 👈 déjalo temporal
             return;
         }
+
 
         const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
         if (!correoValido) {
@@ -137,23 +147,28 @@ export default function SocioComercialPage() {
                             value={email}
                             onChange={setEmail}
                             placeholder="correo@ejemplo.com"
+                            name="email"
+                            autoComplete="email"
                         />
 
-                        <div className="grid gap-3 md:grid-cols-2">
-                            <Field
-                                label="Usuario"
-                                value={username}
-                                onChange={setUsername}
-                                placeholder="Ej: socio048"
-                            />
-                            <Field
-                                label="Contraseña"
-                                type="password"
-                                value={password}
-                                onChange={setPassword}
-                                placeholder="••••••••"
-                            />
-                        </div>
+                        <Field
+                            label="Usuario"
+                            value={username}
+                            onChange={setUsername}
+                            placeholder="Ej: socio048"
+                            name="username"
+                            autoComplete="username"
+                        />
+
+                        <Field
+                            label="Contraseña"
+                            type="password"
+                            value={password}
+                            onChange={setPassword}
+                            placeholder="••••••••"
+                            name="password"
+                            autoComplete="new-password"
+                        />
 
                         <Field
                             label="Confirmar contraseña"
@@ -161,7 +176,10 @@ export default function SocioComercialPage() {
                             value={confirmPassword}
                             onChange={setConfirmPassword}
                             placeholder="••••••••"
+                            name="confirmPassword"
+                            autoComplete="new-password"
                         />
+
 
                         {errorMsg && (
                             <div className="rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700">
@@ -209,13 +227,18 @@ function Field({
     onChange,
     placeholder,
     type = "text",
+    name,
+    autoComplete,
 }: {
     label: string;
     value: string;
     onChange: (v: string) => void;
     placeholder?: string;
     type?: string;
+    name?: string;
+    autoComplete?: string;
 }) {
+
     return (
         <label className="block">
             <span className="text-xs font-semibold text-neutral-700">{label}</span>
@@ -224,8 +247,11 @@ function Field({
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
                 placeholder={placeholder}
+                name={name}
+                autoComplete={autoComplete}
                 className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
             />
+
         </label>
     );
 }
