@@ -1,50 +1,90 @@
-import { NextResponse } from "next/server";
-import * as bcrypt from "bcryptjs";
+// app/api/affiliate/login/route.ts
+import { NextResponse, type NextRequest } from "next/server";
+import bcrypt from "bcryptjs";
+import { randomUUID } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-function jsonError(msg: string, status = 400) {
-    return NextResponse.json({ ok: false, error: msg }, { status });
+const COOKIE_NAME = "affiliate_session";
+const SESSION_DAYS = 7;
+
+function jsonError(message = "Credenciales inválidas", status = 401) {
+    // Mensaje genérico: no revela si existe el usuario
+    return NextResponse.json({ ok: false, error: message }, { status });
 }
 
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
-        const username = String(body?.username ?? "").trim().toLowerCase();
-        const password = String(body?.password ?? "").trim();
+        const body = await req.json().catch(() => null);
+        const username = (body?.username ?? "").toString().trim();
+        const password = (body?.password ?? "").toString();
 
-        if (!username || !password) return jsonError("Falta username o password", 400);
+        if (!username || !password) {
+            return jsonError("Credenciales inválidas", 401);
+        }
 
-        const { data: aff, error } = await supabaseAdmin
+        // 1) Buscar affiliate por username
+        const { data: affiliate, error: findErr } = await supabaseAdmin
             .from("affiliates")
             .select("id, username, password_hash, is_active")
             .eq("username", username)
             .maybeSingle();
 
-        if (error) return jsonError(error.message, 500);
-        if (!aff) return jsonError("Usuario o contraseña inválidos", 401);
-        if (aff.is_active === false) return jsonError("Tu cuenta está desactivada", 403);
+        // Respuesta genérica SIEMPRE
+        if (findErr || !affiliate) return jsonError();
 
-        const ok = await bcrypt.compare(password, String(aff.password_hash ?? ""));
-        if (!ok) return jsonError("Usuario o contraseña inválidos", 401);
+        // 2) Validar activo
+        if (affiliate.is_active === false) return jsonError();
 
-        // ✅ Cookie simple (por ahora): "aff:<uuid>"
-        const token = `aff:${aff.id}`;
+        // 3) Verificar password
+        const okPass = await bcrypt.compare(password, affiliate.password_hash);
+        if (!okPass) return jsonError();
 
-        const res = NextResponse.json({ ok: true });
-        res.cookies.set("aff_session", token, {
+        // 4) Crear sesión server-side
+        const token = randomUUID();
+        const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
+
+        const ip =
+            req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+            req.headers.get("x-real-ip") ??
+            null;
+
+        const userAgent = req.headers.get("user-agent");
+
+        const { error: insErr } = await supabaseAdmin.from("affiliate_sessions").insert({
+            affiliate_id: affiliate.id,
+            token,
+            expires_at: expiresAt.toISOString(),
+            ip,
+            user_agent: userAgent,
+        });
+
+        if (insErr) {
+            return NextResponse.json(
+                { ok: false, error: "No se pudo iniciar sesión. Intenta de nuevo." },
+                { status: 500 }
+            );
+        }
+
+        // 5) Set cookie httpOnly
+        const res = NextResponse.json({ ok: true, redirect: "/afiliado" });
+
+        res.cookies.set({
+            name: COOKIE_NAME,
+            value: token,
             httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
-            secure: true,
             path: "/",
-            maxAge: 60 * 60 * 24 * 30, // 30 días
+            maxAge: SESSION_DAYS * 24 * 60 * 60,
         });
 
         return res;
-    } catch (e: any) {
+    } catch (e) {
         return NextResponse.json(
-            { ok: false, error: e?.message || "Error inesperado" },
+            { ok: false, error: "Error interno. Intenta de nuevo." },
             { status: 500 }
         );
     }
