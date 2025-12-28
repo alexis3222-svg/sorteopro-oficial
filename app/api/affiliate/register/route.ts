@@ -1,111 +1,94 @@
 // app/api/affiliate/register/route.ts
-import { NextResponse } from "next/server";
-import * as bcrypt from "bcryptjs";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { NextRequest, NextResponse } from "next/server";
+import { createClient } from "@supabase/supabase-js";
+import bcrypt from "bcryptjs";
 
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function POST(req: Request) {
+const supabaseAdmin = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!,
+    { auth: { persistSession: false } }
+);
+
+function bad(msg: string) {
+    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+}
+
+export async function POST(req: NextRequest) {
     try {
-        const body = await req.json();
+        const body = await req.json().catch(() => null);
 
-        const {
-            nombre,
-            apellido,
-            whatsapp,
-            email,
-            password,
-        } = body;
+        const nombre = (body?.nombre ?? body?.nombres ?? "").toString().trim();
+        const apellido = (body?.apellido ?? body?.apellidos ?? "").toString().trim();
 
-        if (!nombre || !apellido || !whatsapp || !password) {
-            return NextResponse.json(
-                { ok: false, error: "Faltan campos obligatorios" },
-                { status: 400 }
-            );
-        }
+        const email = (body?.email ?? body?.correo ?? "").toString().trim().toLowerCase();
+        const username = (body?.username ?? body?.usuario ?? "").toString().trim();
 
-        if (password.length < 6) {
-            return NextResponse.json(
-                { ok: false, error: "La contraseña debe tener al menos 6 caracteres" },
-                { status: 400 }
-            );
-        }
+        const password = (body?.password ?? "").toString();
 
-        // 1️⃣ generar username automático
-        const baseUsername =
-            `${nombre}.${apellido}`
-                .toLowerCase()
-                .replace(/[^a-z0-9]/g, "");
+        if (!nombre) return bad("Falta nombre");
+        if (!apellido) return bad("Falta apellido");
+        if (!email) return bad("Falta email");
+        if (!username) return bad("Falta username");
+        if (!password) return bad("Falta password");
+        if (password.length < 6) return bad("Password debe tener al menos 6 caracteres");
 
-        const username = `${baseUsername}${Math.floor(Math.random() * 1000)}`;
+        const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        if (!correoValido) return bad("Email inválido");
 
-        // 2️⃣ hash password
+        // ✅ evitar duplicados (username o email)
+        const { data: existsUser } = await supabaseAdmin
+            .from("affiliates")
+            .select("id")
+            .eq("username", username)
+            .maybeSingle();
+
+        if (existsUser?.id) return bad("Ese usuario ya existe");
+
+        const { data: existsEmail } = await supabaseAdmin
+            .from("affiliates")
+            .select("id")
+            .eq("email", email)
+            .maybeSingle();
+
+        if (existsEmail?.id) return bad("Ese email ya está registrado");
+
         const password_hash = await bcrypt.hash(password, 10);
 
-        // 3️⃣ crear afiliado (code se genera solo)
-        const { data: affiliate, error: affiliateError } = await supabaseAdmin
+        // display_name: nombre + apellido
+        const display_name = `${nombre} ${apellido}`.trim();
+
+        // code: si ya tienes lógica, déjalo; aquí uno simple y estable
+        const code = username; // ✅ para pruebas: ref = username
+
+        const { data, error } = await supabaseAdmin
             .from("affiliates")
             .insert({
-                nombre,
-                apellido,
-                whatsapp,
-                email: email || null,
                 username,
+                display_name,
+                code,
                 password_hash,
-                estado: "activo",
+                is_active: true,
+                email,
             })
-            .select("id, code")
+            .select("id, username, code")
             .single();
 
-        if (affiliateError || !affiliate) {
-            console.error("Error creando afiliado:", affiliateError);
+        if (error || !data) {
+            // error de constraint u otro
             return NextResponse.json(
-                { ok: false, error: "No se pudo crear el socio" },
+                { ok: false, error: error?.message || "No se pudo crear afiliado" },
                 { status: 500 }
             );
         }
 
-        // 4️⃣ crear wallet
-        const { error: walletError } = await supabaseAdmin
-            .from("affiliate_wallets")
-            .insert({
-                affiliate_id: affiliate.id,
-                balance: 0,
-            });
-
-        if (walletError) {
-            console.error("Error creando wallet:", walletError);
-            return NextResponse.json(
-                { ok: false, error: "No se pudo crear la billetera" },
-                { status: 500 }
-            );
-        }
-
-        // 5️⃣ crear sesión simple (cookie httpOnly)
-        const response = NextResponse.json({
-            ok: true,
-            affiliate: {
-                id: affiliate.id,
-                code: affiliate.code,
-                username,
-            },
-        });
-
-        response.cookies.set({
-            name: "affiliate_session",
-            value: String(affiliate.id),
-            httpOnly: true,
-            path: "/",
-            maxAge: 60 * 60 * 24 * 7, // 7 días
-            sameSite: "lax",
-        });
-
-        return response;
-
+        return NextResponse.json({ ok: true, affiliate: data });
     } catch (e: any) {
-        console.error("Error register affiliate:", e);
+        console.error("affiliate/register error:", e);
         return NextResponse.json(
-            { ok: false, error: e?.message || "Error inesperado" },
+            { ok: false, error: e?.message || "Error interno" },
             { status: 500 }
         );
     }
