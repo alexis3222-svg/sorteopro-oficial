@@ -42,6 +42,27 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "cantidadNumeros inválida" }, { status: 400 });
         }
 
+        // ✅ (NUEVO) Resolver afiliado desde cookie affiliate_ref (NO viene del body)
+        const rawRef = req.cookies.get("affiliate_ref")?.value ?? null;
+        const affiliateRef = rawRef ? decodeURIComponent(rawRef).trim() : null;
+
+        let affiliateId: string | null = null;
+        let affiliateCode: string | null = null;
+
+        if (affiliateRef) {
+            const { data: affiliate, error: affErr } = await supabaseAdmin
+                .from("affiliates")
+                .select("id, code, username, is_active")
+                // acepta code o username como ref
+                .or(`code.eq.${affiliateRef},username.eq.${affiliateRef}`)
+                .maybeSingle();
+
+            if (!affErr && affiliate && affiliate.is_active !== false) {
+                affiliateId = affiliate.id;
+                affiliateCode = affiliate.code ?? affiliate.username ?? affiliateRef;
+            }
+        }
+
         // ✅ Idempotencia PayPhone: si ya existe pedido con ese clientTxId, devolverlo
         if (metodoPago === "payphone") {
             if (!clientTransactionId) {
@@ -77,6 +98,10 @@ export async function POST(req: NextRequest) {
             precio_unitario: precioUnitario,
             total,
             estado: "pendiente",
+
+            // ✅ (NUEVO) afiliado ligado al pedido (si existe)
+            affiliate_id: affiliateId,
+            affiliate_code: affiliateCode,
         };
 
         if (metodoPago === "payphone") {
