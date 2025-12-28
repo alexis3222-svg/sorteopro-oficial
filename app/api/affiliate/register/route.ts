@@ -1,7 +1,9 @@
 // app/api/affiliate/register/route.ts
 import { NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
+import * as bcrypt from "bcryptjs";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+
+export const runtime = "nodejs";
 
 export async function POST(req: Request) {
     try {
