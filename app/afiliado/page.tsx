@@ -21,6 +21,8 @@ export default function AfiliadoDashboardPage() {
     const [me, setMe] = useState<MeRes | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [copied, setCopied] = useState(false);
+    const [wallet, setWallet] = useState<{ balance: number; updated_at: string | null } | null>(null);
+    const [moves, setMoves] = useState<any[]>([]);
 
     useEffect(() => {
         const run = async () => {
@@ -46,6 +48,15 @@ export default function AfiliadoDashboardPage() {
                 setError("Error de conexión. Intenta de nuevo.");
             } finally {
                 setLoading(false);
+                try {
+                    const wr = await fetch("/api/affiliate/wallet", { method: "GET", cache: "no-store" });
+                    const wj = await wr.json().catch(() => null);
+                    if (wr.ok && wj?.ok) {
+                        setWallet(wj.wallet);
+                        setMoves(Array.isArray(wj.movements) ? wj.movements : []);
+                    }
+                } catch { }
+
             }
         };
 
@@ -83,17 +94,44 @@ export default function AfiliadoDashboardPage() {
     return (
         <div className="space-y-6">
             {/* Hero */}
-            <div className="rounded-2xl border border-[#FF7F00]/30 bg-gradient-to-r from-neutral-900/60 to-neutral-950/60 p-6">
-                <p className="text-[11px] uppercase tracking-[0.25em] text-orange-400">
-                    Dashboard
-                </p>
-                <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
-                    Panel del Afiliado
-                </h2>
-                <p className="mt-2 text-sm text-slate-300">
-                    Aquí tendrás tus enlaces, QR, ventas y billetera de comisiones.
-                </p>
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+                <div className="flex items-center justify-between">
+                    <p className="text-sm font-semibold">Movimientos</p>
+                    <p className="text-xs text-slate-400">Últimos 20</p>
+                </div>
+
+                <div className="mt-4 overflow-hidden rounded-xl border border-neutral-800">
+                    <div className="grid grid-cols-4 bg-neutral-950/60 px-4 py-2 text-xs text-slate-400">
+                        <span>Pedido</span>
+                        <span>Base</span>
+                        <span>Comisión</span>
+                        <span>Fecha</span>
+                    </div>
+
+                    {moves.length === 0 ? (
+                        <div className="px-4 py-4 text-sm text-slate-400">
+                            Aún no tienes comisiones. Cuando un pedido referido quede en <b>pagado</b>, aparecerá aquí.
+                        </div>
+                    ) : (
+                        moves.map((m) => (
+                            <div
+                                key={m.id}
+                                className="grid grid-cols-4 border-t border-neutral-800 px-4 py-3 text-sm"
+                            >
+                                <span className="text-slate-200">#{m.pedido_id}</span>
+                                <span className="text-slate-300">${Number(m.base_total ?? 0).toFixed(2)}</span>
+                                <span className="text-emerald-300 font-semibold">
+                                    +${Number(m.amount ?? 0).toFixed(2)}
+                                </span>
+                                <span className="text-slate-400 text-xs">
+                                    {m.created_at ? new Date(m.created_at).toLocaleString() : "—"}
+                                </span>
+                            </div>
+                        ))
+                    )}
+                </div>
             </div>
+
 
             {/* Cards */}
             <div className="grid gap-4 md:grid-cols-3">
