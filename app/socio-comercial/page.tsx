@@ -32,7 +32,10 @@ export default function SocioComercialPage() {
         const p = password;
         const cp = confirmPassword;
 
-        // ✅ Validación mínima REAL (sin falsos positivos)
+        // 🧪 DEBUG opcional (quítalo luego)
+        // console.log({ n, a, em, u, pLen: p.length, cpLen: cp.length });
+
+        // ✅ Validaciones mínimas correctas
         if (!n || !a || !em || !u || !p || !cp) {
             setErrorMsg("Faltan campos obligatorios.");
             return;
@@ -61,18 +64,19 @@ export default function SocioComercialPage() {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    // ✅ nombres correctos para tu API
+                    // ✅ Lo que tu API espera
                     nombre: n,
                     apellido: a,
                     email: em,
                     username: u,
                     password: p,
 
-                    // ✅ compatibilidad (por si en backend usas "correo" en algún punto)
-                    correo: em,
+                    // ✅ compatibilidad (por si algún día usas otras keys)
                     nombres: n,
                     apellidos: a,
+                    correo: em,
                 }),
+                cache: "no-store",
             });
 
             const data = await r.json().catch(() => null);
@@ -83,11 +87,10 @@ export default function SocioComercialPage() {
             }
 
             setOkMsg("Registro creado. Ahora puedes iniciar sesión.");
-            // Limpieza opcional
             setPassword("");
             setConfirmPassword("");
 
-            // opcional: redirigir a login afiliado
+            // ✅ Te mando al login del afiliado (si quieres dejarlo así)
             router.push("/afiliado/login");
             router.refresh();
         } catch (err: any) {
