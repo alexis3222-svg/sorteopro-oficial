@@ -20,6 +20,7 @@ export default function AfiliadoDashboardPage() {
     const [loading, setLoading] = useState(true);
     const [me, setMe] = useState<MeRes | null>(null);
     const [error, setError] = useState<string | null>(null);
+    const [qrUrl, setQrUrl] = useState<string>("");
 
     useEffect(() => {
         const run = async () => {
@@ -39,6 +40,8 @@ export default function AfiliadoDashboardPage() {
             } catch {
                 setMe({ ok: false });
                 setError("Error de conexión. Intenta de nuevo.");
+                // ✅ QR (url interna que devuelve PNG)
+                setQrUrl(`/api/affiliate/qr?t=${Date.now()}`);
             } finally {
                 setLoading(false);
             }
@@ -112,6 +115,42 @@ export default function AfiliadoDashboardPage() {
                         <p className="mt-1 text-sm text-slate-200">
                             Compártelo para que las compras queden ligadas a tu cuenta.
                         </p>
+                    </div>
+                    {/* QR */}
+                    <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-xs text-slate-400">Tu QR</p>
+                                <p className="mt-1 text-sm text-slate-200">
+                                    Escanéalo o compártelo. Este QR apunta a tu link con <span className="font-semibold">ref</span>.
+                                </p>
+                            </div>
+
+                            <div className="flex gap-2">
+                                <a
+                                    href={qrUrl || "#"}
+                                    download
+                                    className="rounded-xl border border-[#FF7F00] px-4 py-2 text-sm font-semibold
+                   hover:bg-[#FF7F00] hover:text-white transition"
+                                >
+                                    Descargar
+                                </a>
+                            </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-center">
+                            <div className="rounded-2xl border border-neutral-700 bg-white p-4">
+                                {qrUrl ? (
+                                    <img
+                                        src={qrUrl}
+                                        alt="QR Afiliado"
+                                        className="h-[260px] w-[260px]"
+                                    />
+                                ) : (
+                                    <p className="text-sm text-neutral-600">Cargando QR…</p>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
                     <button
