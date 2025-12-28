@@ -284,12 +284,21 @@ export default function AdminHomePage() {
                                 >
                                     Ver números asignados
                                 </Link>
+
                                 <Link
                                     href="/admin/pedidos"
                                     className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-orange-500 hover:text-orange-200"
                                 >
                                     Ver pedidos
                                 </Link>
+
+                                <Link
+                                    href="/admin/affiliate"
+                                    className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-orange-500 hover:text-orange-200"
+                                >
+                                    ADMIN SOCIO
+                                </Link>
+
                                 <Link
                                     href="/"
                                     className="inline-flex items-center rounded-full border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-200 hover:border-orange-500 hover:text-orange-200"
@@ -298,6 +307,7 @@ export default function AdminHomePage() {
                                 </Link>
                             </div>
                         </section>
+
 
                         <section className="grid gap-4 md:grid-cols-3">
                             <div className="md:col-span-2 rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-4">
