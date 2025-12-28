@@ -25,54 +25,78 @@ export default function SocioComercialPage() {
         setErrorMsg(null);
         setOkMsg(null);
 
-        // 🔒 Validaciones quirúrgicas
-        if (!nombres.trim()) return setErrorMsg("Ingresa tus nombres.");
-        if (!apellidos.trim()) return setErrorMsg("Ingresa tus apellidos.");
+        const n = nombres.trim();
+        const a = apellidos.trim();
+        const em = email.trim().toLowerCase();
+        const u = username.trim();
+        const p = password;
+        const cp = confirmPassword;
 
-        const mail = email.trim().toLowerCase();
-        if (!mail) return setErrorMsg("Ingresa tu email.");
-        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(mail))
-            return setErrorMsg("Email inválido.");
+        // ✅ Validación mínima REAL (sin falsos positivos)
+        if (!n || !a || !em || !u || !p || !cp) {
+            setErrorMsg("Faltan campos obligatorios.");
+            return;
+        }
 
-        if (!username.trim()) return setErrorMsg("Ingresa un usuario.");
-        if (username.trim().length < 4)
-            return setErrorMsg("El usuario debe tener mínimo 4 caracteres.");
+        const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
+        if (!correoValido) {
+            setErrorMsg("Ingresa un correo electrónico válido.");
+            return;
+        }
 
-        if (!password) return setErrorMsg("Ingresa una contraseña.");
-        if (password.length < 6)
-            return setErrorMsg("La contraseña debe tener mínimo 6 caracteres.");
+        if (p.length < 6) {
+            setErrorMsg("La contraseña debe tener al menos 6 caracteres.");
+            return;
+        }
 
-        if (password !== confirmPassword)
-            return setErrorMsg("Las contraseñas no coinciden.");
+        if (p !== cp) {
+            setErrorMsg("Las contraseñas no coinciden.");
+            return;
+        }
 
         setLoading(true);
+
         try {
-            const res = await fetch("/api/affiliate/register", {
+            const r = await fetch("/api/affiliate/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    nombre: nombres.trim(),
-                    apellido: apellidos.trim(),
-                    email: mail,
-                    username: username.trim(),
-                    password,
+                    // ✅ nombres correctos para tu API
+                    nombre: n,
+                    apellido: a,
+                    email: em,
+                    username: u,
+                    password: p,
+
+                    // ✅ compatibilidad (por si en backend usas "correo" en algún punto)
+                    correo: em,
+                    nombres: n,
+                    apellidos: a,
                 }),
             });
 
-            const json = await res.json().catch(() => ({}));
+            const data = await r.json().catch(() => null);
 
-            if (!res.ok || !json?.ok) {
-                throw new Error(json?.error || "No se pudo completar el registro.");
+            if (!r.ok || !data?.ok) {
+                setErrorMsg(data?.error || `No se pudo registrar (HTTP ${r.status})`);
+                return;
             }
 
-            setOkMsg("Registro creado correctamente. Ahora puedes iniciar sesión.");
-            // router.push("/afiliado/login"); // lo activamos luego
+            setOkMsg("Registro creado. Ahora puedes iniciar sesión.");
+            // Limpieza opcional
+            setPassword("");
+            setConfirmPassword("");
+
+            // opcional: redirigir a login afiliado
+            router.push("/afiliado/login");
+            router.refresh();
         } catch (err: any) {
-            setErrorMsg(err?.message || "Ocurrió un error inesperado.");
+            setErrorMsg(err?.message || "Error de conexión. Intenta de nuevo.");
         } finally {
             setLoading(false);
         }
     };
+
 
     return (
         <div className="min-h-screen bg-white text-neutral-900">
