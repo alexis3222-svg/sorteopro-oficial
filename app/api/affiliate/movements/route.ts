@@ -1,4 +1,4 @@
-// app/api/affiliate/wallet/route.ts
+// app/api/affiliate/movements/route.ts
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { createClient } from "@supabase/supabase-js";
@@ -15,6 +15,7 @@ const supabaseAdmin = createClient(
 async function getAffiliateIdFromSession() {
     const cookieStore = await cookies();
 
+    // Ajusta aquí si tu cookie se llama diferente
     const token =
         cookieStore.get("affiliate_session")?.value ||
         cookieStore.get("affiliate_token")?.value ||
@@ -33,6 +34,7 @@ async function getAffiliateIdFromSession() {
 
     if (error || !data?.affiliate_id) return null;
 
+    // Si tienes expires_at / revoked_at, validamos
     const revoked = !!data.revoked_at;
     const expired = data.expires_at ? new Date(data.expires_at) <= new Date() : false;
     if (revoked || expired) return null;
@@ -47,42 +49,18 @@ export async function GET() {
             return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
         }
 
-        // 1) Intentar leer wallet
-        const { data: wallet, error } = await supabaseAdmin
-            .from("affiliate_wallets")
-            .select("balance_available, balance_pending, balance_withdrawn, balance, updated_at")
+        const { data, error } = await supabaseAdmin
+            .from("affiliate_commissions")
+            .select("id, pedido_id, base_total, amount, created_at")
             .eq("affiliate_id", affiliateId)
-            .maybeSingle();
+            .order("created_at", { ascending: false })
+            .limit(20);
 
         if (error) {
             return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
         }
 
-        // 2) Si no existe, crearla
-        if (!wallet) {
-            const { data: created, error: insErr } = await supabaseAdmin
-                .from("affiliate_wallets")
-                .insert({
-                    affiliate_id: affiliateId,
-                    balance_available: 0,
-                    balance_pending: 0,
-                    balance_withdrawn: 0,
-                    balance: 0,
-                })
-                .select("balance_available, balance_pending, balance_withdrawn, balance, updated_at")
-                .single();
-
-            if (insErr || !created) {
-                return NextResponse.json(
-                    { ok: false, error: insErr?.message || "No se pudo crear wallet" },
-                    { status: 500 }
-                );
-            }
-
-            return NextResponse.json({ ok: true, wallet: created });
-        }
-
-        return NextResponse.json({ ok: true, wallet });
+        return NextResponse.json({ ok: true, moves: data ?? [] });
     } catch (e: any) {
         return NextResponse.json(
             { ok: false, error: e?.message || "Error interno" },
