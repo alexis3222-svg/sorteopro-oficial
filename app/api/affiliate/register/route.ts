@@ -28,6 +28,11 @@ export async function POST(req: NextRequest) {
 
         const password = (body?.password ?? "").toString();
 
+        const whatsapp = (body?.whatsapp ?? body?.telefono ?? "").toString().trim();
+        if (!whatsapp) return bad("Falta whatsapp");
+        if (!/^09\d{8}$/.test(whatsapp)) return bad("WhatsApp inválido");
+
+
         if (!nombre) return bad("Falta nombre");
         if (!apellido) return bad("Falta apellido");
         if (!email) return bad("Falta email");

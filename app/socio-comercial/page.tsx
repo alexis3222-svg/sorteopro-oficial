@@ -12,6 +12,7 @@ export default function SocioComercialPage() {
     const [nombres, setNombres] = useState("");
     const [apellidos, setApellidos] = useState("");
     const [email, setEmail] = useState("");
+    const [whatsapp, setWhatsapp] = useState("");
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [confirmPassword, setConfirmPassword] = useState("");
@@ -31,11 +32,21 @@ export default function SocioComercialPage() {
         const u = username.trim();
         const p = password;
         const cp = confirmPassword;
+        const wa = whatsapp.trim();
 
-        // 🧪 DEBUG opcional (quítalo luego)
-        // console.log({ n, a, em, u, pLen: p.length, cpLen: cp.length });
+        if (!wa) {
+            setErrorMsg("El número de WhatsApp es obligatorio.");
+            return;
+        }
 
-        // ✅ Validaciones mínimas correctas
+        const waValido = /^09\d{8}$/.test(wa);
+        if (!waValido) {
+            setErrorMsg("Ingresa un WhatsApp ecuatoriano válido (09xxxxxxxx).");
+            return;
+        }
+
+
+        // ✅ DEBUG visible: te dirá exactamente qué llega vacío
         const missing: string[] = [];
         if (!n) missing.push("Nombres");
         if (!a) missing.push("Apellidos");
@@ -45,11 +56,10 @@ export default function SocioComercialPage() {
         if (!cp) missing.push("Confirmar contraseña");
 
         if (missing.length > 0) {
-            setErrorMsg(`Faltan campos obligatorios: ${missing.join(", ")}`);
-            console.log("DEBUG missing:", { n, a, em, u, p, cp }); // 👈 déjalo temporal
+            setErrorMsg(`Faltan campos obligatorios: ${missing.join(", ")}.`);
+            console.log("DEBUG values:", { n, a, em, u, pLen: p.length, cpLen: cp.length });
             return;
         }
-
 
         const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(em);
         if (!correoValido) {
@@ -68,24 +78,19 @@ export default function SocioComercialPage() {
         }
 
         setLoading(true);
-
         try {
             const r = await fetch("/api/affiliate/register", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    // ✅ Lo que tu API espera
                     nombre: n,
                     apellido: a,
                     email: em,
                     username: u,
                     password: p,
-
-                    // ✅ compatibilidad (por si algún día usas otras keys)
-                    nombres: n,
-                    apellidos: a,
-                    correo: em,
+                    whatsapp: wa,          // ✅ nuevo
                 }),
+
                 cache: "no-store",
             });
 
@@ -97,10 +102,6 @@ export default function SocioComercialPage() {
             }
 
             setOkMsg("Registro creado. Ahora puedes iniciar sesión.");
-            setPassword("");
-            setConfirmPassword("");
-
-            // ✅ Te mando al login del afiliado (si quieres dejarlo así)
             router.push("/afiliado/login");
             router.refresh();
         } catch (err: any) {
@@ -149,6 +150,13 @@ export default function SocioComercialPage() {
                             placeholder="correo@ejemplo.com"
                             name="email"
                             autoComplete="email"
+                        />
+
+                        <Field
+                            label="WhatsApp (obligatorio)"
+                            value={whatsapp}
+                            onChange={setWhatsapp}
+                            placeholder="09xxxxxxxx"
                         />
 
                         <Field
@@ -246,9 +254,8 @@ function Field({
                 type={type}
                 value={value}
                 onChange={(e) => onChange(e.target.value)}
+                onInput={(e) => onChange((e.target as HTMLInputElement).value)} // ✅ autofill seguro
                 placeholder={placeholder}
-                name={name}
-                autoComplete={autoComplete}
                 className="mt-1 w-full rounded-xl border border-neutral-300 bg-white px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
             />
 
