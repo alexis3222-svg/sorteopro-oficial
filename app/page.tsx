@@ -71,6 +71,20 @@ export default function HomePage() {
 
     fetchData();
   }, []);
+  // 🔗 Capturar código de afiliado (?ref=CODE) y persistirlo
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const params = new URLSearchParams(window.location.search);
+    const ref = params.get("ref");
+
+    if (ref && ref.trim()) {
+      // Cookie ligera SOLO para tracking UX (la validación real es backend)
+      document.cookie =
+        `affiliate_ref=${encodeURIComponent(ref.trim())}; ` +
+        `path=/; max-age=${60 * 60 * 24 * 7}`;
+    }
+  }, []);
 
   if (loading) {
     return (
