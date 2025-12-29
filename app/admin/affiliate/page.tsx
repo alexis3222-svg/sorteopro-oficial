@@ -166,6 +166,14 @@ export default function AdminAffiliateHomePage() {
                                 </Link>
 
                                 <Link
+                                    href="/admin/affiliate/withdrawals?status=paid"
+                                    className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-orange-500 hover:text-orange-200"
+                                >
+                                    Ver retiros pagados
+                                </Link>
+
+
+                                <Link
                                     href="/admin"
                                     className="inline-flex items-center rounded-full border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-200 hover:border-orange-500 hover:text-orange-200"
                                 >
