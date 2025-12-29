@@ -52,12 +52,13 @@ export async function POST(req: NextRequest) {
         if (affiliateRef) {
             const { data: affiliate, error: affErr } = await supabaseAdmin
                 .from("affiliates")
-                .select("id, code, username, is_active")
+                .select("id, code, username, status")
                 // acepta code o username como ref
                 .or(`code.eq.${affiliateRef},username.eq.${affiliateRef}`)
+                .eq("status", "active") // ✅ SOLO socios activos
                 .maybeSingle();
 
-            if (!affErr && affiliate && affiliate.is_active !== false) {
+            if (!affErr && affiliate) {
                 affiliateId = affiliate.id;
                 affiliateCode = affiliate.code ?? affiliate.username ?? affiliateRef;
             }
