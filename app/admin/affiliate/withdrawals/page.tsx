@@ -146,8 +146,8 @@ export default function AdminAffiliateWithdrawalsPage() {
                         <Link
                             href="/admin/affiliate/withdrawals?status=pending"
                             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${status === "pending"
-                                    ? "border-orange-400/70 bg-orange-500/90 text-black"
-                                    : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
+                                ? "border-orange-400/70 bg-orange-500/90 text-black"
+                                : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
                                 }`}
                         >
                             Pendientes
@@ -155,8 +155,8 @@ export default function AdminAffiliateWithdrawalsPage() {
                         <Link
                             href="/admin/affiliate/withdrawals?status=paid"
                             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${status === "paid"
-                                    ? "border-orange-400/70 bg-orange-500/90 text-black"
-                                    : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
+                                ? "border-orange-400/70 bg-orange-500/90 text-black"
+                                : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
                                 }`}
                         >
                             Pagados
@@ -164,8 +164,8 @@ export default function AdminAffiliateWithdrawalsPage() {
                         <Link
                             href="/admin/affiliate/withdrawals?status=rejected"
                             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${status === "rejected"
-                                    ? "border-orange-400/70 bg-orange-500/90 text-black"
-                                    : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
+                                ? "border-orange-400/70 bg-orange-500/90 text-black"
+                                : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
                                 }`}
                         >
                             Rechazados
@@ -173,8 +173,8 @@ export default function AdminAffiliateWithdrawalsPage() {
                         <Link
                             href="/admin/affiliate/withdrawals?status=all"
                             className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold border ${status === "all"
-                                    ? "border-orange-400/70 bg-orange-500/90 text-black"
-                                    : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
+                                ? "border-orange-400/70 bg-orange-500/90 text-black"
+                                : "border-slate-700 bg-slate-900 text-slate-100 hover:border-orange-500 hover:text-orange-200"
                                 }`}
                         >
                             Todo
