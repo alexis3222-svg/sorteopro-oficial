@@ -3,7 +3,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { supabase } from "@/lib/supabaseClient";
 
 type Stats = {
     sociosActivos: number;
@@ -30,47 +29,20 @@ export default function AdminAffiliateHomePage() {
             setErrorMsg(null);
 
             try {
-                // 1) Socios activos
-                const { count: sociosActivos, error: e1 } = await supabase
-                    .from("affiliates")
-                    .select("*", { count: "exact", head: true });
+                const r = await fetch("/api/admin/affiliate/stats", { cache: "no-store" });
+                const j = await r.json().catch(() => null);
 
-                if (e1) throw e1;
-
-                // 2) Retiros pendientes
-                const { count: retirosPendientes, error: e2 } = await supabase
-                    .from("affiliate_withdrawals")
-                    .select("*", { count: "exact", head: true })
-                    .eq("status", "pending");
-
-                if (e2) throw e2;
-
-                // 3) Saldos totales (sumatorias)
-                // Nota: Supabase JS no hace SUM directo sin RPC; lo hacemos trayendo columnas
-                // y sumando en el cliente (v1). En v2 lo movemos a una vista/RPC opcional.
-                const { data: wallets, error: e3 } = await supabase
-                    .from("affiliate_wallets")
-                    .select("balance_available, balance_pending");
-
-                if (e3) throw e3;
-
-                const saldoDisponibleTotal = (wallets || []).reduce(
-                    (acc: number, w: any) => acc + (Number(w.balance_available ?? 0) || 0),
-                    0
-                );
-
-                const saldoPendienteTotal = (wallets || []).reduce(
-                    (acc: number, w: any) => acc + (Number(w.balance_pending ?? 0) || 0),
-                    0
-                );
+                if (!r.ok || !j?.ok || !j?.stats) {
+                    throw new Error(j?.error || "No se pudieron cargar las estadísticas.");
+                }
 
                 if (!alive) return;
 
                 setStats({
-                    sociosActivos: sociosActivos ?? 0,
-                    saldoDisponibleTotal,
-                    saldoPendienteTotal,
-                    retirosPendientes: retirosPendientes ?? 0,
+                    sociosActivos: Number(j.stats.sociosActivos ?? 0),
+                    saldoDisponibleTotal: Number(j.stats.saldoDisponibleTotal ?? 0),
+                    saldoPendienteTotal: Number(j.stats.saldoPendienteTotal ?? 0),
+                    retirosPendientes: Number(j.stats.retirosPendientes ?? 0),
                 });
             } catch (err: any) {
                 console.error("AdminAffiliateHomePage load error:", err);
@@ -136,9 +108,7 @@ export default function AdminAffiliateHomePage() {
                             <div
                                 className={[
                                     "rounded-xl px-4 py-3 border",
-                                    warningRetiros
-                                        ? "border-yellow-500/50 bg-yellow-500/10"
-                                        : "border-slate-800 bg-slate-900/70",
+                                    warningRetiros ? "border-yellow-500/50 bg-yellow-500/10" : "border-slate-800 bg-slate-900/70",
                                 ].join(" ")}
                             >
                                 <p className={warningRetiros ? "text-xs text-yellow-100" : "text-xs text-slate-400"}>
@@ -146,9 +116,7 @@ export default function AdminAffiliateHomePage() {
                                 </p>
                                 <p className="mt-2 text-2xl font-semibold">{stats.retirosPendientes}</p>
                                 {warningRetiros && (
-                                    <p className="mt-1 text-[11px] text-yellow-100/80">
-                                        Hay solicitudes por revisar y pagar.
-                                    </p>
+                                    <p className="mt-1 text-[11px] text-yellow-100/80">Hay solicitudes por revisar y pagar.</p>
                                 )}
                             </div>
                         </section>
@@ -172,7 +140,6 @@ export default function AdminAffiliateHomePage() {
                                     Ver retiros pagados
                                 </Link>
 
-
                                 <Link
                                     href="/admin"
                                     className="inline-flex items-center rounded-full border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-200 hover:border-orange-500 hover:text-orange-200"
@@ -189,8 +156,8 @@ export default function AdminAffiliateHomePage() {
                             </div>
 
                             <p className="text-xs text-slate-400 max-w-3xl">
-                                Nota: En esta v1 las sumatorias de saldos se calculan leyendo las billeteras y sumando en el
-                                cliente. Si quieres, luego lo optimizamos con una vista o RPC para sumar en el servidor.
+                                Nota: Las sumatorias se calculan en el servidor (service role) para garantizar datos reales y evitar
+                                problemas de permisos del cliente.
                             </p>
                         </section>
                     </>
