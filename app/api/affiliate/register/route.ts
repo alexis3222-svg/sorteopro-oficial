@@ -18,6 +18,31 @@ function bad(msg: string) {
 
 export async function POST(req: NextRequest) {
     try {
+        // 🔒 Validar si el registro de socios está abierto
+        const { data: setting, error: settingError } = await supabaseAdmin
+            .from("app_settings")
+            .select("value")
+            .eq("key", "affiliates_registration_open")
+            .maybeSingle();
+
+        if (settingError) {
+            console.error("Error leyendo app_settings:", settingError);
+            return NextResponse.json(
+                { ok: false, error: "No se pudo validar el estado del registro" },
+                { status: 500 }
+            );
+        }
+
+        const enabled = setting?.value?.enabled === true;
+
+        if (!enabled) {
+            return NextResponse.json(
+                { ok: false, error: "Registro de socios comerciales cerrado temporalmente" },
+                { status: 403 }
+            );
+        }
+
+
         const body = await req.json().catch(() => null);
 
         const nombre = (body?.nombre ?? body?.nombres ?? "").toString().trim();
