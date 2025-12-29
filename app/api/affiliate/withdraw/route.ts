@@ -42,6 +42,26 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "Monto inválido" }, { status: 400 });
         }
 
+        // ✅ Bloqueo por suspensión (antes de crear retiro)
+        const { data: aff, error: affErr } = await supabaseAdmin
+            .from("affiliates")
+            .select("status")
+            .eq("id", affiliateId)
+            .maybeSingle();
+
+        if (affErr) {
+            console.error("Error leyendo status del affiliate:", affErr);
+            return NextResponse.json({ ok: false, error: "No se pudo validar el estado del socio." }, { status: 500 });
+        }
+
+        const st = String(aff?.status ?? "active").toLowerCase();
+        if (st === "suspended") {
+            return NextResponse.json(
+                { ok: false, error: "Tu cuenta está suspendida. No puedes solicitar retiros por ahora." },
+                { status: 403 }
+            );
+        }
+
         // 1) Cargar wallet para validar mínimo y fondos (UX mejor)
         const { data: w, error: wErr } = await supabaseAdmin
             .from("affiliate_wallets")
