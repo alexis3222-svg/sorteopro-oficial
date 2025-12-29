@@ -35,7 +35,7 @@ type MoveRow = {
 type WithdrawalRow = {
     id: string;
     amount: number;
-    status: "pending" | "approved" | "rejected" | string;
+    status: "pending" | "paid" | "rejected" | string;
     destination: string | null;
     notes: string | null;
     created_at: string | null;
@@ -85,16 +85,47 @@ export default function AfiliadoDashboardPage() {
     const formatMoney = (n: any) => Number(n ?? 0).toFixed(2);
 
     const statusBadge = (s: string) => {
+        const v = String(s ?? "").trim().toLowerCase();
         const base =
             "inline-flex items-center rounded-full border px-2 py-0.5 text-[11px] font-semibold";
-        if (s === "pending")
-            return <span className={`${base} border-yellow-400/30 bg-yellow-500/10 text-yellow-200`}>PENDIENTE</span>;
-        if (s === "approved")
-            return <span className={`${base} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`}>APROBADO</span>;
-        if (s === "rejected")
-            return <span className={`${base} border-red-400/30 bg-red-500/10 text-red-200`}>RECHAZADO</span>;
-        return <span className={`${base} border-neutral-500/30 bg-neutral-500/10 text-neutral-200`}>{String(s).toUpperCase()}</span>;
+
+        if (v === "pending")
+            return (
+                <span className={`${base} border-yellow-400/30 bg-yellow-500/10 text-yellow-200`}>
+                    Pendiente
+                </span>
+            );
+
+        // ✅ tu sistema usa "paid"
+        if (v === "paid")
+            return (
+                <span className={`${base} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`}>
+                    Pagado
+                </span>
+            );
+
+        // (opcional) compatibilidad si en algún momento existió "approved"
+        if (v === "approved")
+            return (
+                <span className={`${base} border-emerald-400/30 bg-emerald-500/10 text-emerald-200`}>
+                    Pagado
+                </span>
+            );
+
+        if (v === "rejected")
+            return (
+                <span className={`${base} border-red-400/30 bg-red-500/10 text-red-200`}>
+                    Rechazado
+                </span>
+            );
+
+        return (
+            <span className={`${base} border-neutral-500/30 bg-neutral-500/10 text-neutral-200`}>
+                {v || "—"}
+            </span>
+        );
     };
+
 
     const loadAll = async () => {
         setLoading(true);
