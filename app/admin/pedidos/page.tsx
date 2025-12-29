@@ -33,6 +33,15 @@ type PedidoRow = {
 
 type EstadoPedido = "pendiente" | "pagado" | "cancelado";
 
+// ✅ helper: mostrar método de pago en UI (sin tocar BD)
+function labelMetodoPago(v: any): string {
+    const s = String(v ?? "").trim().toLowerCase();
+    if (!s) return "-";
+    if (s === "payphone") return "PayPhone";
+    if (s === "transferencia") return "Transferencia";
+    return s; // por si mañana agregas otro método
+}
+
 export default function AdminPedidosPage() {
     const [pedidos, setPedidos] = useState<PedidoRow[]>([]);
     const [loading, setLoading] = useState(true);
@@ -143,7 +152,6 @@ export default function AdminPedidosPage() {
 
     // ⛔️ TODO lo demás queda EXACTAMENTE IGUAL (no lo toco)
     // copiarNumerosPedido, métricas, CSV, UI, tabla, etc.
-
 
     // copiar números para WhatsApp (SOLO LEE, no asigna)
     const copiarNumerosPedido = async (pedido: PedidoRow) => {
@@ -398,6 +406,8 @@ export default function AdminPedidosPage() {
                                     <th className="px-3 py-2">Actividad</th>
                                     <th className="px-3 py-2">Cliente</th>
                                     <th className="px-3 py-2">Contacto</th>
+                                    {/* ✅ NUEVO */}
+                                    <th className="px-3 py-2">Método</th>
                                     <th className="px-3 py-2">Paquete</th>
                                     <th className="px-3 py-2">Total</th>
                                     <th className="px-3 py-2">Estado</th>
@@ -424,6 +434,8 @@ export default function AdminPedidosPage() {
                                     const actividadLabel = pedido.actividad_numero
                                         ? `Act #${pedido.actividad_numero}`
                                         : "-";
+
+                                    const metodoPagoLabel = labelMetodoPago(pedido.metodo_pago);
 
                                     const paqueteLabel =
                                         pedido.cantidad_numeros &&
@@ -484,6 +496,12 @@ export default function AdminPedidosPage() {
                                             <td className="px-3 py-3 text-xs">
                                                 {contactoLabel}
                                             </td>
+
+                                            {/* ✅ NUEVO */}
+                                            <td className="px-3 py-3 text-xs">
+                                                {metodoPagoLabel}
+                                            </td>
+
                                             <td className="px-3 py-3 text-xs">
                                                 {paqueteLabel}
                                             </td>
@@ -571,7 +589,7 @@ export default function AdminPedidosPage() {
                                 {pedidos.length === 0 && !loading && (
                                     <tr>
                                         <td
-                                            colSpan={10}
+                                            colSpan={11}
                                             className="px-3 py-6 text-center text-[12px] text-slate-400"
                                         >
                                             Aún no hay pedidos registrados.
