@@ -31,18 +31,11 @@ export default function AdminSociosPage() {
         setError(null);
 
         try {
-            const res = await fetch(
-                `/api/admin/affiliate/socios?status=${filtro}`,
-                {
-                    headers: {
-                        "x-admin-secret": process.env.NEXT_PUBLIC_ADMIN_SECRET!,
-                    },
-                    cache: "no-store",
-                }
-            );
-
-
-
+            const res = await fetch(`/api/admin/affiliate/socios?status=${filtro}`, {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+            });
 
 
             const json = await res.json();
