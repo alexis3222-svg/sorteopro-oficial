@@ -16,32 +16,34 @@ function bad(msg: string) {
     return NextResponse.json({ ok: false, error: msg }, { status: 400 });
 }
 
+// ✅ Lee setting global: key="affiliate_registration", value={ open: true/false }
+async function getAffiliateRegistrationOpen(): Promise<boolean> {
+    const { data, error } = await supabaseAdmin
+        .from("app_settings")
+        .select("value")
+        .eq("key", "affiliate_registration")
+        .maybeSingle();
+
+    if (error) {
+        console.error("Error leyendo app_settings affiliate_registration:", error);
+        // Default seguro para no tumbar producción si falla lectura
+        return true;
+    }
+
+    const open = (data?.value as any)?.open;
+    return typeof open === "boolean" ? open : true;
+}
+
 export async function POST(req: NextRequest) {
     try {
-        // 🔒 Validar si el registro de socios está abierto
-        const { data: setting, error: settingError } = await supabaseAdmin
-            .from("app_settings")
-            .select("value")
-            .eq("key", "affiliates_registration_open")
-            .maybeSingle();
-
-        if (settingError) {
-            console.error("Error leyendo app_settings:", settingError);
-            return NextResponse.json(
-                { ok: false, error: "No se pudo validar el estado del registro" },
-                { status: 500 }
-            );
-        }
-
-        const enabled = setting?.value?.enabled === true;
-
-        if (!enabled) {
+        // 🔒 Validar si el registro de socios está abierto (backend obligatorio)
+        const regOpen = await getAffiliateRegistrationOpen();
+        if (!regOpen) {
             return NextResponse.json(
                 { ok: false, error: "Registro de socios comerciales cerrado temporalmente" },
                 { status: 403 }
             );
         }
-
 
         const body = await req.json().catch(() => null);
 
@@ -50,12 +52,13 @@ export async function POST(req: NextRequest) {
 
         const email = (body?.email ?? body?.correo ?? "").toString().trim().toLowerCase();
         const username = (body?.username ?? body?.usuario ?? "").toString().trim();
-
         const password = (body?.password ?? "").toString();
 
         const whatsapp = (body?.whatsapp ?? body?.telefono ?? "").toString().trim();
+
         if (!whatsapp) return bad("Falta whatsapp");
         if (!/^09\d{8}$/.test(whatsapp)) return bad("WhatsApp inválido");
+
         if (!nombre) return bad("Falta nombre");
         if (!apellido) return bad("Falta apellido");
         if (!email) return bad("Falta email");
@@ -67,20 +70,32 @@ export async function POST(req: NextRequest) {
         if (!correoValido) return bad("Email inválido");
 
         // ✅ evitar duplicados (username o email)
-        const { data: existsUser } = await supabaseAdmin
+        const { data: existsUser, error: existsUserErr } = await supabaseAdmin
             .from("affiliates")
             .select("id")
             .eq("username", username)
             .maybeSingle();
 
+        if (existsUserErr) {
+            return NextResponse.json(
+                { ok: false, error: existsUserErr.message },
+                { status: 500 }
+            );
+        }
         if (existsUser?.id) return bad("Ese usuario ya existe");
 
-        const { data: existsEmail } = await supabaseAdmin
+        const { data: existsEmail, error: existsEmailErr } = await supabaseAdmin
             .from("affiliates")
             .select("id")
             .eq("email", email)
             .maybeSingle();
 
+        if (existsEmailErr) {
+            return NextResponse.json(
+                { ok: false, error: existsEmailErr.message },
+                { status: 500 }
+            );
+        }
         if (existsEmail?.id) return bad("Ese email ya está registrado");
 
         const password_hash = await bcrypt.hash(password, 10);
@@ -88,24 +103,26 @@ export async function POST(req: NextRequest) {
         // display_name: nombre + apellido
         const display_name = `${nombre} ${apellido}`.trim();
 
-        // code: si ya tienes lógica, déjalo; aquí uno simple y estable
-        const code = username; // ✅ para pruebas: ref = username
+        // code: según tu flujo actual, ref = username
+        const code = username;
 
+        // ✅ Insert con campos que tu admin ya usa (username, display_name, code, whatsapp, status, kind)
         const { data, error } = await supabaseAdmin
             .from("affiliates")
             .insert({
+                kind: "socio",
                 username,
                 display_name,
                 code,
+                whatsapp,
+                status: "active",
                 password_hash,
-                is_active: true,
                 email,
             })
-            .select("id, username, code")
+            .select("id, username, display_name, code, whatsapp, status, created_at")
             .single();
 
         if (error || !data) {
-            // error de constraint u otro
             return NextResponse.json(
                 { ok: false, error: error?.message || "No se pudo crear afiliado" },
                 { status: 500 }
