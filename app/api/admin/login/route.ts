@@ -4,41 +4,35 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(req: NextRequest) {
-    const body = await req.json().catch(() => ({} as any));
-    const secret = typeof body?.secret === "string" ? body.secret : "";
+    try {
+        const { secret } = await req.json();
 
-    const expected =
-        process.env.ADMIN_SECRET ||
-        process.env.NEXT_PUBLIC_ADMIN_SECRET ||
-        "";
+        const expected =
+            process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET;
 
-    // ✅ DEBUG SEGURO (NO expone secretos)
-    const debug = {
-        expected_configured: expected.length > 0,
-        expected_len: expected.length,
-        received_len: secret.length,
-        node_env: process.env.NODE_ENV || "",
-        // útil para ver si estás en prod/preview
-        vercel_env: process.env.VERCEL_ENV || "",
-    };
+        if (!expected || secret?.trim() !== expected.trim()) {
+            return NextResponse.json(
+                { ok: false, error: "Credenciales inválidas" },
+                { status: 401 }
+            );
+        }
 
-    if (!expected || !secret || secret.trim() !== expected.trim()) {
+        // ✅ Cookie admin válida (7 días)
+        const res = NextResponse.json({ ok: true });
 
+        res.cookies.set("admin_session", "1", {
+            httpOnly: true,
+            sameSite: "lax",
+            secure: process.env.NODE_ENV === "production",
+            path: "/",
+            maxAge: 60 * 60 * 24 * 7, // 7 días
+        });
+
+        return res;
+    } catch {
         return NextResponse.json(
-            { ok: false, error: "Credenciales inválidas", debug },
-            { status: 401 }
+            { ok: false, error: "Solicitud inválida" },
+            { status: 400 }
         );
     }
-
-    const res = NextResponse.json({ ok: true, debug });
-
-    res.cookies.set("admin_session", "1", {
-        httpOnly: true,
-        secure: process.env.NODE_ENV === "production",
-        sameSite: "lax",
-        path: "/",
-        maxAge: 60 * 60 * 8,
-    });
-
-    return res;
 }
