@@ -59,7 +59,7 @@ export async function GET(req: NextRequest) {
     // 1) query base: SOLO socios
     let q = supabaseAdmin
         .from("affiliates")
-        .select("id, email, whatsapp, kind, code_prefix, code_seq, status, created_at")
+        .select("id, username, display_name, code, whatsapp, status, created_at")
         .eq("kind", "socio")
         .order("created_at", { ascending: false });
 
