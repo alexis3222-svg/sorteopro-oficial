@@ -15,16 +15,21 @@ type Socio = {
 
 type Filtro = "all" | "active" | "suspended";
 
-function normalizeWhatsAppToWaMe(raw: string) {
-    // deja solo dígitos
-    const digits = raw.replace(/\D/g, "");
-    // si viene como 09xxxx -> asumimos Ecuador 593 y quitamos el 0
-    if (digits.length === 10 && digits.startsWith("0")) return `593${digits.slice(1)}`;
-    // si ya viene 593xxxxxxxxx
+// Convierte a formato wa.me (solo dígitos). Si empieza con 0 y no trae país, intenta Ecuador (593).
+function normalizeWhatsAppToWaMe(input: string) {
+    const digits = (input || "").replace(/\D/g, "");
+    if (!digits) return "";
+
+    // Si ya viene con 593..., ok
     if (digits.startsWith("593")) return digits;
-    // si viene 9xxxxxxxx (9 dígitos) asumimos Ecuador
-    if (digits.length === 9) return `593${digits}`;
-    // fallback: usar lo que haya
+
+    // Si viene como 09xxxxxxxx (Ecuador), convertir a 5939xxxxxxxx
+    if (digits.length === 10 && digits.startsWith("0")) return `593${digits.slice(1)}`;
+
+    // Si viene como 9xxxxxxxx (sin 0), asumir 593
+    if (digits.length === 9 && digits.startsWith("9")) return `593${digits}`;
+
+    // Caso genérico: devolver como esté
     return digits;
 }
 
@@ -35,6 +40,12 @@ export default function AdminSociosPage() {
     const [error, setError] = useState<string | null>(null);
     const [filtro, setFiltro] = useState<Filtro>("all");
 
+    // ✅ Siempre enviar x-admin-secret (si existe) + cookies
+    const getAdminHeaders = () => ({
+        "Content-Type": "application/json",
+        "x-admin-secret": localStorage.getItem("admin_secret") || "",
+    });
+
     const cargar = async () => {
         setLoading(true);
         setError(null);
@@ -44,6 +55,7 @@ export default function AdminSociosPage() {
                 method: "GET",
                 credentials: "include",
                 cache: "no-store",
+                headers: getAdminHeaders(),
             });
 
             const json = await res.json();
@@ -81,7 +93,7 @@ export default function AdminSociosPage() {
             const res = await fetch(`/api/admin/affiliate/socios/${socio.id}`, {
                 method: "PATCH",
                 credentials: "include",
-                headers: { "Content-Type": "application/json" },
+                headers: getAdminHeaders(),
                 body: JSON.stringify({ status: nextStatus }),
             });
 
@@ -121,10 +133,7 @@ export default function AdminSociosPage() {
                         Lista de socios registrados. Aquí puedes activar o suspender socios sin tocar pedidos pasados.
                     </p>
 
-                    <Link
-                        href="/admin/affiliate"
-                        className="text-xs text-orange-300 hover:text-orange-200 inline-block"
-                    >
+                    <Link href="/admin/affiliate" className="text-xs text-orange-300 hover:text-orange-200 inline-block">
                         ← Volver a ADMIN SOCIO
                     </Link>
                 </header>
@@ -246,11 +255,7 @@ export default function AdminSociosPage() {
                                                             : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
                                                         }`}
                                                 >
-                                                    {savingId === s.id
-                                                        ? "Guardando…"
-                                                        : s.status === "active"
-                                                            ? "Suspender"
-                                                            : "Activar"}
+                                                    {savingId === s.id ? "Guardando…" : s.status === "active" ? "Suspender" : "Activar"}
                                                 </button>
                                             </td>
                                         </tr>
