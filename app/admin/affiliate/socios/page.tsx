@@ -1,8 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-
 
 type Socio = {
     id: string;
@@ -14,7 +13,6 @@ type Socio = {
     created_at: string;
 };
 
-
 type Filtro = "all" | "active" | "suspended";
 
 export default function AdminSociosPage() {
@@ -22,6 +20,9 @@ export default function AdminSociosPage() {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [filtro, setFiltro] = useState<Filtro>("all");
+
+    // para deshabilitar botón por fila mientras guarda
+    const [savingId, setSavingId] = useState<string | null>(null);
 
     const cargar = async () => {
         setLoading(true);
@@ -34,22 +35,50 @@ export default function AdminSociosPage() {
                 cache: "no-store",
             });
 
-
             const json = await res.json();
 
             if (!res.ok || !json.ok) {
-                setError(json.error || "No autorizado");
+                setError(json?.error || "No autorizado");
                 setSocios([]);
                 return;
             }
 
             setSocios(json.affiliates || []);
-
         } catch {
             setError("Error de conexión");
             setSocios([]);
         } finally {
             setLoading(false);
+        }
+    };
+
+    const toggleEstado = async (socio: Socio) => {
+        const nextStatus = socio.status === "active" ? "suspended" : "active";
+
+        setSavingId(socio.id);
+        setError(null);
+
+        try {
+            const res = await fetch(`/api/admin/affiliate/socios/${socio.id}`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ status: nextStatus }),
+            });
+
+            const json = await res.json();
+
+            if (!res.ok || !json?.ok) {
+                setError(json?.error || "No se pudo actualizar el estado");
+                return;
+            }
+
+            // refrescar lista y KPIs
+            await cargar();
+        } catch {
+            setError("Error de conexión");
+        } finally {
+            setSavingId(null);
         }
     };
 
@@ -69,9 +98,11 @@ export default function AdminSociosPage() {
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                         Casa Bikers • Admin
                     </div>
+
                     <h1 className="text-3xl font-extrabold tracking-wide">
                         SOCIOS COMERCIALES
                     </h1>
+
                     <p className="text-sm text-slate-400">
                         Lista de socios registrados. Aquí puedes activar o suspender socios
                         sin tocar pedidos pasados.
@@ -112,15 +143,11 @@ export default function AdminSociosPage() {
                             key={f}
                             onClick={() => setFiltro(f)}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${filtro === f
-                                ? "border-orange-400 bg-orange-500 text-black"
-                                : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                    ? "border-orange-400 bg-orange-500 text-black"
+                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
-                            {f === "all"
-                                ? "Todos"
-                                : f === "active"
-                                    ? "Activos"
-                                    : "Suspendidos"}
+                            {f === "all" ? "Todos" : f === "active" ? "Activos" : "Suspendidos"}
                         </button>
                     ))}
 
@@ -136,9 +163,7 @@ export default function AdminSociosPage() {
                 {loading ? (
                     <p className="text-sm text-slate-400">Cargando socios…</p>
                 ) : socios.length === 0 ? (
-                    <p className="text-sm text-slate-400">
-                        No hay socios para este filtro.
-                    </p>
+                    <p className="text-sm text-slate-400">No hay socios para este filtro.</p>
                 ) : (
                     <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/60">
                         <table className="min-w-full text-sm">
@@ -148,8 +173,10 @@ export default function AdminSociosPage() {
                                     <th className="px-3 py-2 text-left">Código</th>
                                     <th className="px-3 py-2 text-left">Estado</th>
                                     <th className="px-3 py-2 text-left">Creado</th>
+                                    <th className="px-3 py-2 text-left">Acciones</th>
                                 </tr>
                             </thead>
+
                             <tbody>
                                 {socios.map((s) => (
                                     <tr
@@ -158,24 +185,47 @@ export default function AdminSociosPage() {
                                     >
                                         <td className="px-3 py-2">
                                             {s.email || s.whatsapp || "—"}
-
                                         </td>
+
                                         <td className="px-3 py-2 text-slate-300">
-                                            {s.code_prefix ? `${s.code_prefix}${String(s.code_seq ?? 0).padStart(4, "0")}` : "—"}
-
+                                            {s.code_prefix
+                                                ? `${s.code_prefix}${String(s.code_seq ?? 0).padStart(
+                                                    4,
+                                                    "0"
+                                                )}`
+                                                : "—"}
                                         </td>
+
                                         <td className="px-3 py-2">
                                             <span
                                                 className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.status === "active"
-                                                    ? "bg-emerald-500/15 text-emerald-300"
-                                                    : "bg-red-500/15 text-red-300"
+                                                        ? "bg-emerald-500/15 text-emerald-300"
+                                                        : "bg-red-500/15 text-red-300"
                                                     }`}
                                             >
                                                 {s.status === "active" ? "ACTIVO" : "SUSPENDIDO"}
                                             </span>
                                         </td>
+
                                         <td className="px-3 py-2 text-xs text-slate-400">
                                             {new Date(s.created_at).toLocaleString("es-EC")}
+                                        </td>
+
+                                        <td className="px-3 py-2">
+                                            <button
+                                                disabled={savingId === s.id}
+                                                onClick={() => toggleEstado(s)}
+                                                className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
+                                                        ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
+                                                        : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+                                                    }`}
+                                            >
+                                                {savingId === s.id
+                                                    ? "Guardando…"
+                                                    : s.status === "active"
+                                                        ? "Suspender"
+                                                        : "Activar"}
+                                            </button>
                                         </td>
                                     </tr>
                                 ))}
