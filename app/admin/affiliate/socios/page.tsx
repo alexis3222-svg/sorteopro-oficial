@@ -3,20 +3,17 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
-// 🔐 HEADER ADMIN (igual que en /admin/pedidos)
-const ADMIN_HEADERS = {
-    "Content-Type": "application/json",
-    "x-admin-secret": process.env.NEXT_PUBLIC_ADMIN_SECRET!,
-};
 
 type Socio = {
     id: string;
-    username: string;
-    display_name: string | null;
-    code: string | null;
-    status: "active" | "suspended";
+    email: string | null;
+    whatsapp: string | null;
+    code_prefix: string | null;
+    code_seq: number | null;
+    status: "active" | "suspended" | string;
     created_at: string;
 };
+
 
 type Filtro = "all" | "active" | "suspended";
 
@@ -46,7 +43,8 @@ export default function AdminSociosPage() {
                 return;
             }
 
-            setSocios(json.socios || []);
+            setSocios(json.affiliates || []);
+
         } catch {
             setError("Error de conexión");
             setSocios([]);
@@ -159,10 +157,12 @@ export default function AdminSociosPage() {
                                         className="border-b border-slate-800 last:border-0"
                                     >
                                         <td className="px-3 py-2">
-                                            {s.display_name || s.username}
+                                            {s.email || s.whatsapp || "—"}
+
                                         </td>
                                         <td className="px-3 py-2 text-slate-300">
-                                            {s.code || "—"}
+                                            {s.code_prefix ? `${s.code_prefix}${String(s.code_seq ?? 0).padStart(4, "0")}` : "—"}
+
                                         </td>
                                         <td className="px-3 py-2">
                                             <span
