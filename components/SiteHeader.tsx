@@ -11,7 +11,7 @@ export function SiteHeader() {
     const pathname = usePathname();
     const esHome = pathname === "/";
 
-    // ✅ Estado del registro de socios
+    // Estado del registro de socios
     const [regOpen, setRegOpen] = useState<boolean | null>(null);
 
     useEffect(() => {
@@ -28,7 +28,6 @@ export function SiteHeader() {
                 if (r.ok && j?.ok) {
                     setRegOpen(Boolean(j.open));
                 } else {
-                    // fallback seguro: ocultar si hay error
                     setRegOpen(false);
                 }
             } catch {
@@ -62,8 +61,8 @@ export function SiteHeader() {
                             priority
                         />
 
-                        {/* BOTÓN SOCIO COMERCIAL */}
-                        {regOpen ? (
+                        {/* BOTÓN SOCIO COMERCIAL (solo si registro está ABIERTO) */}
+                        {regOpen === true && (
                             <Link
                                 href="/socio-comercial"
                                 className="
@@ -84,24 +83,6 @@ export function SiteHeader() {
                             >
                                 Socio comercial
                             </Link>
-                        ) : (
-                            <span
-                                className="
-                                    rounded-full
-                                    border-2 border-slate-500
-                                    px-4 py-2
-                                    text-xs md:text-sm
-                                    font-extrabold
-                                    uppercase
-                                    tracking-[0.12em]
-                                    text-slate-300
-                                    opacity-70
-                                    cursor-not-allowed
-                                "
-                                title="Registro de socios cerrado temporalmente"
-                            >
-                                Registro cerrado
-                            </span>
                         )}
                     </div>
                 </div>
