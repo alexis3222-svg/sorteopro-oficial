@@ -1,6 +1,7 @@
 // components/SiteHeader.tsx
 "use client";
 
+import { useEffect, useState } from "react";
 import { usePathname } from "next/navigation";
 import Image from "next/image";
 import Link from "next/link";
@@ -9,6 +10,38 @@ import { FranjaNaranjaRotativa } from "./FranjaNaranjaRotativa";
 export function SiteHeader() {
     const pathname = usePathname();
     const esHome = pathname === "/";
+
+    // ✅ Estado del registro de socios
+    const [regOpen, setRegOpen] = useState<boolean | null>(null);
+
+    useEffect(() => {
+        let alive = true;
+
+        async function loadSetting() {
+            try {
+                const r = await fetch("/api/settings/affiliate-registration", {
+                    cache: "no-store",
+                });
+                const j = await r.json().catch(() => null);
+                if (!alive) return;
+
+                if (r.ok && j?.ok) {
+                    setRegOpen(Boolean(j.open));
+                } else {
+                    // fallback seguro: ocultar si hay error
+                    setRegOpen(false);
+                }
+            } catch {
+                if (!alive) return;
+                setRegOpen(false);
+            }
+        }
+
+        loadSetting();
+        return () => {
+            alive = false;
+        };
+    }, []);
 
     return (
         <header className="fixed top-0 left-0 w-full z-50">
@@ -19,7 +52,6 @@ export function SiteHeader() {
             {esHome && (
                 <div className="w-full bg-black/35">
                     <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
-
                         {/* LOGO */}
                         <Image
                             src="/logo-bikers.svg"
@@ -31,26 +63,46 @@ export function SiteHeader() {
                         />
 
                         {/* BOTÓN SOCIO COMERCIAL */}
-                        <Link
-                            href="/socio-comercial"
-                            className="
-                rounded-full
-                border-2 border-[#FF7F00]
-                px-4 py-2
-                text-xs md:text-sm
-                font-extrabold
-                uppercase
-                tracking-[0.12em]
-                text-black
-                bg-transparent
-                transition-all
-                duration-200
-                hover:bg-[#FF7F00]
-                hover:text-white
-              "
-                        >
-                            Socio comercial
-                        </Link>
+                        {regOpen ? (
+                            <Link
+                                href="/socio-comercial"
+                                className="
+                                    rounded-full
+                                    border-2 border-[#FF7F00]
+                                    px-4 py-2
+                                    text-xs md:text-sm
+                                    font-extrabold
+                                    uppercase
+                                    tracking-[0.12em]
+                                    text-black
+                                    bg-transparent
+                                    transition-all
+                                    duration-200
+                                    hover:bg-[#FF7F00]
+                                    hover:text-white
+                                "
+                            >
+                                Socio comercial
+                            </Link>
+                        ) : (
+                            <span
+                                className="
+                                    rounded-full
+                                    border-2 border-slate-500
+                                    px-4 py-2
+                                    text-xs md:text-sm
+                                    font-extrabold
+                                    uppercase
+                                    tracking-[0.12em]
+                                    text-slate-300
+                                    opacity-70
+                                    cursor-not-allowed
+                                "
+                                title="Registro de socios cerrado temporalmente"
+                            >
+                                Registro cerrado
+                            </span>
+                        )}
                     </div>
                 </div>
             )}
