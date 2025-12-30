@@ -42,7 +42,8 @@ function isAdmin(req: NextRequest) {
     const headerSecret = req.headers.get("x-admin-secret") || "";
     const expected =
         process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET || "";
-    if (expected && headerSecret === expected) return true;
+    if (expected && headerSecret.trim() === expected.trim()) return true;
+
 
     return false;
 }

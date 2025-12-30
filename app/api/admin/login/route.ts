@@ -22,7 +22,8 @@ export async function POST(req: NextRequest) {
         vercel_env: process.env.VERCEL_ENV || "",
     };
 
-    if (!expected || !secret || secret !== expected) {
+    if (!expected || !secret || secret.trim() !== expected.trim()) {
+
         return NextResponse.json(
             { ok: false, error: "Credenciales inválidas", debug },
             { status: 401 }
