@@ -5,24 +5,35 @@ import Link from "next/link";
 
 type Socio = {
     id: string;
-    email: string | null;
+    username: string | null;
+    display_name: string | null;
+    code: string | null;
     whatsapp: string | null;
-    code_prefix: string | null;
-    code_seq: number | null;
     status: "active" | "suspended" | string;
     created_at: string;
 };
 
 type Filtro = "all" | "active" | "suspended";
 
+function normalizeWhatsAppToWaMe(raw: string) {
+    // deja solo dígitos
+    const digits = raw.replace(/\D/g, "");
+    // si viene como 09xxxx -> asumimos Ecuador 593 y quitamos el 0
+    if (digits.length === 10 && digits.startsWith("0")) return `593${digits.slice(1)}`;
+    // si ya viene 593xxxxxxxxx
+    if (digits.startsWith("593")) return digits;
+    // si viene 9xxxxxxxx (9 dígitos) asumimos Ecuador
+    if (digits.length === 9) return `593${digits}`;
+    // fallback: usar lo que haya
+    return digits;
+}
+
 export default function AdminSociosPage() {
     const [socios, setSocios] = useState<Socio[]>([]);
     const [loading, setLoading] = useState(true);
+    const [savingId, setSavingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [filtro, setFiltro] = useState<Filtro>("all");
-
-    // para deshabilitar botón por fila mientras guarda
-    const [savingId, setSavingId] = useState<string | null>(null);
 
     const cargar = async () => {
         setLoading(true);
@@ -37,7 +48,7 @@ export default function AdminSociosPage() {
 
             const json = await res.json();
 
-            if (!res.ok || !json.ok) {
+            if (!res.ok || !json?.ok) {
                 setError(json?.error || "No autorizado");
                 setSocios([]);
                 return;
@@ -54,6 +65,14 @@ export default function AdminSociosPage() {
 
     const toggleEstado = async (socio: Socio) => {
         const nextStatus = socio.status === "active" ? "suspended" : "active";
+
+        const nombre = socio.display_name || socio.username || "este socio";
+        const accion = nextStatus === "suspended" ? "SUSPENDER" : "ACTIVAR";
+
+        const ok = window.confirm(
+            `¿Confirmas ${accion} a ${nombre}?\n\nEsto afectará comisiones y retiros desde ahora.`
+        );
+        if (!ok) return;
 
         setSavingId(socio.id);
         setError(null);
@@ -73,7 +92,6 @@ export default function AdminSociosPage() {
                 return;
             }
 
-            // refrescar lista y KPIs
             await cargar();
         } catch {
             setError("Error de conexión");
@@ -98,14 +116,9 @@ export default function AdminSociosPage() {
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                         Casa Bikers • Admin
                     </div>
-
-                    <h1 className="text-3xl font-extrabold tracking-wide">
-                        SOCIOS COMERCIALES
-                    </h1>
-
+                    <h1 className="text-3xl font-extrabold tracking-wide">SOCIOS COMERCIALES</h1>
                     <p className="text-sm text-slate-400">
-                        Lista de socios registrados. Aquí puedes activar o suspender socios
-                        sin tocar pedidos pasados.
+                        Lista de socios registrados. Aquí puedes activar o suspender socios sin tocar pedidos pasados.
                     </p>
 
                     <Link
@@ -118,9 +131,7 @@ export default function AdminSociosPage() {
 
                 {/* KPIs */}
                 <div className="flex flex-wrap gap-3">
-                    <span className="rounded-full border border-slate-700 px-3 py-1 text-xs">
-                        Total: {total}
-                    </span>
+                    <span className="rounded-full border border-slate-700 px-3 py-1 text-xs">Total: {total}</span>
                     <span className="rounded-full border border-emerald-500/40 px-3 py-1 text-xs text-emerald-300">
                         Activos: {activos}
                     </span>
@@ -171,6 +182,7 @@ export default function AdminSociosPage() {
                                 <tr>
                                     <th className="px-3 py-2 text-left">Usuario</th>
                                     <th className="px-3 py-2 text-left">Código</th>
+                                    <th className="px-3 py-2 text-left">WhatsApp</th>
                                     <th className="px-3 py-2 text-left">Estado</th>
                                     <th className="px-3 py-2 text-left">Creado</th>
                                     <th className="px-3 py-2 text-left">Acciones</th>
@@ -178,57 +190,72 @@ export default function AdminSociosPage() {
                             </thead>
 
                             <tbody>
-                                {socios.map((s) => (
-                                    <tr
-                                        key={s.id}
-                                        className="border-b border-slate-800 last:border-0"
-                                    >
-                                        <td className="px-3 py-2">
-                                            {s.email || s.whatsapp || "—"}
-                                        </td>
+                                {socios.map((s) => {
+                                    const nombre = s.display_name || s.username || "—";
+                                    const usuarioSec = s.username ? `@${s.username}` : null;
 
-                                        <td className="px-3 py-2 text-slate-300">
-                                            {s.code_prefix
-                                                ? `${s.code_prefix}${String(s.code_seq ?? 0).padStart(
-                                                    4,
-                                                    "0"
-                                                )}`
-                                                : "—"}
-                                        </td>
+                                    const waDigits = s.whatsapp ? normalizeWhatsAppToWaMe(s.whatsapp) : "";
+                                    const waHref = waDigits ? `https://wa.me/${waDigits}` : "";
 
-                                        <td className="px-3 py-2">
-                                            <span
-                                                className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.status === "active"
-                                                        ? "bg-emerald-500/15 text-emerald-300"
-                                                        : "bg-red-500/15 text-red-300"
-                                                    }`}
-                                            >
-                                                {s.status === "active" ? "ACTIVO" : "SUSPENDIDO"}
-                                            </span>
-                                        </td>
+                                    return (
+                                        <tr key={s.id} className="border-b border-slate-800 last:border-0">
+                                            <td className="px-3 py-2">
+                                                <div className="font-medium">{nombre}</div>
+                                                {usuarioSec && <div className="text-xs text-slate-400">{usuarioSec}</div>}
+                                            </td>
 
-                                        <td className="px-3 py-2 text-xs text-slate-400">
-                                            {new Date(s.created_at).toLocaleString("es-EC")}
-                                        </td>
+                                            <td className="px-3 py-2 text-slate-300">{s.code || "—"}</td>
 
-                                        <td className="px-3 py-2">
-                                            <button
-                                                disabled={savingId === s.id}
-                                                onClick={() => toggleEstado(s)}
-                                                className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
-                                                        ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
-                                                        : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
-                                                    }`}
-                                            >
-                                                {savingId === s.id
-                                                    ? "Guardando…"
-                                                    : s.status === "active"
-                                                        ? "Suspender"
-                                                        : "Activar"}
-                                            </button>
-                                        </td>
-                                    </tr>
-                                ))}
+                                            <td className="px-3 py-2">
+                                                {s.whatsapp ? (
+                                                    <a
+                                                        href={waHref}
+                                                        target="_blank"
+                                                        rel="noreferrer"
+                                                        className="text-emerald-300 hover:text-emerald-200 underline underline-offset-4"
+                                                        title="Abrir chat en WhatsApp"
+                                                    >
+                                                        {s.whatsapp}
+                                                    </a>
+                                                ) : (
+                                                    <span className="text-slate-500">—</span>
+                                                )}
+                                            </td>
+
+                                            <td className="px-3 py-2">
+                                                <span
+                                                    className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.status === "active"
+                                                            ? "bg-emerald-500/15 text-emerald-300"
+                                                            : "bg-red-500/15 text-red-300"
+                                                        }`}
+                                                >
+                                                    {s.status === "active" ? "ACTIVO" : "SUSPENDIDO"}
+                                                </span>
+                                            </td>
+
+                                            <td className="px-3 py-2 text-xs text-slate-400">
+                                                {new Date(s.created_at).toLocaleString("es-EC")}
+                                            </td>
+
+                                            <td className="px-3 py-2">
+                                                <button
+                                                    disabled={savingId === s.id}
+                                                    onClick={() => toggleEstado(s)}
+                                                    className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
+                                                            ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
+                                                            : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+                                                        }`}
+                                                >
+                                                    {savingId === s.id
+                                                        ? "Guardando…"
+                                                        : s.status === "active"
+                                                            ? "Suspender"
+                                                            : "Activar"}
+                                                </button>
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
                             </tbody>
                         </table>
                     </div>
