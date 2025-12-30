@@ -56,31 +56,42 @@ export async function GET(req: NextRequest) {
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") || "all").toLowerCase();
 
-    // 1) lista (filtrada)
+    // 1) query base: SOLO socios
     let q = supabaseAdmin
         .from("affiliates")
-        .select("id, username, display_name, code, status, created_at")
+        .select("id, email, whatsapp, kind, code_prefix, code_seq, status, created_at")
+        .eq("kind", "socio")
         .order("created_at", { ascending: false });
 
-    if (status !== "all") q = q.eq("status", status);
+    // 2) filtros reales
+    if (status === "active") q = q.eq("status", "active");
+    if (status === "suspended") q = q.eq("status", "suspended");
 
     const { data, error } = await q;
     if (error) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    // 2) contadores globales (no filtrados)
-    const [{ count: total, error: e1 }, { count: active, error: e2 }, { count: suspended, error: e3 }] =
+    // 3) contadores reales
+    const [{ count: total }, { count: active }, { count: suspended }] =
         await Promise.all([
-            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }),
-            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("status", "active"),
-            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("status", "suspended"),
-        ]);
+            supabaseAdmin
+                .from("affiliates")
+                .select("id", { count: "exact", head: true })
+                .eq("kind", "socio"),
 
-    const err = e1 || e2 || e3;
-    if (err) {
-        return NextResponse.json({ ok: false, error: err.message }, { status: 500 });
-    }
+            supabaseAdmin
+                .from("affiliates")
+                .select("id", { count: "exact", head: true })
+                .eq("kind", "socio")
+                .eq("status", "active"),
+
+            supabaseAdmin
+                .from("affiliates")
+                .select("id", { count: "exact", head: true })
+                .eq("kind", "socio")
+                .eq("status", "suspended"),
+        ]);
 
     return NextResponse.json({
         ok: true,
