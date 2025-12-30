@@ -26,16 +26,22 @@ export default function AdminAffiliateHomePage() {
     const [regSaving, setRegSaving] = useState(false);
     const [regErr, setRegErr] = useState<string | null>(null);
 
+    // ✅ LEER setting desde endpoint PÚBLICO (no requiere admin cookie)
     const loadReg = async () => {
         setRegErr(null);
+
         try {
-            const r = await fetch("/api/admin/settings/affiliate-registration", {
+            const r = await fetch("/api/settings/affiliate-registration", {
                 method: "GET",
-                credentials: "include",
                 cache: "no-store",
             });
+
             const j = await r.json().catch(() => null);
-            if (!r.ok || !j?.ok) throw new Error(j?.error || "No autorizado");
+
+            if (!r.ok || !j?.ok) {
+                throw new Error(j?.error || "No se pudo leer el estado del registro.");
+            }
+
             setRegOpen(Boolean(j.open));
         } catch (e: any) {
             setRegErr(e?.message || "Error cargando setting");
@@ -43,6 +49,7 @@ export default function AdminAffiliateHomePage() {
         }
     };
 
+    // ✅ Guardar SOLO via endpoint ADMIN protegido con cookie admin_session
     const toggleReg = async () => {
         if (regOpen === null) return;
 
@@ -59,14 +66,17 @@ export default function AdminAffiliateHomePage() {
 
         try {
             const r = await fetch("/api/admin/settings/affiliate-registration", {
-                method: "PATCH",
+                method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ open: next }),
             });
 
             const j = await r.json().catch(() => null);
-            if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo guardar");
+
+            if (!r.ok || !j?.ok) {
+                throw new Error(j?.error || "No se pudo guardar");
+            }
 
             setRegOpen(Boolean(j.open));
         } catch (e: any) {
@@ -88,6 +98,7 @@ export default function AdminAffiliateHomePage() {
                     cache: "no-store",
                     credentials: "include",
                 });
+
                 const j = await r.json().catch(() => null);
 
                 if (!r.ok || !j?.ok || !j?.stats) {
@@ -241,7 +252,9 @@ export default function AdminAffiliateHomePage() {
                             >
                                 <p
                                     className={
-                                        warningRetiros ? "text-xs text-yellow-100" : "text-xs text-slate-400"
+                                        warningRetiros
+                                            ? "text-xs text-yellow-100"
+                                            : "text-xs text-slate-400"
                                     }
                                 >
                                     Retiros pendientes
