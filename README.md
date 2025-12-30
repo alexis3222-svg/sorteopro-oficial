@@ -317,3 +317,303 @@ actualiza wallet
 lee payout profile
 
 envía WhatsApp
+
+1) Diagrama general del sistema
+A) Mapa de componentes
+
+Frontend (Next.js App Router)
+
+Sitio público / compra: genera pedidos y (cuando corresponde) asocia affiliate_id / affiliate_code.
+
+Panel Afiliado (/afiliado): consume APIs de afiliados para sesión, billetera, movimientos y QR.
+
+Backend (Next.js Route Handlers / API)
+
+APIs ya existentes (no tocar):
+
+/api/affiliate/register
+
+/api/affiliate/login
+
+/api/affiliate/logout
+
+/api/affiliate/me
+
+/api/affiliate/qr
+
+/api/affiliate/wallet
+
+/api/affiliate/movements
+
+Supabase (Postgres + Service Role)
+
+Tablas clave:
+
+Afiliados: affiliates, affiliate_sessions
+
+Dinero: affiliate_wallets, affiliate_commissions, affiliate_withdrawals
+
+Ventas: affiliate_sales, pedidos
+
+Sorteos: sorteos, numeros_asignados
+
+Relación crítica
+
+pedidos.affiliate_id
+
+pedidos.affiliate_code
+
+B) Flujo de sesión del afiliado (login / sesiones propias)
+[Afiliado] -> /afiliado (UI)
+   |
+   | (login)
+   v
+POST /api/affiliate/login
+   |
+   | valida credenciales (affiliates)
+   | crea sesión (affiliate_sessions)
+   | set-cookie (token sesión)
+   v
+[Browser con cookie]
+   |
+   | (cada carga / refresco)
+   v
+GET /api/affiliate/me
+   |
+   | lee cookie -> busca sesión activa
+   | devuelve perfil + código + estado
+   v
+/afiliado renderiza panel
+
+(logout)
+POST /api/affiliate/logout
+   |
+   | invalida sesión
+   | limpia cookie
+   v
+/afiliado vuelve a "no logueado"
+
+
+Idea clave de mantenimiento:
+El único origen de verdad de “logueado” es affiliate_sessions + cookie. La UI solo refleja lo que diga /me.
+
+C) Flujo de referido (link + QR)
+Afiliado comparte:
+  https://tu-dominio/... ?ref=AFF_CODE
+
+Cliente entra con ?ref=AFF_CODE
+   |
+   | (en el flujo de compra)
+   | se guarda affiliate_code (y si ya está resuelto, affiliate_id)
+   v
+INSERT pedidos (incluye affiliate_code / affiliate_id)
+
+
+QR
+
+El panel /afiliado llama a:
+
+GET /api/affiliate/qr
+
+Devuelve QR “listo” (o data para generarlo) apuntando al link con ?ref=CODE.
+
+D) Flujo de comisión (10% actual, no recalcula histórico)
+Pedido cambia a "pagado" (por PayPhone webhook o confirmación admin)
+   |
+   | regla: si pedidos.affiliate_id (o affiliate_code) existe
+   v
+Crear comisión:
+  INSERT affiliate_commissions
+   |
+   | actualizar billetera:
+   |  affiliate_wallets.balance_available += comisión
+   |  affiliate_wallets.balance (total histórico) += comisión
+   v
+Panel afiliado ve:
+  GET /api/affiliate/wallet
+  GET /api/affiliate/movements (últimos 20)
+
+
+Punto crítico de estabilidad:
+Este flujo debe ser idempotente (aunque ya lo tienes estable): si el pedido ya generó comisión, no debe duplicarse.
+
+E) Flujo de billetera y retiros (regla $10)
+
+Campos:
+
+balance_available (lo que se puede retirar)
+
+balance_pending (si aplicara retenciones/procesos)
+
+balance_withdrawn (retirado)
+
+balance (histórico total acumulado)
+
+Regla dura:
+
+Retiro solo si balance_available >= 10.
+
+(Tú ya lo tienes como regla del sistema; esto va al README como “business rule”).
+
+2) Estructura exacta de carpetas y archivos para README
+
+Nota: pongo una estructura “documentable” y estándar para este proyecto. Si tienes más carpetas, esto se integra, pero esto cubre lo que ya declaraste como existente y funcionando.
+
+app/
+  afiliado/
+    page.tsx
+    (opcional) components/
+      WalletCards.tsx
+      MovementsList.tsx
+      QrBlock.tsx
+      SessionStatus.tsx
+
+  api/
+    affiliate/
+      register/
+        route.ts
+      login/
+        route.ts
+      logout/
+        route.ts
+      me/
+        route.ts
+      qr/
+        route.ts
+      wallet/
+        route.ts
+      movements/
+        route.ts
+
+lib/
+  supabase/
+    admin.ts
+    client.ts
+  affiliate/
+    session.ts
+    constants.ts
+    types.ts
+  utils/
+    money.ts
+    qr.ts
+
+supabase/
+  migrations/
+    (SQLs si los tienes versionados)
+  policies/
+    (RLS y permisos si los documentas)
+
+Descripción de cada parte (orientado a mantenimiento y escalabilidad)
+app/afiliado/page.tsx
+
+Qué es: UI principal del panel de afiliado (dashboard oscuro tipo Admin).
+
+Qué hace:
+
+consulta estado de sesión (/api/affiliate/me)
+
+muestra billetera (/api/affiliate/wallet)
+
+muestra últimos movimientos (/api/affiliate/movements)
+
+genera/descarga QR (/api/affiliate/qr)
+
+muestra link con ?ref=CODE
+
+Regla: archivo base “correcto”, no romper.
+
+app/api/affiliate/*/route.ts
+
+Qué es: capa API (Route Handlers) que habla con Supabase usando privilegios correctos.
+
+Por qué existe: encapsula toda lógica sensible (login, sesiones, wallet, etc.) en servidor.
+
+Cómo escalar: aquí se agregan endpoints nuevos sin tocar el frontend (siempre opcional).
+
+Endpoints:
+
+register/route.ts: crea afiliado (tabla affiliates) y prepara wallet (affiliate_wallets) si aplica.
+
+login/route.ts: valida credenciales, crea sesión (affiliate_sessions), set-cookie.
+
+logout/route.ts: invalida sesión, limpia cookie.
+
+me/route.ts: lee cookie, retorna perfil + estado.
+
+qr/route.ts: devuelve QR del link de referido.
+
+wallet/route.ts: devuelve saldos de affiliate_wallets.
+
+movements/route.ts: devuelve últimos 20 (normalmente desde affiliate_commissions y/o affiliate_sales y/o affiliate_withdrawals según tu implementación).
+
+lib/supabase/
+
+admin.ts
+
+Cliente Supabase con Service Role (solo server).
+
+Usado por APIs para operaciones seguras (comisiones, sesiones, wallets).
+
+client.ts
+
+Cliente Supabase público (si lo usas en UI para lecturas no sensibles).
+
+Regla: nunca meter service role aquí.
+
+lib/affiliate/
+
+session.ts
+
+Helpers de sesión (leer cookie, validar sesión, obtener affiliate_id).
+
+Centraliza lógica para no duplicar en cada route.
+
+constants.ts
+
+Por ejemplo: comisión 0.10, mínimo retiro 10, nombres de cookies, TTL.
+
+OJO: tú ya tienes comisión en 10%; aquí quedaría documentado para futuros devs.
+
+types.ts
+
+Tipos TypeScript: AffiliateMe, Wallet, Movement, etc.
+
+lib/utils/
+
+money.ts: helpers de formateo/decimal seguro.
+
+qr.ts: si tienes helpers de QR (si no, se omite).
+
+supabase/
+
+migrations/: SQL versionado (si lo estás usando).
+
+policies/: RLS / notas de seguridad (opcional pero recomendado para equipo).
+
+3) “Cómo se conecta todo” (resumen para README)
+
+Frontend /afiliado
+→ consume solo APIs /api/affiliate/*
+→ APIs usan Supabase
+→ las tablas fuente de verdad son:
+
+sesión: affiliate_sessions
+
+saldo: affiliate_wallets
+
+movimientos: affiliate_commissions (+ ventas/retiros si aplica)
+
+Compra pública
+→ cuando entra con ?ref=CODE, guarda ese affiliate_code y/o affiliate_id en pedidos
+→ al marcar pedido como pagado, se dispara lógica de comisión
+→ se inserta affiliate_commissions y se actualiza affiliate_wallets.balance_available
+
+4) Mejoras opcionales (sin tocar lo funcional)
+
+Solo para dejarlo anotado en README como “roadmap”:
+
+Idempotencia visible: constraint único tipo (pedido_id) en affiliate_commissions para blindaje anti-duplicados.
+
+Movements unificado: una vista SQL (affiliate_movements_view) que combine comisiones + retiros + ajustes.
+
+Mínimo retiro en backend: validar >= 10 también en API (aunque ya esté en UI) para seguridad.

@@ -8,11 +8,8 @@ export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "affiliate_session";
 
-// ✅ QR via servicio público (sin librerías). Devuelve PNG.
-// Nota: es un servicio externo, pero no es librería NPM.
-function buildQrUrl(text: string, size = 360) {
+function buildQrUrl(text: string, size = 420) {
     const data = encodeURIComponent(text);
-    // api.qrserver.com es simple y devuelve PNG directo
     return `https://api.qrserver.com/v1/create-qr-code/?size=${size}x${size}&data=${data}`;
 }
 
@@ -21,9 +18,7 @@ export async function GET(req: NextRequest) {
         const cookieStore = await cookies();
         const token = cookieStore.get(COOKIE_NAME)?.value;
 
-        if (!token) {
-            return NextResponse.json({ ok: false }, { status: 401 });
-        }
+        if (!token) return NextResponse.json({ ok: false }, { status: 401 });
 
         const { data: session } = await supabaseAdmin
             .from("affiliate_sessions")
@@ -55,30 +50,13 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "Affiliate sin code" }, { status: 400 });
         }
 
-        // Construir URL base desde el request (sirve local/prod)
         const origin = req.nextUrl.origin;
         const link = `${origin}/?ref=${encodeURIComponent(code)}`;
 
-        // Traer PNG del servicio QR
+        // ✅ redirect directo a PNG (más estable en serverless)
         const qrUrl = buildQrUrl(link, 420);
-        const r = await fetch(qrUrl, { cache: "no-store" });
-
-        if (!r.ok) {
-            return NextResponse.json({ ok: false, error: "No se pudo generar QR" }, { status: 502 });
-        }
-
-        const buf = await r.arrayBuffer();
-
-        return new NextResponse(buf, {
-            status: 200,
-            headers: {
-                "Content-Type": "image/png",
-                "Cache-Control": "no-store",
-                // Para que el botón "Descargar" tenga nombre
-                "Content-Disposition": `inline; filename="qr_${code}.png"`,
-            },
-        });
-    } catch (e) {
+        return NextResponse.redirect(qrUrl);
+    } catch {
         return NextResponse.json({ ok: false }, { status: 401 });
     }
 }
