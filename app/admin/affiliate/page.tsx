@@ -21,6 +21,61 @@ export default function AdminAffiliateHomePage() {
         retirosPendientes: 0,
     });
 
+    // ✅ Toggle registro socios
+    const [regOpen, setRegOpen] = useState<boolean | null>(null);
+    const [regSaving, setRegSaving] = useState(false);
+    const [regErr, setRegErr] = useState<string | null>(null);
+
+    const loadReg = async () => {
+        setRegErr(null);
+        try {
+            const r = await fetch("/api/admin/settings/affiliate-registration", {
+                method: "GET",
+                credentials: "include",
+                cache: "no-store",
+            });
+            const j = await r.json().catch(() => null);
+            if (!r.ok || !j?.ok) throw new Error(j?.error || "No autorizado");
+            setRegOpen(Boolean(j.open));
+        } catch (e: any) {
+            setRegErr(e?.message || "Error cargando setting");
+            setRegOpen(null);
+        }
+    };
+
+    const toggleReg = async () => {
+        if (regOpen === null) return;
+
+        const next = !regOpen;
+        const ok = window.confirm(
+            next
+                ? "¿ABRIR registro de nuevos socios?"
+                : "¿CERRAR registro de nuevos socios?\n\nSocios existentes seguirán funcionando normal."
+        );
+        if (!ok) return;
+
+        setRegSaving(true);
+        setRegErr(null);
+
+        try {
+            const r = await fetch("/api/admin/settings/affiliate-registration", {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ open: next }),
+            });
+
+            const j = await r.json().catch(() => null);
+            if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo guardar");
+
+            setRegOpen(Boolean(j.open));
+        } catch (e: any) {
+            setRegErr(e?.message || "Error guardando setting");
+        } finally {
+            setRegSaving(false);
+        }
+    };
+
     useEffect(() => {
         let alive = true;
 
@@ -29,7 +84,10 @@ export default function AdminAffiliateHomePage() {
             setErrorMsg(null);
 
             try {
-                const r = await fetch("/api/admin/affiliate/stats", { cache: "no-store" });
+                const r = await fetch("/api/admin/affiliate/stats", {
+                    cache: "no-store",
+                    credentials: "include",
+                });
                 const j = await r.json().catch(() => null);
 
                 if (!r.ok || !j?.ok || !j?.stats) {
@@ -55,12 +113,17 @@ export default function AdminAffiliateHomePage() {
         }
 
         load();
+        loadReg(); // ✅ cargar estado del registro
+
         return () => {
             alive = false;
         };
     }, []);
 
-    const warningRetiros = useMemo(() => stats.retirosPendientes > 0, [stats.retirosPendientes]);
+    const warningRetiros = useMemo(
+        () => stats.retirosPendientes > 0,
+        [stats.retirosPendientes]
+    );
 
     return (
         <main className="min-h-screen bg-[#050608] text-slate-50">
@@ -69,10 +132,12 @@ export default function AdminAffiliateHomePage() {
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                         Casa Bikers • Admin
                     </div>
-                    <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">ADMIN SOCIO</h1>
+                    <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">
+                        ADMIN SOCIO
+                    </h1>
                     <p className="max-w-2xl text-sm text-slate-400">
-                        Gestión de socios comerciales, comisiones y retiros. Revisa solicitudes pendientes y controla
-                        los saldos de billeteras.
+                        Gestión de socios comerciales, comisiones y retiros. Revisa solicitudes
+                        pendientes y controla los saldos de billeteras.
                     </p>
                 </header>
 
@@ -88,35 +153,106 @@ export default function AdminAffiliateHomePage() {
                     </div>
                 ) : (
                     <>
+                        {/* ✅ Control de registro de nuevos socios */}
+                        <section className="rounded-2xl border border-slate-800 bg-slate-900/60 p-4">
+                            <div className="flex flex-wrap items-center justify-between gap-3">
+                                <div>
+                                    <div className="text-xs font-semibold tracking-[0.18em] uppercase text-orange-400">
+                                        Registro de nuevos socios
+                                    </div>
+
+                                    <div className="mt-1 text-sm text-slate-300">
+                                        {regOpen === null
+                                            ? "Cargando estado…"
+                                            : regOpen
+                                                ? "Estado: ABIERTO (se permite registro)"
+                                                : "Estado: CERRADO (bloquea nuevos registros)"}
+                                    </div>
+
+                                    {regErr && (
+                                        <div className="mt-2 text-xs text-red-300">{regErr}</div>
+                                    )}
+                                </div>
+
+                                <div className="flex items-center gap-2">
+                                    <button
+                                        onClick={loadReg}
+                                        className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-700 hover:border-orange-400"
+                                    >
+                                        Recargar
+                                    </button>
+
+                                    <button
+                                        disabled={regOpen === null || regSaving}
+                                        onClick={toggleReg}
+                                        className={[
+                                            "rounded-full px-4 py-2 text-xs font-extrabold tracking-wide border transition",
+                                            "disabled:opacity-60 disabled:cursor-not-allowed",
+                                            regOpen
+                                                ? "border-red-500/40 text-red-200 hover:bg-red-500/10"
+                                                : "border-emerald-500/40 text-emerald-200 hover:bg-emerald-500/10",
+                                        ].join(" ")}
+                                    >
+                                        {regSaving
+                                            ? "Guardando…"
+                                            : regOpen
+                                                ? "Cerrar registro"
+                                                : "Abrir registro"}
+                                    </button>
+                                </div>
+                            </div>
+
+                            <p className="mt-3 text-xs text-slate-400">
+                                Importante: esto solo afecta <b>crear nuevos socios</b>. Socios
+                                existentes siguen normal.
+                            </p>
+                        </section>
+
                         {/* KPIs */}
                         <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                             <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                 <p className="text-xs text-slate-400">Socios registrados</p>
-                                <p className="mt-2 text-2xl font-semibold">{stats.sociosActivos}</p>
+                                <p className="mt-2 text-2xl font-semibold">
+                                    {stats.sociosActivos}
+                                </p>
                             </div>
 
                             <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                 <p className="text-xs text-slate-400">Saldo disponible total</p>
-                                <p className="mt-2 text-2xl font-semibold">${stats.saldoDisponibleTotal.toFixed(2)}</p>
+                                <p className="mt-2 text-2xl font-semibold">
+                                    ${stats.saldoDisponibleTotal.toFixed(2)}
+                                </p>
                             </div>
 
                             <div className="rounded-xl border border-slate-800 bg-slate-900/70 px-4 py-3">
                                 <p className="text-xs text-slate-400">Saldo pendiente total</p>
-                                <p className="mt-2 text-2xl font-semibold">${stats.saldoPendienteTotal.toFixed(2)}</p>
+                                <p className="mt-2 text-2xl font-semibold">
+                                    ${stats.saldoPendienteTotal.toFixed(2)}
+                                </p>
                             </div>
 
                             <div
                                 className={[
                                     "rounded-xl px-4 py-3 border",
-                                    warningRetiros ? "border-yellow-500/50 bg-yellow-500/10" : "border-slate-800 bg-slate-900/70",
+                                    warningRetiros
+                                        ? "border-yellow-500/50 bg-yellow-500/10"
+                                        : "border-slate-800 bg-slate-900/70",
                                 ].join(" ")}
                             >
-                                <p className={warningRetiros ? "text-xs text-yellow-100" : "text-xs text-slate-400"}>
+                                <p
+                                    className={
+                                        warningRetiros ? "text-xs text-yellow-100" : "text-xs text-slate-400"
+                                    }
+                                >
                                     Retiros pendientes
                                 </p>
-                                <p className="mt-2 text-2xl font-semibold">{stats.retirosPendientes}</p>
+                                <p className="mt-2 text-2xl font-semibold">
+                                    {stats.retirosPendientes}
+                                </p>
                                 {warningRetiros && (
-                                    <p className="mt-1 text-[11px] text-yellow-100/80">Hay solicitudes por revisar y pagar.</p>
+                                    <p className="mt-1 text-[11px] text-yellow-100/80">
+                                        Hay solicitudes por revisar y pagar.
+                                    </p>
                                 )}
                             </div>
                         </section>
@@ -163,8 +299,8 @@ export default function AdminAffiliateHomePage() {
                             </div>
 
                             <p className="text-xs text-slate-400 max-w-3xl">
-                                Nota: Las sumatorias se calculan en el servidor (service role) para garantizar datos reales y evitar
-                                problemas de permisos del cliente.
+                                Nota: Las sumatorias se calculan en el servidor (service role) para
+                                garantizar datos reales y evitar problemas de permisos del cliente.
                             </p>
                         </section>
                     </>
