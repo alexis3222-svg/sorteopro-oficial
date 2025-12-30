@@ -25,15 +25,12 @@ export default function AdminSociosPage() {
         setError(null);
 
         try {
-            const res = await fetch(
-                `/api/admin/affiliate/socios?status=${filtro}`,
-                {
-                    headers: {
-                        "x-admin-secret": process.env.NEXT_PUBLIC_ADMIN_SECRET!,
-                    },
-                    cache: "no-store",
-                }
-            );
+            const res = await fetch(`/api/admin/affiliate/socios?status=${filtro}`, {
+                method: "GET",
+                cache: "no-store",
+            });
+
+
 
             const json = await res.json();
 
@@ -111,8 +108,8 @@ export default function AdminSociosPage() {
                             key={f}
                             onClick={() => setFiltro(f)}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${filtro === f
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             {f === "all"
@@ -164,8 +161,8 @@ export default function AdminSociosPage() {
                                         <td className="px-3 py-2">
                                             <span
                                                 className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.status === "active"
-                                                        ? "bg-emerald-500/15 text-emerald-300"
-                                                        : "bg-red-500/15 text-red-300"
+                                                    ? "bg-emerald-500/15 text-emerald-300"
+                                                    : "bg-red-500/15 text-red-300"
                                                     }`}
                                             >
                                                 {s.status === "active" ? "ACTIVO" : "SUSPENDIDO"}
