@@ -1,41 +1,69 @@
 // middleware.ts
 import { NextResponse, type NextRequest } from "next/server";
 
-const COOKIE_NAME = "affiliate_session";
+const AFF_COOKIE = "affiliate_session";
+const ADMIN_COOKIE = "admin_session";
 
 export function middleware(req: NextRequest) {
     const { pathname } = req.nextUrl;
 
-    // Solo nos interesa /afiliado/*
-    if (!pathname.startsWith("/afiliado")) {
-        return NextResponse.next();
-    }
+    // =========================
+    // ✅ AFILIADO (/afiliado/*)
+    // =========================
+    if (pathname.startsWith("/afiliado")) {
+        const token = req.cookies.get(AFF_COOKIE)?.value;
 
-    const token = req.cookies.get(COOKIE_NAME)?.value;
+        // /afiliado/login: si ya está logueado -> /afiliado
+        if (pathname === "/afiliado/login") {
+            if (token) {
+                const url = req.nextUrl.clone();
+                url.pathname = "/afiliado";
+                return NextResponse.redirect(url);
+            }
+            return NextResponse.next();
+        }
 
-    // 1) Si intenta ir a /afiliado/login y YA tiene cookie -> manda a /afiliado
-    if (pathname === "/afiliado/login") {
-        if (token) {
+        // resto de /afiliado/*: si no hay cookie -> /afiliado/login
+        if (!token) {
             const url = req.nextUrl.clone();
-            url.pathname = "/afiliado";
+            url.pathname = "/afiliado/login";
+            url.searchParams.set("next", pathname);
             return NextResponse.redirect(url);
         }
+
         return NextResponse.next();
     }
 
-    // 2) Si entra a cualquier /afiliado/* (excepto /afiliado/login) sin cookie -> login
-    if (!token) {
-        const url = req.nextUrl.clone();
-        url.pathname = "/afiliado/login";
-        // opcional: para volver después (por si luego quieres)
-        url.searchParams.set("next", pathname);
-        return NextResponse.redirect(url);
+    // =====================
+    // ✅ ADMIN (/admin/*)
+    // =====================
+    if (pathname.startsWith("/admin")) {
+        const token = req.cookies.get(ADMIN_COOKIE)?.value;
+
+        // permitir acceso a /admin/login sin cookie
+        if (pathname === "/admin/login") {
+            if (token === "1") {
+                const url = req.nextUrl.clone();
+                url.pathname = "/admin";
+                return NextResponse.redirect(url);
+            }
+            return NextResponse.next();
+        }
+
+        // proteger TODO lo demás en /admin/*
+        if (token !== "1") {
+            const url = req.nextUrl.clone();
+            url.pathname = "/admin/login";
+            url.searchParams.set("next", pathname);
+            return NextResponse.redirect(url);
+        }
+
+        return NextResponse.next();
     }
 
     return NextResponse.next();
 }
 
-// matcher para correr SOLO en estas rutas
 export const config = {
-    matcher: ["/afiliado/:path*"],
+    matcher: ["/afiliado/:path*", "/admin/:path*"],
 };
