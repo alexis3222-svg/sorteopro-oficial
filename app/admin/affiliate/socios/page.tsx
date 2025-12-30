@@ -3,6 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 
+// 🔐 HEADER ADMIN (igual que en /admin/pedidos)
+const ADMIN_HEADERS = {
+    "Content-Type": "application/json",
+    "x-admin-secret": process.env.NEXT_PUBLIC_ADMIN_SECRET!,
+};
+
 type Socio = {
     id: string;
     username: string;
@@ -28,7 +34,9 @@ export default function AdminSociosPage() {
             const res = await fetch(`/api/admin/affiliate/socios?status=${filtro}`, {
                 method: "GET",
                 cache: "no-store",
+                headers: ADMIN_HEADERS,
             });
+
 
 
 
