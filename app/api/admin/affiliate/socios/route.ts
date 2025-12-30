@@ -12,17 +12,19 @@ const supabaseAdmin = createClient(
 
 function debugUnauthorized(req: NextRequest) {
     const cookieVal = req.cookies.get("admin_session")?.value || "";
-    const headerSecret = req.headers.get("x-admin-secret") || "";
-    const expected =
-        process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET || "";
+    const headerSecret = (req.headers.get("x-admin-secret") || "").trim();
+    const expected = (
+        process.env.ADMIN_SECRET ||
+        process.env.NEXT_PUBLIC_ADMIN_SECRET ||
+        ""
+    ).trim();
 
     return NextResponse.json(
         {
             ok: false,
             error: "No autorizado",
             debug: {
-                has_cookie_admin_session: cookieVal.length > 0,
-                cookie_admin_session_value: cookieVal ? "(present)" : "(missing)",
+                cookie_admin_session: cookieVal ? cookieVal : "(missing)",
                 has_header_x_admin_secret: headerSecret.length > 0,
                 expected_configured: expected.length > 0,
                 sent_len: headerSecret.length,
@@ -39,31 +41,33 @@ function isAdmin(req: NextRequest) {
     if (c === "1") return true;
 
     // 2) header
-    const headerSecret = req.headers.get("x-admin-secret") || "";
-    const expected =
-        process.env.ADMIN_SECRET || process.env.NEXT_PUBLIC_ADMIN_SECRET || "";
-    if (expected && headerSecret.trim() === expected.trim()) return true;
+    const sent = (req.headers.get("x-admin-secret") || "").trim();
+    const expected = (
+        process.env.ADMIN_SECRET ||
+        process.env.NEXT_PUBLIC_ADMIN_SECRET ||
+        ""
+    ).trim();
 
+    if (expected && sent && sent === expected) return true;
 
     return false;
 }
 
 export async function GET(req: NextRequest) {
     if (!isAdmin(req)) {
-        return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
+        // ✅ temporal: retorna debug para ver por qué falla
+        return debugUnauthorized(req);
     }
 
     const url = new URL(req.url);
     const status = (url.searchParams.get("status") || "all").toLowerCase();
 
-    // 1) query base: SOLO socios
     let q = supabaseAdmin
         .from("affiliates")
         .select("id, username, display_name, code, whatsapp, status, created_at")
         .eq("kind", "socio")
         .order("created_at", { ascending: false });
 
-    // 2) filtros reales
     if (status === "active") q = q.eq("status", "active");
     if (status === "suspended") q = q.eq("status", "suspended");
 
@@ -72,34 +76,16 @@ export async function GET(req: NextRequest) {
         return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
     }
 
-    // 3) contadores reales
     const [{ count: total }, { count: active }, { count: suspended }] =
         await Promise.all([
-            supabaseAdmin
-                .from("affiliates")
-                .select("id", { count: "exact", head: true })
-                .eq("kind", "socio"),
-
-            supabaseAdmin
-                .from("affiliates")
-                .select("id", { count: "exact", head: true })
-                .eq("kind", "socio")
-                .eq("status", "active"),
-
-            supabaseAdmin
-                .from("affiliates")
-                .select("id", { count: "exact", head: true })
-                .eq("kind", "socio")
-                .eq("status", "suspended"),
+            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("kind", "socio"),
+            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("kind", "socio").eq("status", "active"),
+            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("kind", "socio").eq("status", "suspended"),
         ]);
 
     return NextResponse.json({
         ok: true,
         affiliates: data || [],
-        counts: {
-            total: total || 0,
-            active: active || 0,
-            suspended: suspended || 0,
-        },
+        counts: { total: total || 0, active: active || 0, suspended: suspended || 0 },
     });
 }
