@@ -15,22 +15,32 @@ type Socio = {
 
 type Filtro = "all" | "active" | "suspended";
 
+// ✅ Fallback: si existe NEXT_PUBLIC_ADMIN_SECRET lo enviamos como header.
+// (OJO: esto expone el secreto en el frontend. Si quieres 100% seguro, usa SOLO cookie persistente.)
+const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_SECRET || "";
+
 // Convierte a formato wa.me (solo dígitos). Si empieza con 0 y no trae país, intenta Ecuador (593).
 function normalizeWhatsAppToWaMe(input: string) {
     const digits = (input || "").replace(/\D/g, "");
     if (!digits) return "";
-
-    // Si ya viene con 593..., ok
     if (digits.startsWith("593")) return digits;
-
-    // Si viene como 09xxxxxxxx (Ecuador), convertir a 5939xxxxxxxx
     if (digits.length === 10 && digits.startsWith("0")) return `593${digits.slice(1)}`;
-
-    // Si viene como 9xxxxxxxx (sin 0), asumir 593
     if (digits.length === 9 && digits.startsWith("9")) return `593${digits}`;
-
-    // Caso genérico: devolver como esté
     return digits;
+}
+
+// ✅ headers para GET (sin Content-Type)
+function buildHeadersGET(): HeadersInit | undefined {
+    if (!ADMIN_SECRET) return undefined;
+    return { "x-admin-secret": ADMIN_SECRET };
+}
+
+// ✅ headers para PATCH/POST (con Content-Type)
+function buildHeadersJSON(): HeadersInit {
+    return {
+        "Content-Type": "application/json",
+        ...(ADMIN_SECRET ? { "x-admin-secret": ADMIN_SECRET } : {}),
+    };
 }
 
 export default function AdminSociosPage() {
@@ -39,12 +49,6 @@ export default function AdminSociosPage() {
     const [savingId, setSavingId] = useState<string | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [filtro, setFiltro] = useState<Filtro>("all");
-
-    // ✅ Siempre enviar x-admin-secret (si existe) + cookies
-    const getAdminHeaders = () => ({
-        "Content-Type": "application/json",
-        "x-admin-secret": localStorage.getItem("admin_secret") || "",
-    });
 
     const cargar = async () => {
         setLoading(true);
@@ -55,10 +59,10 @@ export default function AdminSociosPage() {
                 method: "GET",
                 credentials: "include",
                 cache: "no-store",
-                headers: getAdminHeaders(),
+                headers: buildHeadersGET(),
             });
 
-            const json = await res.json();
+            const json = await res.json().catch(() => null);
 
             if (!res.ok || !json?.ok) {
                 setError(json?.error || "No autorizado");
@@ -70,6 +74,38 @@ export default function AdminSociosPage() {
         } catch {
             setError("Error de conexión");
             setSocios([]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // ✅ Re-login rápido (para cuando se pierde la cookie admin_session)
+    const reautenticar = async () => {
+        const secret = window.prompt("Pega tu ADMIN SECRET para reautenticar:");
+        if (!secret) return;
+
+        setError(null);
+        setLoading(true);
+
+        try {
+            const res = await fetch("/api/admin/login", {
+                method: "POST",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ secret }),
+            });
+
+            const json = await res.json().catch(() => null);
+
+            if (!res.ok || !json?.ok) {
+                setError(json?.error || "No se pudo reautenticar");
+                return;
+            }
+
+            // ✅ ya se setea cookie httpOnly en el server
+            await cargar();
+        } catch {
+            setError("Error de conexión");
         } finally {
             setLoading(false);
         }
@@ -93,11 +129,11 @@ export default function AdminSociosPage() {
             const res = await fetch(`/api/admin/affiliate/socios/${socio.id}`, {
                 method: "PATCH",
                 credentials: "include",
-                headers: getAdminHeaders(),
+                headers: buildHeadersJSON(),
                 body: JSON.stringify({ status: nextStatus }),
             });
 
-            const json = await res.json();
+            const json = await res.json().catch(() => null);
 
             if (!res.ok || !json?.ok) {
                 setError(json?.error || "No se pudo actualizar el estado");
@@ -128,22 +164,46 @@ export default function AdminSociosPage() {
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
                         Casa Bikers • Admin
                     </div>
+
                     <h1 className="text-3xl font-extrabold tracking-wide">SOCIOS COMERCIALES</h1>
+
                     <p className="text-sm text-slate-400">
                         Lista de socios registrados. Aquí puedes activar o suspender socios sin tocar pedidos pasados.
                     </p>
 
-                    <Link href="/admin/affiliate" className="text-xs text-orange-300 hover:text-orange-200 inline-block">
-                        ← Volver a ADMIN SOCIO
-                    </Link>
+                    <div className="flex flex-wrap items-center gap-3">
+                        <Link href="/admin/affiliate" className="text-xs text-orange-300 hover:text-orange-200 inline-block">
+                            ← Volver a ADMIN SOCIO
+                        </Link>
+
+                        <button
+                            onClick={reautenticar}
+                            className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-700 hover:border-orange-400"
+                            title="Si hoy aparece 'No autorizado', reautentica para regenerar la cookie admin_session"
+                        >
+                            Re-autenticar
+                        </button>
+
+                        <Link
+                            href="https://casabikers.vercel.app/admin/affiliate/socios"
+                            className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-700 hover:border-orange-400"
+                            target="_blank"
+                            rel="noreferrer"
+                            title="Abrir listado de socios en pestaña nueva"
+                        >
+                            Abrir página
+                        </Link>
+                    </div>
                 </header>
 
                 {/* KPIs */}
                 <div className="flex flex-wrap gap-3">
                     <span className="rounded-full border border-slate-700 px-3 py-1 text-xs">Total: {total}</span>
+
                     <span className="rounded-full border border-emerald-500/40 px-3 py-1 text-xs text-emerald-300">
                         Activos: {activos}
                     </span>
+
                     <span className="rounded-full border border-red-500/40 px-3 py-1 text-xs text-red-300">
                         Suspendidos: {suspendidos}
                     </span>
@@ -152,7 +212,13 @@ export default function AdminSociosPage() {
                 {/* Error */}
                 {error && (
                     <div className="rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
-                        {error}
+                        <div className="font-semibold">⚠ {error}</div>
+                        {error.toLowerCase().includes("autoriz") && (
+                            <div className="mt-2 text-xs text-red-200/90">
+                                Tip: si cerraste el navegador, puede haberse perdido la cookie <b>admin_session</b>. Usa{" "}
+                                <b>Re-autenticar</b> para regenerarla.
+                            </div>
+                        )}
                     </div>
                 )}
 
