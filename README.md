@@ -617,3 +617,7 @@ Idempotencia visible: constraint único tipo (pedido_id) en affiliate_commission
 Movements unificado: una vista SQL (affiliate_movements_view) que combine comisiones + retiros + ajustes.
 
 Mínimo retiro en backend: validar >= 10 también en API (aunque ya esté en UI) para seguridad.
+
+
+
+A) Sí, ADMIN igual que AFILIADO (recomendado)
