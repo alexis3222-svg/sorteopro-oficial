@@ -117,8 +117,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("pending")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "pending"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Pendientes
@@ -127,8 +127,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("paid")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "paid"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Pagados
@@ -137,8 +137,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("rejected")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "rejected"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Rechazados
@@ -147,8 +147,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("all")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "all"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Todo
@@ -254,10 +254,52 @@ export default function WithdrawalsClient() {
                                         <td className="px-3 py-3 text-slate-300">{w.notes || "—"}</td>
 
                                         <td className="px-3 py-3">
-                                            {/* Aquí tú ya tienes tu lógica de marcar pagado/rechazar en otro endpoint.
-                          No la toco para no dañar. Si me pasas tu PATCH, lo integro. */}
-                                            <span className="text-slate-500 text-xs">—</span>
+                                            {st === "pending" ? (
+                                                <div className="flex gap-2">
+                                                    <button
+                                                        onClick={async () => {
+                                                            const ok = confirm("¿Marcar este retiro como PAGADO?");
+                                                            if (!ok) return;
+
+                                                            await fetch(`/api/admin/withdrawals/${w.id}`, {
+                                                                method: "PATCH",
+                                                                credentials: "include",
+                                                                headers: { "Content-Type": "application/json" },
+                                                                body: JSON.stringify({ status: "paid" }),
+                                                            });
+
+                                                            cargar();
+                                                        }}
+                                                        className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-black hover:bg-emerald-400"
+                                                    >
+                                                        Marcar pagado
+                                                    </button>
+
+                                                    <button
+                                                        onClick={async () => {
+                                                            const motivo = prompt("Motivo del rechazo (opcional):") || null;
+                                                            const ok = confirm("¿Rechazar este retiro?");
+                                                            if (!ok) return;
+
+                                                            await fetch(`/api/admin/withdrawals/${w.id}`, {
+                                                                method: "PATCH",
+                                                                credentials: "include",
+                                                                headers: { "Content-Type": "application/json" },
+                                                                body: JSON.stringify({ status: "rejected", notes: motivo }),
+                                                            });
+
+                                                            cargar();
+                                                        }}
+                                                        className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+                                                    >
+                                                        Rechazar
+                                                    </button>
+                                                </div>
+                                            ) : (
+                                                <span className="text-slate-500 text-xs">—</span>
+                                            )}
                                         </td>
+
                                     </tr>
                                 );
                             })}
