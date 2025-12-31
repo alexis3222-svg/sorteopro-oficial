@@ -1,3 +1,4 @@
+// app/api/admin/withdrawals/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -15,7 +16,7 @@ function isAdmin(req: NextRequest) {
     const c = req.cookies.get("admin_session")?.value;
     if (c === "1") return true;
 
-    // 2) header (fallback)
+    // 2) header opcional
     const sent = (req.headers.get("x-admin-secret") || "").trim();
     const expected = (
         process.env.ADMIN_SECRET ||
@@ -24,7 +25,6 @@ function isAdmin(req: NextRequest) {
     ).trim();
 
     if (expected && sent && sent === expected) return true;
-
     return false;
 }
 
@@ -34,36 +34,35 @@ export async function GET(req: NextRequest) {
             return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
         }
 
-        const statusRaw = (req.nextUrl.searchParams.get("status") || "pending").toLowerCase();
-        const status = ["pending", "paid", "rejected", "all"].includes(statusRaw)
-            ? statusRaw
-            : "pending";
+        const status = (req.nextUrl.searchParams.get("status") || "pending").toLowerCase();
 
         let q = supabaseAdmin
             .from("affiliate_withdrawals")
             .select(
                 `
+        id,
+        affiliate_id,
+        amount,
+        status,
+        destination,
+        notes,
+        created_at,
+        affiliate:affiliates (
           id,
-          affiliate_id,
-          amount,
-          status,
-          destination,
-          notes,
-          created_at,
-          affiliate:affiliates (
-            id,
-            username,
-            display_name,
-            whatsapp,
-            code,
-            status
-          )
-        `
+          username,
+          display_name,
+          code,
+          whatsapp
+        )
+      `
             )
             .order("created_at", { ascending: false })
             .limit(100);
 
-        if (status !== "all") q = q.eq("status", status);
+        // status=all -> no filtra
+        if (status !== "all") {
+            q = q.eq("status", status);
+        }
 
         const { data, error } = await q;
 
