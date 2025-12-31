@@ -45,12 +45,13 @@ export function SorteoCarousel({ images, titulo }: SorteoCarouselProps) {
 
     return (
         <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/5">
-            <div className="relative h-[520px] w-full md:h-[650px] lg:h-[720px]">
+            <div className="relative w-full h-[420px] sm:h-[520px] md:h-[620px] lg:h-[720px]">
                 <img
                     key={slides[current].id}
                     src={slides[current].src}
                     alt={slides[current].alt}
-                    className="h-full w-full object-contain"
+                    className="h-full w-full object-cover object-center"
+
                 />
             </div>
 
