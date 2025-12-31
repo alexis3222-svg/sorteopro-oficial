@@ -22,7 +22,7 @@ type WithdrawalRow = {
     destination: string | null;
     notes: string | null;
     created_at: string;
-    affiliate?: AffiliateInfo | null; // 👈 viene anidado desde el API
+    affiliate?: AffiliateInfo | null; // viene anidado desde el API
 };
 
 // wa.me (solo dígitos). Si empieza con 0 y no trae país, Ecuador (593).
@@ -40,7 +40,7 @@ export default function WithdrawalsClient() {
     const router = useRouter();
 
     const statusParam = (searchParams.get("status") || "pending").toLowerCase() as Status;
-    const status: Status = ["pending", "paid", "rejected", "all"].includes(statusParam)
+    const status: Status = (["pending", "paid", "rejected", "all"] as Status[]).includes(statusParam)
         ? statusParam
         : "pending";
 
@@ -48,12 +48,14 @@ export default function WithdrawalsClient() {
     const [rows, setRows] = useState<WithdrawalRow[]>([]);
     const [error, setError] = useState<string | null>(null);
 
+    // ✅ evita dobles clicks mientras guarda
+    const [savingId, setSavingId] = useState<string | null>(null);
+
     const cargar = async () => {
         setLoading(true);
         setError(null);
 
         try {
-            // ✅ OJO: este endpoint es /api/admin/withdrawals (NO /api/admin/affiliate/withdrawals)
             const r = await fetch(`/api/admin/withdrawals?status=${status}`, {
                 method: "GET",
                 credentials: "include",
@@ -69,6 +71,34 @@ export default function WithdrawalsClient() {
             setError(e?.message || "Error cargando retiros");
         } finally {
             setLoading(false);
+        }
+    };
+
+    // ✅ helper PATCH (con manejo de error real)
+    const patchWithdrawal = async (id: string, payload: { status: "paid" | "rejected"; notes?: string | null }) => {
+        setSavingId(id);
+        try {
+            const res = await fetch(`/api/admin/withdrawals/${id}`, {
+                method: "PATCH",
+                credentials: "include",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(payload),
+            });
+
+            const j = await res.json().catch(() => null);
+
+            if (!res.ok || !j?.ok) {
+                const msg = j?.error || j?.message || `No se pudo actualizar (HTTP ${res.status})`;
+                alert(msg);
+                return false;
+            }
+
+            return true;
+        } catch (e: any) {
+            alert(e?.message || "Error de conexión");
+            return false;
+        } finally {
+            setSavingId(null);
         }
     };
 
@@ -101,14 +131,9 @@ export default function WithdrawalsClient() {
                 <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                         <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide">{titulo}</h1>
-                        <p className="text-sm text-slate-400">
-                            Gestiona solicitudes de retiro de socios comerciales.
-                        </p>
+                        <p className="text-sm text-slate-400">Gestiona solicitudes de retiro de socios comerciales.</p>
 
-                        <Link
-                            href="/admin/affiliate"
-                            className="mt-2 inline-block text-xs text-orange-300 hover:text-orange-200"
-                        >
+                        <Link href="/admin/affiliate" className="mt-2 inline-block text-xs text-orange-300 hover:text-orange-200">
                             ← Volver a ADMIN SOCIO
                         </Link>
                     </div>
@@ -117,8 +142,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("pending")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "pending"
-                                ? "border-orange-400 bg-orange-500 text-black"
-                                : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                    ? "border-orange-400 bg-orange-500 text-black"
+                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Pendientes
@@ -127,8 +152,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("paid")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "paid"
-                                ? "border-orange-400 bg-orange-500 text-black"
-                                : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                    ? "border-orange-400 bg-orange-500 text-black"
+                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Pagados
@@ -137,8 +162,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("rejected")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "rejected"
-                                ? "border-orange-400 bg-orange-500 text-black"
-                                : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                    ? "border-orange-400 bg-orange-500 text-black"
+                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Rechazados
@@ -147,8 +172,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("all")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "all"
-                                ? "border-orange-400 bg-orange-500 text-black"
-                                : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                    ? "border-orange-400 bg-orange-500 text-black"
+                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Todo
@@ -202,6 +227,7 @@ export default function WithdrawalsClient() {
                                 const waHref = waDigits ? `https://wa.me/${waDigits}` : "";
 
                                 const st = (w.status || "").toLowerCase();
+                                const isSaving = savingId === w.id;
 
                                 return (
                                     <tr key={w.id} className="border-b border-slate-800 last:border-0">
@@ -257,49 +283,38 @@ export default function WithdrawalsClient() {
                                             {st === "pending" ? (
                                                 <div className="flex gap-2">
                                                     <button
+                                                        disabled={isSaving}
                                                         onClick={async () => {
                                                             const ok = confirm("¿Marcar este retiro como PAGADO?");
                                                             if (!ok) return;
 
-                                                            await fetch(`/api/admin/withdrawals/${w.id}`, {
-                                                                method: "PATCH",
-                                                                credentials: "include",
-                                                                headers: { "Content-Type": "application/json" },
-                                                                body: JSON.stringify({ status: "paid" }),
-                                                            });
-
-                                                            cargar();
+                                                            const success = await patchWithdrawal(w.id, { status: "paid" });
+                                                            if (success) await cargar();
                                                         }}
-                                                        className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-black hover:bg-emerald-400"
+                                                        className="rounded-full bg-emerald-500 px-3 py-1 text-xs font-semibold text-black hover:bg-emerald-400 disabled:opacity-60 disabled:cursor-not-allowed"
                                                     >
-                                                        Marcar pagado
+                                                        {isSaving ? "Guardando…" : "Marcar pagado"}
                                                     </button>
 
                                                     <button
+                                                        disabled={isSaving}
                                                         onClick={async () => {
                                                             const motivo = prompt("Motivo del rechazo (opcional):") || null;
                                                             const ok = confirm("¿Rechazar este retiro?");
                                                             if (!ok) return;
 
-                                                            await fetch(`/api/admin/withdrawals/${w.id}`, {
-                                                                method: "PATCH",
-                                                                credentials: "include",
-                                                                headers: { "Content-Type": "application/json" },
-                                                                body: JSON.stringify({ status: "rejected", notes: motivo }),
-                                                            });
-
-                                                            cargar();
+                                                            const success = await patchWithdrawal(w.id, { status: "rejected", notes: motivo });
+                                                            if (success) await cargar();
                                                         }}
-                                                        className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10"
+                                                        className="rounded-full border border-red-500/40 px-3 py-1 text-xs font-semibold text-red-300 hover:bg-red-500/10 disabled:opacity-60 disabled:cursor-not-allowed"
                                                     >
-                                                        Rechazar
+                                                        {isSaving ? "Guardando…" : "Rechazar"}
                                                     </button>
                                                 </div>
                                             ) : (
                                                 <span className="text-slate-500 text-xs">—</span>
                                             )}
                                         </td>
-
                                     </tr>
                                 );
                             })}

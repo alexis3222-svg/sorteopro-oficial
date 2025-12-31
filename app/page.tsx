@@ -392,12 +392,13 @@ export default function HomePage() {
         {galeriaHero.length > 0 ? (
           <SorteoCarousel images={galeriaHero} titulo={sorteo.titulo} />
         ) : imagenHero ? (
-          <div className="overflow-hidden rounded-2xl border border-white/10 bg-black/5">
+          <div className="relative h-[600px] md:h-[700px] overflow-hidden rounded-2xl border border-white/10 bg-black/5">
             <img
               src={imagenHero}
               alt={sorteo.titulo ?? "Imagen del sorteo"}
-              className="h-auto w-full object-cover"
+              className="w-full h-full object-contain"
             />
+
           </div>
         ) : (
           <SorteoCarousel />
