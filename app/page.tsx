@@ -708,9 +708,57 @@ export default function HomePage() {
                 </p>
 
                 <p className="mt-3 text-[11px] text-slate-400 text-center">
-                  Tu pedido aparecerá como pendiente hasta que confirmemos el
-                  pago desde el panel administrativo.
+                  Tu pedido aparecerá como pendiente hasta que confirmemos el pago desde el
+                  panel administrativo.
                 </p>
+
+                {/* 🔹 INFORMACIÓN PARA TRANSFERENCIA */}
+                <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-xs text-slate-200 space-y-2">
+                  <p className="text-center font-semibold text-[#FF7F00]">
+                    Datos para transferencia o depósito
+                  </p>
+
+                  <p className="text-center">
+                    <span className="font-semibold">Banco:</span> Banco Pichincha
+                  </p>
+                  <p className="text-center">
+                    <span className="font-semibold">Tipo de cuenta:</span> Ahorros
+                  </p>
+                  <p className="text-center">
+                    <span className="font-semibold">Número de cuenta:</span> 5888397600
+                  </p>
+                  <p className="text-center">
+                    <span className="font-semibold">Titular:</span> CASA BIKERS
+                  </p>
+
+                  <p className="mt-2 text-center text-slate-300">
+                    📲 Envía el comprobante por WhatsApp:
+                  </p>
+
+                  <div className="flex flex-col items-center gap-2">
+                    {/* 🔗 Link WhatsApp */}
+                    <a
+                      href="https://wa.me/593969261149"
+                      target="_blank"
+                      rel="noreferrer"
+                      className="font-semibold text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
+                    >
+                      0969261149
+                    </a>
+
+                    {/* 📋 Copiar al portapapeles */}
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText("0969261149");
+                        alert("Número copiado al portapapeles");
+                      }}
+                      className="rounded-full border border-slate-600 px-3 py-1 text-[11px] text-slate-200 hover:border-emerald-400 hover:text-emerald-300"
+                    >
+                      Copiar número
+                    </button>
+                  </div>
+
+                </div>
 
                 <div className="mt-5 flex flex-col gap-2">
                   <button
