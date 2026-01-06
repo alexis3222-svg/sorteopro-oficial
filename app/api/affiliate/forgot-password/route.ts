@@ -15,7 +15,6 @@ function normalizeIdentifier(v: string) {
 }
 
 function getClientIp(req: NextRequest) {
-    // Vercel suele mandar x-forwarded-for: "ip, proxy1, proxy2"
     const xff = req.headers.get("x-forwarded-for") || "";
     const first = xff.split(",")[0]?.trim();
     return first || "unknown";
@@ -30,94 +29,75 @@ function hashCode(code: string) {
     return crypto.createHash("sha256").update(code).digest("hex");
 }
 
+function genericResponse(code: string | null) {
+    return NextResponse.json({
+        ok: true,
+        message: "Si el usuario existe, te enviaremos instrucciones.",
+        code, // ✅ siempre devuelve algo (anti-enumeración)
+    });
+}
+
 export async function POST(req: NextRequest) {
     try {
-        const { identifier } = await req.json();
-        const id = typeof identifier === "string" ? normalizeIdentifier(identifier) : "";
+        const body = await req.json().catch(() => ({}));
+        const identifier = typeof body?.identifier === "string" ? body.identifier : "";
+        const id = normalizeIdentifier(identifier || "");
         const ip = getClientIp(req);
         const ua = req.headers.get("user-agent");
 
-        // Respuesta genérica SIEMPRE (anti-enumeración)
-        const generic = () =>
-            NextResponse.json({
-                ok: true,
-                message: "Si el usuario existe, te enviaremos instrucciones.",
-                code: null as string | null,
-            });
-
-        if (!id) {
-            // aun así registramos intento, pero como "invalid"
-            await supabaseAdmin.from("affiliate_password_resets").insert({
-                affiliate_id: null,
-                identifier: "",
-                code_hash: null,
-                expires_at: null,
-                ip,
-                user_agent: ua,
-                status: "invalid",
-            });
-            return generic();
-        }
-
-        // ✅ THROTTLE: 3 intentos por 15 minutos (por ip + identifier)
+        // ✅ THROTTLE: 3 intentos por 15 min (por ip + identifier)
         const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
 
         const { count: recentCount } = await supabaseAdmin
             .from("affiliate_password_resets")
             .select("id", { count: "exact", head: true })
-            .eq("identifier", id)
+            .eq("identifier", id || "") // si viene vacío, igual cae en el mismo bucket
             .eq("ip", ip)
             .gte("created_at", since);
 
         if ((recentCount ?? 0) >= 3) {
+            // registra intento throttled, pero no revela nada
             await supabaseAdmin.from("affiliate_password_resets").insert({
                 affiliate_id: null,
-                identifier: id,
+                identifier: id || "",
                 code_hash: null,
                 expires_at: null,
                 ip,
                 user_agent: ua,
                 status: "throttled",
             });
-            return generic();
+
+            // ✅ No generamos código si está throttled (para cortar spam)
+            return genericResponse(null);
         }
 
-        // 1) Buscar afiliado por username o email
+        // ✅ SIEMPRE generamos código (exista o no exista)
+        const plainCode = generateCode();
+        const codeHash = hashCode(plainCode);
+        const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
+
+        // 1) Buscar afiliado por username o email (si id vacío, no encontrará)
         const { data: affiliate } = await supabaseAdmin
             .from("affiliates")
             .select("id, username, email")
             .or(`username.eq.${id},email.eq.${id}`)
             .maybeSingle();
 
-        // 2) Generar código solo si existe
-        let plainCode: string | null = null;
-        let codeHash: string | null = null;
-        let expiresAt: string | null = null;
-
-        if (affiliate?.id) {
-            plainCode = generateCode();
-            codeHash = hashCode(plainCode);
-            expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString();
-        }
-
-        // 3) Registrar intento (exista o no)
+        // 2) Registrar intento SIEMPRE
         await supabaseAdmin.from("affiliate_password_resets").insert({
             affiliate_id: affiliate?.id ?? null,
-            identifier: id,
+            identifier: id || "",
             code_hash: codeHash,
             expires_at: expiresAt,
             ip,
             user_agent: ua,
-            status: "requested",
+            status: id ? "requested" : "invalid",
         });
 
-        // ✅ Respuesta genérica SIEMPRE (code puede ser null)
-        return NextResponse.json({
-            ok: true,
-            message: "Si el usuario existe, te enviaremos instrucciones.",
-            code: plainCode,
-        });
+        // ✅ Respuesta genérica SIEMPRE + code SIEMPRE (anti-enumeración)
+        return genericResponse(plainCode);
     } catch {
+        // ✅ nunca filtrar errores
         return NextResponse.json({
             ok: true,
             message: "Si el usuario existe, te enviaremos instrucciones.",
