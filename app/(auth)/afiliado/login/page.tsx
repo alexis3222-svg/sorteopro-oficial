@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-const SUPPORT_WA = "593999999999";
+const SUPPORT_WA = "593980966034";
 // ⬆️ Cambia este número por el WhatsApp real (formato: 593 + número sin 0)
 // Ej: 0969xxxxxx -> 593969xxxxxx
 
@@ -55,23 +55,23 @@ export default function AfiliadoLoginPage() {
     };
 
     const forgotHref = waMeLink(
-        `Hola, olvidé mi contraseña de CasaBikers.\nUsuario: ${username.trim() || "(no lo sé)"}\nNecesito recuperar acceso.`
+        `Hola, olvidé mi contraseña de Casa Bikers.\nUsuario: ${username.trim() || "(no lo sé)"}\nNecesito recuperar acceso.`
     );
 
     return (
-        <main className="min-h-[calc(100vh-3rem)] flex items-center justify-center px-4 py-10">
+        // ✅ Quitamos items-center para NO centrar verticalmente
+        // ✅ pt-16 para subir la tarjeta y reducir el espacio bajo la franja
+        <main className="min-h-[calc(100vh-3rem)] flex justify-center px-4 pt-16 pb-12">
             <div className="w-full max-w-xl">
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 shadow-2xl backdrop-blur px-6 py-7 md:px-8 md:py-8">
                     <div className="space-y-1">
                         <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
                             Casa Bikers • Afiliado
                         </div>
-                        <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide">
+                        <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide text-slate-50">
                             Ingreso de afiliado
                         </h1>
-                        <p className="text-sm text-slate-400">
-                            Accede con tu usuario y contraseña.
-                        </p>
+                        <p className="text-sm text-slate-400">Accede con tu usuario y contraseña.</p>
                     </div>
 
                     {errorMsg && (
@@ -136,10 +136,7 @@ export default function AfiliadoLoginPage() {
                         </div>
 
                         <div className="pt-2 text-center">
-                            <Link
-                                href="/"
-                                className="text-xs text-slate-400 hover:text-slate-200"
-                            >
+                            <Link href="/" className="text-xs text-slate-400 hover:text-slate-200">
                                 Volver al inicio
                             </Link>
                         </div>
