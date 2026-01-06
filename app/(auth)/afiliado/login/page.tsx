@@ -64,7 +64,7 @@ export default function AfiliadoLoginPage() {
                 <div className="rounded-2xl border border-slate-800 bg-slate-950/60 shadow-2xl backdrop-blur px-6 py-7 md:px-8 md:py-8">
                     <div className="space-y-1">
                         <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
-                            CasaBikers • Afiliado
+                            Casa Bikers • Afiliado
                         </div>
                         <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide">
                             Ingreso de afiliado
