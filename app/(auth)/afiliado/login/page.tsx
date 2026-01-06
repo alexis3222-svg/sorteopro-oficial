@@ -63,10 +63,11 @@ export default function AfiliadoLoginPage() {
         // ✅ pt-16 para subir la tarjeta y reducir el espacio bajo la franja
         <main className="min-h-[calc(100vh-3rem)] flex justify-center px-4 pt-16 pb-12">
             <div className="w-full max-w-xl">
-                <div className="rounded-2xl border border-slate-800 bg-slate-950/60 shadow-2xl backdrop-blur px-6 py-7 md:px-8 md:py-8">
+                <div className="rounded-2xl border border-slate-800 bg-gradient-to-b from-[#0b1220] to-[#070c16] shadow-2xl px-6 py-7 md:px-8 md:py-8">
+
                     <div className="space-y-1">
                         <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
-                            Casa Bikers • Afiliado
+                            Casa Bikers
                         </div>
                         <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide text-slate-50">
                             Ingreso de afiliado
