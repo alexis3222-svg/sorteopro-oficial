@@ -67,7 +67,8 @@ export default function AfiliadoLoginPage() {
             const j = await r.json().catch(() => null);
             if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo iniciar sesión.");
 
-            router.push("/afiliado");
+            router.push(j?.redirect || "/afiliado");
+
             router.refresh();
         } catch (err: any) {
             setErrorMsg(err?.message || "Error al iniciar sesión.");

@@ -54,7 +54,8 @@ export async function POST(req: NextRequest) {
 
         const { error } = await supabaseAdmin
             .from("affiliates")
-            .update({ password_hash: passwordHash })
+            .update({ password_hash: passwordHash, must_change_password: true })
+
             .eq("id", affiliate.id);
 
         if (error) {

@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
         // 1) Buscar affiliate por username
         const { data: affiliate, error: findErr } = await supabaseAdmin
             .from("affiliates")
-            .select("id, username, password_hash, is_active")
+            .select("id, username, password_hash, is_active, must_change_password")
             .eq("username", username)
             .maybeSingle();
 
@@ -69,7 +69,13 @@ export async function POST(req: NextRequest) {
         }
 
         // 5) Set cookie httpOnly
-        const res = NextResponse.json({ ok: true, redirect: "/afiliado" });
+        if (process.env.NODE_ENV !== "production") {
+            console.log("[affiliate-login] user:", affiliate.username, "must_change_password:", affiliate.must_change_password);
+        }
+
+        const redirectTo = affiliate.must_change_password ? "/afiliado/cambiar-clave" : "/afiliado";
+        const res = NextResponse.json({ ok: true, redirect: redirectTo });
+
 
         res.cookies.set({
             name: COOKIE_NAME,
