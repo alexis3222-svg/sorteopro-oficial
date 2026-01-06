@@ -15,6 +15,18 @@ function waMeLink(message: string) {
     return `https://wa.me/${SUPPORT_WA}?text=${encoded}`;
 }
 
+function formatEcuadorDateTime(d: Date) {
+    // Ecuador suele ser America/Guayaquil (-05:00). Esto muestra un formato humano.
+    // Si el navegador del usuario tiene otro timezone, igual queda "útil" para soporte.
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const yyyy = d.getFullYear();
+    const mm = pad(d.getMonth() + 1);
+    const dd = pad(d.getDate());
+    const hh = pad(d.getHours());
+    const mi = pad(d.getMinutes());
+    return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+}
+
 export default function AfiliadoLoginPage() {
     const router = useRouter();
 
@@ -44,7 +56,6 @@ export default function AfiliadoLoginPage() {
             const j = await r.json().catch(() => null);
             if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo iniciar sesión.");
 
-            // ✅ Ajusta este destino si tu dashboard está en otra ruta
             router.push("/afiliado");
             router.refresh();
         } catch (err: any) {
@@ -54,17 +65,29 @@ export default function AfiliadoLoginPage() {
         }
     };
 
-    const forgotHref = waMeLink(
-        `Hola, olvidé mi contraseña de Casa Bikers.\nUsuario: ${username.trim() || "(no lo sé)"}\nNecesito recuperar acceso.`
-    );
+    // ✅ FASE 1 (A): WhatsApp manual, con plantilla lista para evolucionar a B1 (código)
+    const handleForgotPassword = () => {
+        const u = username.trim();
+        const when = formatEcuadorDateTime(new Date());
+
+        // Importante: no ponemos datos sensibles. Solo lo que el usuario ya escribió + timestamp.
+        // "Código" queda en "(pendiente)" para que en B1 venga desde el endpoint.
+        const msgLines = [
+            "Hola soporte Casa Bikers, necesito recuperar mi contraseña de AFILIADO.",
+            `Usuario: ${u || "(no lo sé)"}`,
+            `Fecha: ${when} (ECU)`,
+            "Código: (pendiente)",
+            "Solicito validación de identidad y restablecimiento. Gracias.",
+        ];
+
+        const url = waMeLink(msgLines.join("\n"));
+        window.open(url, "_blank", "noopener,noreferrer");
+    };
 
     return (
-        // ✅ Quitamos items-center para NO centrar verticalmente
-        // ✅ pt-16 para subir la tarjeta y reducir el espacio bajo la franja
         <main className="min-h-[calc(100vh-3rem)] flex justify-center px-4 pt-16 pb-12">
             <div className="w-full max-w-xl">
                 <div className="rounded-2xl border border-slate-800 bg-gradient-to-b from-[#0b1220] to-[#070c16] shadow-2xl px-6 py-7 md:px-8 md:py-8">
-
                     <div className="space-y-1">
                         <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
                             Casa Bikers
@@ -125,15 +148,14 @@ export default function AfiliadoLoginPage() {
                                 Crear cuenta
                             </Link>
 
-                            {/* ✅ “Olvidé contraseña” por WhatsApp (por ahora) */}
-                            <a
-                                href={forgotHref}
-                                target="_blank"
-                                rel="noreferrer"
+                            {/* ✅ FASE 1 (A): WhatsApp manual (sin revelar existencia de usuario) */}
+                            <button
+                                type="button"
+                                onClick={handleForgotPassword}
                                 className="text-xs text-orange-300 hover:text-orange-200 underline underline-offset-4"
                             >
                                 Olvidé mi contraseña
-                            </a>
+                            </button>
                         </div>
 
                         <div className="pt-2 text-center">
