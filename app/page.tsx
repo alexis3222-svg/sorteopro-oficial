@@ -396,7 +396,7 @@ export default function HomePage() {
             <img
               src={imagenHero}
               alt={sorteo.titulo ?? "Imagen del sorteo"}
-              className="absolute inset-0 h-full w-full object-cover"
+              className="absolute inset-0 h-full w-full object-contain"
             />
           </div>
 
