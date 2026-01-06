@@ -1,34 +1,28 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import crypto from "crypto";
+import bcrypt from "bcryptjs";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
 
 function unauthorized() {
     return NextResponse.json({ ok: false, error: "Unauthorized" }, { status: 401 });
 }
 
 function getAuthKey(req: NextRequest) {
-    // Permitimos header o query para facilidad en herramientas internas.
-    return req.headers.get("x-admin-key") || new URL(req.url).searchParams.get("key") || "";
+    return (
+        req.headers.get("x-admin-key") ||
+        new URL(req.url).searchParams.get("key") ||
+        ""
+    );
 }
 
-function hashPassword(pw: string) {
-    // ⚠️ Esto depende de tu implementación actual de /api/affiliate/login.
-    // Si tu login compara con bcrypt, aquí debes usar bcrypt.
-    // Como no vamos a meter librerías, lo dejo en SHA256 SOLO si tu sistema ya usa eso.
-    // ✅ Si tu login ya usa bcrypt, dime y te lo dejo con bcryptjs (es una librería pequeña).
-    return crypto.createHash("sha256").update(pw).digest("hex");
+function normalizeIdentifier(v: string) {
+    return v.trim().toLowerCase();
 }
 
 function genTempPassword() {
-    // temporal: fácil de dictar por WhatsApp pero con suficiente entropía
+    // fácil de dictar, pero suficientemente fuerte
     const a = Math.random().toString(36).slice(2, 6).toUpperCase();
     const b = Math.floor(1000 + Math.random() * 9000);
     return `CB-${a}${b}`; // ej: CB-Q7KD4821
@@ -43,53 +37,60 @@ export async function POST(req: NextRequest) {
     try {
         const body = await req.json().catch(() => null);
 
-        const identifier = String(body?.identifier || "").trim().toLowerCase();
-        const tempPasswordRequested = String(body?.tempPassword || "").trim(); // opcional
+        const identifierRaw = String(body?.identifier || "");
+        const identifier = normalizeIdentifier(identifierRaw);
+
+        // opcional: permitir que el admin fije una clave temporal específica
+        const tempPasswordRequested = String(body?.tempPassword || "").trim();
 
         if (!identifier) {
             return NextResponse.json({ ok: false, error: "Falta identifier" }, { status: 400 });
         }
 
-        // 1) encontrar afiliado
+        // 1) Buscar afiliado (por username o email)
         const { data: affiliate } = await supabaseAdmin
             .from("affiliates")
-            .select("id, username, email")
+            .select("id, username, email, is_active")
             .or(`username.eq.${identifier},email.eq.${identifier}`)
             .maybeSingle();
 
-        // Respuesta constante (anti-enumeración)
+        // Anti-enumeración: si no existe, responder ok true igual
         if (!affiliate?.id) {
             return NextResponse.json({ ok: true });
         }
 
-        // 2) generar clave temporal
-        const tempPassword = tempPasswordRequested || genTempPassword();
+        // (Opcional) si quieres respetar is_active
+        if (affiliate.is_active === false) {
+            // No revelamos nada específico
+            return NextResponse.json({ ok: true });
+        }
 
-        // 3) guardar en affiliates
-        // 👇 AJUSTA estos nombres según tu tabla real:
-        // - password_hash (o password)
-        // - must_change_password (si existe)
+        // 2) Generar password temporal + bcrypt hash
+        const tempPassword = tempPasswordRequested || genTempPassword();
+        const passwordHash = await bcrypt.hash(tempPassword, 10);
+
+        // 3) Actualizar password_hash
+        // Si NO tienes columna must_change_password, deja solo password_hash.
         const { error: upErr } = await supabaseAdmin
             .from("affiliates")
             .update({
-                password_hash: hashPassword(tempPassword),
-
+                password_hash: passwordHash,
+                // must_change_password: true, // ✅ solo si existe en tu tabla
             })
             .eq("id", affiliate.id);
 
         if (upErr) {
-            // no filtramos detalles
             return NextResponse.json({ ok: false, error: "No se pudo actualizar" }, { status: 500 });
         }
 
-        // 4) marcar resets como "used" para higiene (opcional)
+        // 4) (Opcional) Marcar requests previos como used para higiene
         await supabaseAdmin
             .from("affiliate_password_resets")
             .update({ status: "used" })
             .eq("affiliate_id", affiliate.id)
             .eq("status", "requested");
 
-        // 5) devolver la clave temporal al admin
+        // 5) Devolver la clave temporal AL ADMIN (no al usuario)
         return NextResponse.json({
             ok: true,
             username: affiliate.username,
