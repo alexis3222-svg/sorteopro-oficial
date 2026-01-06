@@ -65,24 +65,46 @@ export default function AfiliadoLoginPage() {
         }
     };
 
-    // ✅ FASE 1 (A): WhatsApp manual, con plantilla lista para evolucionar a B1 (código)
-    const handleForgotPassword = () => {
-        const u = username.trim();
-        const when = formatEcuadorDateTime(new Date());
+    const handleForgotPassword = async () => {
+        try {
+            const u = username.trim();
+            const when = formatEcuadorDateTime(new Date());
 
-        // Importante: no ponemos datos sensibles. Solo lo que el usuario ya escribió + timestamp.
-        // "Código" queda en "(pendiente)" para que en B1 venga desde el endpoint.
-        const msgLines = [
-            "Hola soporte Casa Bikers, necesito recuperar mi contraseña de AFILIADO.",
-            `Usuario: ${u || "(no lo sé)"}`,
-            `Fecha: ${when} (ECU)`,
-            "Código: (pendiente)",
-            "Solicito validación de identidad y restablecimiento. Gracias.",
-        ];
+            // 1) Llamar al backend
+            const r = await fetch("/api/affiliate/forgot-password", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ identifier: u }),
+            });
 
-        const url = waMeLink(msgLines.join("\n"));
-        window.open(url, "_blank", "noopener,noreferrer");
+            const j = await r.json().catch(() => ({}));
+            const codeLine = j?.code ? `Código: ${j.code}` : "Código: (pendiente)";
+
+            // 2) Abrir WhatsApp con el mensaje final
+            const msgLines = [
+                "Hola soporte CasaBikers, necesito recuperar mi contraseña de AFILIADO.",
+                `Usuario: ${u || "(no lo sé)"}`,
+                `Fecha: ${when} (ECU)`,
+                codeLine,
+                "Solicito validación de identidad y restablecimiento. Gracias.",
+            ];
+
+            const url = waMeLink(msgLines.join("\n"));
+            window.open(url, "_blank", "noopener,noreferrer");
+        } catch {
+            // Fallback silencioso: abre WhatsApp sin código
+            const when = formatEcuadorDateTime(new Date());
+            const msgLines = [
+                "Hola soporte CasaBikers, necesito recuperar mi contraseña de AFILIADO.",
+                `Usuario: ${username.trim() || "(no lo sé)"}`,
+                `Fecha: ${when} (ECU)`,
+                "Código: (pendiente)",
+                "Solicito validación de identidad y restablecimiento. Gracias.",
+            ];
+            window.open(waMeLink(msgLines.join("\n")), "_blank", "noopener,noreferrer");
+        }
     };
+
 
     return (
         <main className="min-h-[calc(100vh-3rem)] flex justify-center px-4 pt-16 pb-12">
