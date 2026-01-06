@@ -7,8 +7,7 @@ import { useRouter } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 const SUPPORT_WA = "593980966034";
-// ⬆️ Cambia este número por el WhatsApp real (formato: 593 + número sin 0)
-// Ej: 0969xxxxxx -> 593969xxxxxx
+// formato: 593 + número sin 0
 
 function waMeLink(message: string) {
     const encoded = encodeURIComponent(message);
@@ -16,8 +15,6 @@ function waMeLink(message: string) {
 }
 
 function formatEcuadorDateTime(d: Date) {
-    // Ecuador suele ser America/Guayaquil (-05:00). Esto muestra un formato humano.
-    // Si el navegador del usuario tiene otro timezone, igual queda "útil" para soporte.
     const pad = (n: number) => String(n).padStart(2, "0");
     const yyyy = d.getFullYear();
     const mm = pad(d.getMonth() + 1);
@@ -42,14 +39,7 @@ export default function AfiliadoLoginPage() {
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setErrorMsg(null);
-
-        {
-            fpMsg && (
-                <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
-                    {fpMsg}
-                </div>
-            )
-        }
+        setFpMsg(null);
 
         const u = username.trim();
         if (!u) return setErrorMsg("Ingresa tu usuario.");
@@ -68,7 +58,6 @@ export default function AfiliadoLoginPage() {
             if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo iniciar sesión.");
 
             router.push(j?.redirect || "/afiliado");
-
             router.refresh();
         } catch (err: any) {
             setErrorMsg(err?.message || "Error al iniciar sesión.");
@@ -103,8 +92,7 @@ export default function AfiliadoLoginPage() {
                 "Solicito validación de identidad y restablecimiento. Gracias.",
             ];
 
-            setFpMsg("Solicitud enviada. Te abrimos WhatsApp para continuar con soporte.");
-
+            setFpMsg("Solicitud enviada. Se abrirá WhatsApp para continuar con soporte.");
             window.open(waMeLink(msgLines.join("\n")), "_blank", "noopener,noreferrer");
         } catch {
             const when = formatEcuadorDateTime(new Date());
@@ -116,13 +104,12 @@ export default function AfiliadoLoginPage() {
                 "Solicito validación de identidad y restablecimiento. Gracias.",
             ];
 
-            setFpMsg("No pudimos generar el código. Te abrimos WhatsApp igual para soporte.");
+            setFpMsg("No pudimos generar el código. Se abrirá WhatsApp igual para soporte.");
             window.open(waMeLink(msgLines.join("\n")), "_blank", "noopener,noreferrer");
         } finally {
             setFpLoading(false);
         }
     };
-
 
     return (
         <main className="min-h-[calc(100vh-3rem)] flex justify-center px-4 pt-16 pb-12">
@@ -138,9 +125,16 @@ export default function AfiliadoLoginPage() {
                         <p className="text-sm text-slate-400">Accede con tu usuario y contraseña.</p>
                     </div>
 
+                    {/* ✅ Mensajes (aquí sí renderiza) */}
                     {errorMsg && (
                         <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                             {errorMsg}
+                        </div>
+                    )}
+
+                    {fpMsg && (
+                        <div className="mt-4 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-100">
+                            {fpMsg}
                         </div>
                     )}
 
@@ -188,13 +182,18 @@ export default function AfiliadoLoginPage() {
                                 Crear cuenta
                             </Link>
 
-                            {/* ✅ FASE 1 (A): WhatsApp manual (sin revelar existencia de usuario) */}
                             <button
                                 type="button"
                                 onClick={handleForgotPassword}
-                                className="text-xs text-orange-300 hover:text-orange-200 underline underline-offset-4"
+                                disabled={fpLoading}
+                                className={[
+                                    "text-xs underline underline-offset-4",
+                                    fpLoading
+                                        ? "text-slate-400 cursor-not-allowed"
+                                        : "text-orange-300 hover:text-orange-200",
+                                ].join(" ")}
                             >
-                                Olvidé mi contraseña
+                                {fpLoading ? "Enviando…" : "Olvidé mi contraseña"}
                             </button>
                         </div>
 
