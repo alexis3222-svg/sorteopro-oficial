@@ -1,72 +1,55 @@
-// app/afiliado/layout.tsx
-"use client";
-
+// app/(afiliado)/afiliado/layout.tsx
 import type { ReactNode } from "react";
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { cookies } from "next/headers";
+import { redirect } from "next/navigation";
+import AfiliadoHeaderClient from "./AfiliadoHeaderClient";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-export default function AfiliadoLayout({ children }: { children: ReactNode }) {
-    const router = useRouter();
-    const [theme, setTheme] = useState<"dark" | "light">("dark");
+export const dynamic = "force-dynamic";
 
-    useEffect(() => {
-        const saved =
-            (typeof window !== "undefined" && localStorage.getItem("affiliate_theme")) || "dark";
-        setTheme(saved === "light" ? "light" : "dark");
-    }, []);
+const COOKIE_NAME = "affiliate_session";
 
-    useEffect(() => {
-        if (typeof window !== "undefined") {
-            localStorage.setItem("affiliate_theme", theme);
-        }
-    }, [theme]);
+async function getAffiliateFromSession() {
+    // ✅ cookies() ES ASYNC en tu versión
+    const cookieStore = await cookies();
+    const token = cookieStore.get(COOKIE_NAME)?.value || "";
+    if (!token) return null;
 
-    const logout = async () => {
-        try {
-            await fetch("/api/affiliate/logout", { method: "POST" });
-        } finally {
-            router.push("/afiliado/login");
-            router.refresh();
-        }
-    };
+    const nowIso = new Date().toISOString();
 
-    const isDark = theme === "dark";
+    const { data: session } = await supabaseAdmin
+        .from("affiliate_sessions")
+        .select("affiliate_id, expires_at")
+        .eq("token", token)
+        .maybeSingle();
+
+    if (!session?.affiliate_id) return null;
+    if (session.expires_at && session.expires_at <= nowIso) return null;
+
+    const { data: affiliate } = await supabaseAdmin
+        .from("affiliates")
+        .select("id, username, must_change_password, is_active")
+        .eq("id", session.affiliate_id)
+        .maybeSingle();
+
+    if (!affiliate?.id) return null;
+    if (affiliate.is_active === false) return null;
+
+    return affiliate;
+}
+
+export default async function AfiliadoLayout({ children }: { children: ReactNode }) {
+    const affiliate = await getAffiliateFromSession();
+
+    // 🔐 Sin sesión → login
+    if (!affiliate) redirect("/afiliado/login");
+
+    // 🔐 Forzar cambio de contraseña
+    if (affiliate.must_change_password) redirect("/afiliado/cambiar-clave");
 
     return (
-        <div className={isDark ? "min-h-screen bg-neutral-950 text-slate-100" : "min-h-screen bg-white text-neutral-900"}>
-            <header className={isDark ? "border-b border-neutral-800 bg-neutral-900/70" : "border-b border-neutral-200 bg-white"}>
-                <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
-                    <div>
-                        <p className={isDark ? "text-[11px] uppercase tracking-[0.25em] text-orange-400" : "text-[11px] uppercase tracking-[0.25em] text-orange-600"}>
-                            CasaBikers • Afiliado
-                        </p>
-                        <h1 className={isDark ? "text-sm text-neutral-200" : "text-sm text-neutral-800"}>
-                            Panel de afiliados
-                        </h1>
-                    </div>
-
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setTheme(isDark ? "light" : "dark")}
-                            className={
-                                isDark
-                                    ? "rounded-xl border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800 transition"
-                                    : "rounded-xl border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 transition"
-                            }
-                        >
-                            {isDark ? "Modo blanco" : "Modo oscuro"}
-                        </button>
-
-                        <button
-                            onClick={logout}
-                            className="rounded-xl border border-[#FF7F00] px-3 py-1.5 text-xs hover:bg-[#FF7F00] hover:text-white transition"
-                        >
-                            Cerrar sesión
-                        </button>
-                    </div>
-                </div>
-            </header>
-
+        <div className="min-h-screen bg-neutral-950 text-slate-100">
+            <AfiliadoHeaderClient />
             <main className="mx-auto max-w-6xl px-4 py-6">{children}</main>
         </div>
     );
