@@ -172,7 +172,10 @@ export default function AdminSociosPage() {
                     </p>
 
                     <div className="flex flex-wrap items-center gap-3">
-                        <Link href="/admin/affiliate" className="text-xs text-orange-300 hover:text-orange-200 inline-block">
+                        <Link
+                            href="/admin/affiliate"
+                            className="text-xs text-orange-300 hover:text-orange-200 inline-block"
+                        >
                             ← Volver a ADMIN SOCIO
                         </Link>
 
@@ -184,14 +187,24 @@ export default function AdminSociosPage() {
                             Re-autenticar
                         </button>
 
+                        {/* ✅ Mejor: relativo para que funcione en local/preview/producción */}
                         <Link
-                            href="https://casabikers.vercel.app/admin/affiliate/socios"
+                            href="/admin/affiliate/socios"
                             className="rounded-full px-3 py-1 text-xs font-semibold border border-slate-700 hover:border-orange-400"
                             target="_blank"
                             rel="noreferrer"
                             title="Abrir listado de socios en pestaña nueva"
                         >
                             Abrir página
+                        </Link>
+
+                        {/* ✅ Botón naranja arriba a la derecha */}
+                        <Link
+                            href="/admin-tools/reset-afiliado"
+                            className="ml-auto inline-flex items-center justify-center rounded-full bg-orange-500 px-4 py-1.5 text-xs font-extrabold tracking-wide text-black hover:bg-orange-400 transition"
+                            title="Abrir herramienta para resetear contraseña temporal de un afiliado"
+                        >
+                            Reset afiliado
                         </Link>
                     </div>
                 </header>
@@ -229,8 +242,8 @@ export default function AdminSociosPage() {
                             key={f}
                             onClick={() => setFiltro(f)}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${filtro === f
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             {f === "all" ? "Todos" : f === "active" ? "Activos" : "Suspendidos"}
@@ -300,8 +313,8 @@ export default function AdminSociosPage() {
                                             <td className="px-3 py-2">
                                                 <span
                                                     className={`inline-flex rounded-full px-2 py-0.5 text-[10px] font-semibold ${s.status === "active"
-                                                            ? "bg-emerald-500/15 text-emerald-300"
-                                                            : "bg-red-500/15 text-red-300"
+                                                        ? "bg-emerald-500/15 text-emerald-300"
+                                                        : "bg-red-500/15 text-red-300"
                                                         }`}
                                                 >
                                                     {s.status === "active" ? "ACTIVO" : "SUSPENDIDO"}
@@ -317,8 +330,8 @@ export default function AdminSociosPage() {
                                                     disabled={savingId === s.id}
                                                     onClick={() => toggleEstado(s)}
                                                     className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
-                                                            ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
-                                                            : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+                                                        ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
+                                                        : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
                                                         }`}
                                                 >
                                                     {savingId === s.id ? "Guardando…" : s.status === "active" ? "Suspender" : "Activar"}
