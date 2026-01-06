@@ -16,8 +16,10 @@ export default function CambiarClaveAfiliadoPage() {
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [okMsg, setOkMsg] = useState<string | null>(null);
 
-    const onSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
+    const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault(); // ✅ evita que el form haga POST a otra ruta
+        if (loading) return;
+
         setErrorMsg(null);
         setOkMsg(null);
 
@@ -36,7 +38,10 @@ export default function CambiarClaveAfiliadoPage() {
             });
 
             const j = await r.json().catch(() => null);
-            if (!r.ok || !j?.ok) throw new Error(j?.error || "No se pudo cambiar la contraseña.");
+
+            if (!r.ok || !j?.ok) {
+                throw new Error(j?.error || "No se pudo cambiar la contraseña.");
+            }
 
             setOkMsg("Contraseña actualizada. Redirigiendo…");
             setCurrentPassword("");
@@ -118,6 +123,7 @@ export default function CambiarClaveAfiliadoPage() {
                         </div>
 
                         <button
+                            type="submit"
                             disabled={loading}
                             className={[
                                 "w-full rounded-xl px-4 py-3 text-sm font-extrabold tracking-wide transition",
