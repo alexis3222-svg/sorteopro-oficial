@@ -67,7 +67,7 @@ export function SiteHeader() {
                                 href="/socio-comercial"
                                 className="
                                     rounded-full
-                                    border-2 border-[#FF7F00]
+                                    border-2 border-[#FF6600]
                                     px-4 py-2
                                     text-xs md:text-sm
                                     font-extrabold
@@ -77,7 +77,7 @@ export function SiteHeader() {
                                     bg-transparent
                                     transition-all
                                     duration-200
-                                    hover:bg-[#FF7F00]
+                                    hover:bg-[#FF6600]
                                     hover:text-white
                                 "
                             >

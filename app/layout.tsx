@@ -42,7 +42,7 @@ export default function RootLayout({
               </Link>
 
               <p className="mt-2 text-[10px] md:text-[11px] text-slate-400">
-                Created for Alexis Amaguay Vásquez
+                Created for: Alexis Amaguay Vásquez
               </p>
             </div>
           </footer>

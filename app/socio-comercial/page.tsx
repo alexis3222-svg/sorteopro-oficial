@@ -68,7 +68,7 @@ export default function SocioComercialPage() {
         }
 
         if (p.length < 6) {
-            setErrorMsg("La contraseña debe tener al menos 6 caracteres.");
+            setErrorMsg("La contraseña debe tener al menos 8 caracteres.");
             return;
         }
 
@@ -132,13 +132,13 @@ export default function SocioComercialPage() {
                                 label="Nombres"
                                 value={nombres}
                                 onChange={setNombres}
-                                placeholder="Ej: Alexis Luis"
+                                placeholder="Ej: Jean Carlo"
                             />
                             <Field
                                 label="Apellidos"
                                 value={apellidos}
                                 onChange={setApellidos}
-                                placeholder="Ej: Amaguay Vásquez"
+                                placeholder="Ej: Mendez Gomez"
                             />
                         </div>
 
@@ -160,26 +160,26 @@ export default function SocioComercialPage() {
                         />
 
                         <Field
-                            label="Usuario"
+                            label="Escribe tu alias"
                             value={username}
                             onChange={setUsername}
-                            placeholder="Ej: socio048"
+                            placeholder="Ej: juan322"
                             name="username"
                             autoComplete="username"
                         />
 
                         <Field
-                            label="Contraseña"
+                            label="Contraseña nueva"
                             type="password"
                             value={password}
                             onChange={setPassword}
-                            placeholder="••••••••"
+                            placeholder="Ej: juan123456"
                             name="password"
                             autoComplete="new-password"
                         />
 
                         <Field
-                            label="Confirmar contraseña"
+                            label="Confirmar nueva contraseña"
                             type="password"
                             value={confirmPassword}
                             onChange={setConfirmPassword}
@@ -205,7 +205,7 @@ export default function SocioComercialPage() {
                             <button
                                 type="submit"
                                 disabled={loading}
-                                className="rounded-xl border-2 border-[#FF7F00] px-5 py-3 text-xs font-extrabold uppercase tracking-[0.14em] text-black transition hover:bg-[#FF7F00] hover:text-white disabled:opacity-60"
+                                className="rounded-xl border-2 border-[#FF6600] px-5 py-3 text-xs font-extrabold uppercase tracking-[0.14em] text-black transition hover:bg-[#FF7F00] hover:text-white disabled:opacity-60"
                             >
                                 {loading ? "Creando..." : "Comenzar"}
                             </button>

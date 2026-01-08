@@ -103,12 +103,12 @@ export default function HomePage() {
   }
 
   const vendidos = sorteo?.numeros_vendidos ?? 0;
-  const total = sorteo?.total_numeros ?? 10000;
+  const total = sorteo?.total_numeros ?? 20000;
   const progresoReal = total > 0 ? (vendidos / total) * 100 : 0;
-  const progresoMostrado = progresoReal < 20 ? 20 : progresoReal;
+  const progresoMostrado = progresoReal < 2 ? 2 : progresoReal;
   const precioUnidad = sorteo?.precio_numero ?? 1;
-
   const numeroActividad: number = sorteo.actividad_numero ?? 1;
+  const agotado = total > 0 && vendidos >= total;
 
   const premios: string[] = (sorteo.titulo ?? "")
     .split("+")
@@ -126,11 +126,16 @@ export default function HomePage() {
     : [];
 
   const handleComprarClick = (cantidad: number) => {
+    if (agotado) {
+      return; // ⛔ Sorteo agotado, no abrir modal
+    }
+
     setSelectedCantidad(cantidad);
     setModalStep("resumen");
     setIsModalOpen(true);
     setOrderError(null);
   };
+
 
   const handleCerrarModal = () => {
     setIsModalOpen(false);
@@ -421,42 +426,60 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* SECCIÓN: ADQUIERE TUS NÚMEROS */}
+      {/* SECCIÓN: ADQUIERE TUS NÚMEROS / AGOTADO */}
       <section className="space-y-3">
-        <div className="space-y-2 text-center">
-          <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
-            ¡ADQUIERE TUS NÚMEROS!
-          </p>
+        {agotado ? (
+          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-8 shadow-sm text-center">
+            <div className="text-3xl">☹️</div>
 
-          <p className="text-[13px] font-extrabold text-slate-700">
-            Valor de la unidad:{" "}
-            <span className="font-extrabold text-slate-700">
-              ${precioUnidad.toFixed(2)}
-            </span>
-          </p>
-        </div>
+            <p className="mt-3 text-lg md:text-xl font-extrabold uppercase tracking-wide text-slate-800">
+              ¡LOS NÚMEROS PARA ESTA ACTIVIDAD SE AGOTARON!
+            </p>
 
-        <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
-          {paquetes.map((cantidad) => (
-            <article
-              key={cantidad}
-              className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-[#3A3F4B]/90 px-4 py-4 shadow-md"
-            >
-              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
-                x{cantidad} números
+            <p className="mt-2 text-xs md:text-sm text-slate-600">
+              Los premios se jugarán una vez vendida la totalidad de los números.
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Encabezado SOLO cuando NO está agotado */}
+            <div className="space-y-2 text-center">
+              <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
+                ¡ADQUIERE TUS NÚMEROS!
               </p>
-              <p className="text-2xl font-bold text-white">
-                {(cantidad * precioUnidad).toFixed(2)}
+
+              <p className="text-[13px] font-extrabold text-slate-700">
+                Valor de la unidad:{" "}
+                <span className="font-extrabold text-slate-700">
+                  ${precioUnidad.toFixed(2)}
+                </span>
               </p>
-              <button
-                className="mt-2 w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
-                onClick={() => handleComprarClick(cantidad)}
-              >
-                Comprar
-              </button>
-            </article>
-          ))}
-        </div>
+            </div>
+
+            {/* Paquetes */}
+            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
+              {paquetes.map((cantidad) => (
+                <article
+                  key={cantidad}
+                  className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-[#3A3F4B]/90 px-4 py-4 shadow-md"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
+                    x{cantidad} números
+                  </p>
+                  <p className="text-2xl font-bold text-white">
+                    {(cantidad * precioUnidad).toFixed(2)}
+                  </p>
+                  <button
+                    className="mt-2 w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
+                    onClick={() => handleComprarClick(cantidad)}
+                  >
+                    Comprar
+                  </button>
+                </article>
+              ))}
+            </div>
+          </>
+        )}
       </section>
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS */}
@@ -720,16 +743,16 @@ export default function HomePage() {
                   </p>
 
                   <p className="text-center">
-                    <span className="font-semibold">Banco:</span> Banco Pichincha
+                    <span className="font-semibold">Banco:</span> Guayaquil
                   </p>
                   <p className="text-center">
                     <span className="font-semibold">Tipo de cuenta:</span> Ahorros
                   </p>
                   <p className="text-center">
-                    <span className="font-semibold">Número de cuenta:</span> 5888397600
+                    <span className="font-semibold">Número de cuenta:</span> 0048055945
                   </p>
                   <p className="text-center">
-                    <span className="font-semibold">Titular:</span> CASA BIKERS
+                    <span className="font-semibold">Titular:</span> Alexis Amaguay Vásquez "CASA BIKERS"
                   </p>
 
                   <p className="mt-2 text-center text-slate-300">
@@ -739,18 +762,18 @@ export default function HomePage() {
                   <div className="flex flex-col items-center gap-2">
                     {/* 🔗 Link WhatsApp */}
                     <a
-                      href="https://wa.me/593969261149"
+                      href="https://wa.me/593990575984"
                       target="_blank"
                       rel="noreferrer"
                       className="font-semibold text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
                     >
-                      0969261149
+                      0990575984
                     </a>
 
                     {/* 📋 Copiar al portapapeles */}
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText("0969261149");
+                        navigator.clipboard.writeText("0990575984");
                         alert("Número copiado al portapapeles");
                       }}
                       className="rounded-full border border-slate-600 px-3 py-1 text-[11px] text-slate-200 hover:border-emerald-400 hover:text-emerald-300"
