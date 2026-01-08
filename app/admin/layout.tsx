@@ -10,7 +10,7 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-3">
                     <div>
                         <p className="text-[11px] uppercase tracking-[0.25em] text-orange-400">
-                            SorteoPro • Admin
+                            Cumpliendo Sueños
                         </p>
                         <h1 className="text-sm text-neutral-200">
                             Panel de administración

@@ -183,8 +183,7 @@ export default function EditSorteoPage() {
                             Editar sorteo
                         </h1>
                         <p className="max-w-2xl text-sm text-slate-400">
-                            Actualiza la información del sorteo activo en la plataforma
-                            SorteoPro / Casa Bikers.
+                            Actualiza la información del sorteo activo en la plataforma Casa Bikers.
                         </p>
                     </div>
 
@@ -193,7 +192,7 @@ export default function EditSorteoPage() {
                         disabled={resetting}
                         className="mt-3 md:mt-0 rounded-full border border-red-500/60 bg-red-500/10 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-300 hover:bg-red-500/20 disabled:opacity-40"
                     >
-                        {resetting ? "Reseteando..." : "Resetear sorteo (pruebas)"}
+                        {resetting ? "Reseteando..." : "Resetear sorteo"}
                     </button>
                 </header>
 
