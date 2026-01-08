@@ -1,74 +1,106 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "affiliate_session";
+const FORCE_COOKIE = "affiliate_must_change";
+const SESSION_DAYS = 30;
 
-function jsonError(message = "No se pudo cambiar la contraseña", status = 400) {
-    return NextResponse.json({ ok: false, error: message }, { status });
+// Si ya tienes una función igual en tu proyecto, usa la tuya.
+// Esta es estable y no depende de NextAuth.
+function hashToken(token: string) {
+    return crypto.createHash("sha256").update(token).digest("hex");
 }
 
 export async function POST(req: NextRequest) {
     try {
+        // 1) Leer cookie de sesión
         const token = req.cookies.get(COOKIE_NAME)?.value || "";
-        if (!token) return jsonError("No autorizado", 401);
-
-        const body = await req.json().catch(() => null);
-        const currentPassword = (body?.currentPassword ?? "").toString();
-        const newPassword = (body?.newPassword ?? "").toString();
-
-        if (!currentPassword || !newPassword) {
-            return jsonError("Completa todos los campos", 400);
+        if (!token) {
+            return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
         }
 
-        if (newPassword.length < 8) {
-            return jsonError("La nueva contraseña debe tener al menos 8 caracteres", 400);
+        // 2) Body
+        const body = await req.json().catch(() => ({}));
+        const currentPassword = String(body?.currentPassword || "");
+        const newPassword = String(body?.newPassword || "");
+        const confirmPassword = String(body?.confirmPassword || "");
+
+        if (!currentPassword) {
+            return NextResponse.json({ ok: false, error: "Falta contraseña actual" }, { status: 400 });
+        }
+        if (!newPassword || newPassword.length < 8) {
+            return NextResponse.json({ ok: false, error: "La nueva contraseña debe tener mínimo 8 caracteres" }, { status: 400 });
+        }
+        if (newPassword !== confirmPassword) {
+            return NextResponse.json({ ok: false, error: "Las contraseñas no coinciden" }, { status: 400 });
         }
 
-        // 1) Validar sesión
-        const nowIso = new Date().toISOString();
+        // 3) Buscar sesión en DB
+        const tokenHash = hashToken(token);
 
-        const { data: session } = await supabaseAdmin
+        const { data: session, error: sessErr } = await supabaseAdmin
             .from("affiliate_sessions")
-            .select("affiliate_id, expires_at")
-            .eq("token", token)
+            .select("id, affiliate_id")
+            .eq("token_hash", tokenHash)
             .maybeSingle();
 
-        if (!session?.affiliate_id) return jsonError("No autorizado", 401);
-        if (session.expires_at && session.expires_at <= nowIso) return jsonError("Sesión expirada", 401);
+        if (sessErr || !session?.affiliate_id) {
+            return NextResponse.json({ ok: false, error: "Sesión inválida" }, { status: 401 });
+        }
 
-        // 2) Obtener afiliado
-        const { data: affiliate } = await supabaseAdmin
+        // 4) Traer afiliado
+        const { data: affiliate, error: affErr } = await supabaseAdmin
             .from("affiliates")
-            .select("id, password_hash, is_active")
+            .select("id, password_hash, must_change_password, is_active")
             .eq("id", session.affiliate_id)
             .maybeSingle();
 
-        if (!affiliate?.id) return jsonError("No autorizado", 401);
-        if (affiliate.is_active === false) return jsonError("No autorizado", 401);
+        if (affErr || !affiliate?.id) {
+            return NextResponse.json({ ok: false, error: "Afiliado no encontrado" }, { status: 404 });
+        }
+        if (affiliate.is_active === false) {
+            return NextResponse.json({ ok: false, error: "Afiliado inactivo" }, { status: 403 });
+        }
 
-        // 3) Verificar current password
-        const okPass = await bcrypt.compare(currentPassword, affiliate.password_hash);
-        if (!okPass) return jsonError("Contraseña actual incorrecta", 400);
+        // 5) Validar contraseña actual
+        const ok = await bcrypt.compare(currentPassword, String(affiliate.password_hash || ""));
+        if (!ok) {
+            return NextResponse.json({ ok: false, error: "Contraseña actual incorrecta" }, { status: 401 });
+        }
 
-        // 4) Actualizar password + quitar flag
+        // 6) Guardar nueva contraseña + quitar obligación
         const newHash = await bcrypt.hash(newPassword, 10);
 
-        const { error: upErr } = await supabaseAdmin
+        const { error: updErr } = await supabaseAdmin
             .from("affiliates")
-            .update({
-                password_hash: newHash,
-                must_change_password: false,
-            })
+            .update({ password_hash: newHash, must_change_password: false })
             .eq("id", affiliate.id);
 
-        if (upErr) return jsonError("No se pudo actualizar. Intenta de nuevo.", 500);
+        if (updErr) {
+            return NextResponse.json({ ok: false, error: "No se pudo actualizar la contraseña" }, { status: 500 });
+        }
 
-        return NextResponse.json({ ok: true, redirect: "/afiliado" });
+        // 7) Responder + bajar cookie de obligación (CLAVE para Vercel)
+        const res = NextResponse.json({ ok: true, redirect: "/afiliado" });
+
+        // Dejarla en 0 (o borrarla). Yo prefiero 0 para evitar edge-cases.
+        res.cookies.set({
+            name: FORCE_COOKIE,
+            value: "0",
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: SESSION_DAYS * 24 * 60 * 60,
+        });
+
+        return res;
     } catch {
-        return jsonError("Error interno. Intenta de nuevo.", 500);
+        return NextResponse.json({ ok: false, error: "Error interno" }, { status: 500 });
     }
 }
