@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 
 export const dynamic = "force-dynamic";
 
-const SUPPORT_WA = "593980966034";
+const SUPPORT_WA = "593990575984";
 // formato: 593 + número sin 0
 
 function waMeLink(message: string) {
