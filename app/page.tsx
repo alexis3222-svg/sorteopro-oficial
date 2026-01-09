@@ -461,7 +461,7 @@ export default function HomePage() {
               {paquetes.map((cantidad) => (
                 <article
                   key={cantidad}
-                  className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-[#3A3F4B]/90 px-4 py-4 shadow-md"
+                  className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-[#202020]/90 px-4 py-4 shadow-md"
                 >
                   <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
                     x{cantidad} números
@@ -470,7 +470,7 @@ export default function HomePage() {
                     {(cantidad * precioUnidad).toFixed(2)}
                   </p>
                   <button
-                    className="mt-2 w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
+                    className="mt-2 w-full rounded-xl bg-[#FF6600] px-3 py-2 text-xs font-extrabold text-slate-950 hover:bg-[#FF7F00]"
                     onClick={() => handleComprarClick(cantidad)}
                   >
                     Comprar
@@ -510,7 +510,7 @@ export default function HomePage() {
             <button
               type="submit"
               disabled={buscandoNumeros}
-              className="rounded-lg bg-[#FF7F00] px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff9933] disabled:opacity-60 disabled:cursor-not-allowed"
+              className="rounded-lg bg-[#FF6600] px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff9933] disabled:opacity-60 disabled:cursor-not-allowed"
             >
               {buscandoNumeros ? "Buscando..." : "Ver mis números"}
             </button>
@@ -564,7 +564,7 @@ export default function HomePage() {
           </p>
 
           <p>
-            2. Serás redirigido a una página donde seleccionarás tu forma de pago y
+            2. Serás redirigido a un modal donde seleccionarás tu forma de pago y
             llenarás tus datos.
           </p>
 
