@@ -550,6 +550,37 @@ export default function HomePage() {
       {/* 🎁 SECCIÓN: PREMIOS INSTANTÁNEOS */}
       <PremiosInstantaneos />
 
+      {/* CÓMO PARTICIPAR */}
+      <div className="mt-16">
+        <h2 className="text-center text-[22px] md:text-[24px] font-extrabold uppercase tracking-wide text-[#3a3a3a]">
+          ¿Cómo participar?
+        </h2>
+
+        <div className="mx-auto max-w-3xl text-center text-[14px] md:text-[15px] text-slate-500 leading-relaxed space-y-3">
+
+          <p>
+            1. Selecciona el paquete de números que desees, recuerda que mientras más
+            números tengas, más oportunidades tendrás de ganar.
+          </p>
+
+          <p>
+            2. Serás redirigido a una página donde seleccionarás tu forma de pago y
+            llenarás tus datos.
+          </p>
+
+          <p>
+            3. Una vez realizado el pago, automáticamente y de manera aleatoria se
+            asignarán tus números, los mismos que serán enviados al correo
+            electrónico registrado con la compra. Podrás revisarlos también en la parte de arriba en el apartado
+            <span className="font-medium text-neutral-600">
+              {" "}
+              “Consulta tus números”
+            </span>
+            .
+          </p>
+        </div>
+      </div>
+
       {/* MODAL COMPRA */}
       {isModalOpen && selectedCantidad != null && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">

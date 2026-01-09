@@ -70,15 +70,21 @@ export async function POST(req: NextRequest) {
 
         // 5) Set cookie httpOnly
         if (process.env.NODE_ENV !== "production") {
-            console.log("[affiliate-login] user:", affiliate.username, "must_change_password:", affiliate.must_change_password);
+            console.log(
+                "[affiliate-login] user:",
+                affiliate.username,
+                "must_change_password:",
+                affiliate.must_change_password
+            );
         }
 
-        const redirectTo = affiliate.must_change_password ? "/afiliado/cambiar-clave" : "/afiliado";
+        const mustChange = affiliate.must_change_password === true;
+
+        const redirectTo = mustChange ? "/afiliado/cambiar-clave" : "/afiliado";
         const res = NextResponse.json({ ok: true, redirect: redirectTo });
 
-
         res.cookies.set({
-            name: COOKIE_NAME,
+            name: COOKIE_NAME, // affiliate_session
             value: token,
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
@@ -87,7 +93,19 @@ export async function POST(req: NextRequest) {
             maxAge: SESSION_DAYS * 24 * 60 * 60,
         });
 
+        // ✅ NUEVO: bandera para que el middleware fuerce cambiar clave
+        res.cookies.set({
+            name: "affiliate_must_change",
+            value: mustChange ? "1" : "0",
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: SESSION_DAYS * 24 * 60 * 60,
+        });
+
         return res;
+
     } catch (e) {
         return NextResponse.json(
             { ok: false, error: "Error interno. Intenta de nuevo." },
