@@ -53,7 +53,7 @@ export function SiteHeader() {
                     <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
                         {/* LOGO */}
                         <Image
-                            src="/logo-bikers.svg"
+                            src="/baruknegro-04.svg"
                             alt="Casa Bikers"
                             width={300}
                             height={80}
