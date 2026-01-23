@@ -52,14 +52,16 @@ export function SiteHeader() {
                 <div className="w-full bg-black/35">
                     <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
                         {/* LOGO */}
-                        <Image
+                        <img
                             src="/baruknegro-04.svg"
-                            alt="Casa Bikers"
-                            width={300}
-                            height={80}
-                            className="w-[260px] h-auto md:w-[320px]"
-                            priority
+                            alt="BARUK"
+                            className="
+    h-8 sm:h-9 md:h-10 lg:h-12
+    w-auto
+    transition-all
+  "
                         />
+
 
                         {/* BOTÓN SOCIO COMERCIAL (solo si registro está ABIERTO) */}
                         {regOpen === true && (
