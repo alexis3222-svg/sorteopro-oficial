@@ -6,8 +6,8 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Casa Bikers",
-  description: "Plataforma de Casa Bikers",
+  title: "Baruk593",
+  description: "Plataforma de Baruk593",
 };
 
 
