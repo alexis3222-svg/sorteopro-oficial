@@ -12,7 +12,7 @@ export const metadata = {
   },
   description: "Plataforma oficial de actividades digitales",
   icons: {
-    icon: "/logobaruk_Mesa de trabajo 1.svg",          // LOGO PEQUEÑO DE 512X512 principal
+    icon: "/logobaruk.svg",          // LOGO PEQUEÑO DE 512X512 principal
     shortcut: "/icon.png",
     apple: "/icon.png",
   },
