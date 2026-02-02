@@ -418,8 +418,7 @@ export default function HomePage() {
           <ProgressBar value={progresoMostrado} />
 
           <p className="text-center text-[13px] md:text-[15px] font-normal text-slate-600 leading-relaxed">
-            Los vehículos se jugarán una vez vendida la totalidad de los números,
-            es decir, cuando la barra de progreso llegue al 100%.
+            El sorteo se activa automáticamente cuando la barra de progreso llegue al 100%.
           </p>
         </div>
       </section>
