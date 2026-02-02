@@ -5,9 +5,17 @@ import { SiteHeader } from "../components/SiteHeader";
 import type { ReactNode } from "react";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "Baruk593",
-  description: "Plataforma de Baruk593",
+export const metadata = {
+  title: {
+    default: "Baruk593",
+    template: "%s | Baruk593",
+  },
+  description: "Plataforma oficial de actividades digitales",
+  icons: {
+    icon: "/logobaruk_Mesa de trabajo 1.svg",          // LOGO PEQUEÑO DE 512X512 principal
+    shortcut: "/icon.png",
+    apple: "/icon.png",
+  },
 };
 
 
