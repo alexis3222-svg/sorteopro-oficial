@@ -173,7 +173,7 @@ export default function AdminHomePage() {
             <div className="mx-auto max-w-6xl px-4 py-8 md:py-12 space-y-8">
                 <header className="space-y-3">
                     <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
-                        Casa Bikers • Admin
+                        Baruk593 • Admin
                     </div>
                     <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide">
                         Panel administrativo

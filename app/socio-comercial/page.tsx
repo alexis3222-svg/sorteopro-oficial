@@ -41,7 +41,7 @@ export default function SocioComercialPage() {
 
         const waValido = /^09\d{8}$/.test(wa);
         if (!waValido) {
-            setErrorMsg("Ingresa un WhatsApp ecuatoriano válido (09xxxxxxxx).");
+            setErrorMsg("Ingresa un WhatsApp válido (09xxxxxxxx).");
             return;
         }
 

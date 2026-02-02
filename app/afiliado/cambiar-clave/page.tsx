@@ -34,7 +34,7 @@ export default function CambiarClaveAfiliadoPage() {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ currentPassword, newPassword }),
+                body: JSON.stringify({ currentPassword, newPassword, confirmPassword: confirm }),
             });
 
             const j = await r.json().catch(() => null);

@@ -33,7 +33,7 @@ export default function AfiliadoHeaderClient() {
             <div className="mx-auto max-w-6xl px-4 py-3 flex items-center justify-between">
                 <div>
                     <p className={isDark ? "text-[11px] uppercase tracking-[0.25em] text-orange-400" : "text-[11px] uppercase tracking-[0.25em] text-orange-600"}>
-                        CasaBikers • Afiliado
+                        Baruk593 • Afiliado
                     </p>
                     <h1 className={isDark ? "text-sm text-neutral-200" : "text-sm text-neutral-800"}>
                         Panel de afiliados

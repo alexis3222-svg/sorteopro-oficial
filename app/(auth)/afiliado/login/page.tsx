@@ -85,7 +85,7 @@ export default function AfiliadoLoginPage() {
 
             const when = formatEcuadorDateTime(new Date());
             const msgLines = [
-                "Hola soporte Casa Bikers, necesito recuperar mi contraseña de AFILIADO.",
+                "Hola soporte de Baruk593, necesito recuperar mi contraseña de AFILIADO.",
                 `Usuario: ${u || "(no lo sé)"}`,
                 `Fecha: ${when} (ECU)`,
                 codeLine,
@@ -97,7 +97,7 @@ export default function AfiliadoLoginPage() {
         } catch {
             const when = formatEcuadorDateTime(new Date());
             const msgLines = [
-                "Hola soporte Casa Bikers, necesito recuperar mi contraseña de AFILIADO.",
+                "Hola soporte de Baruk593, necesito recuperar mi contraseña de AFILIADO.",
                 `Usuario: ${u || "(no lo sé)"}`,
                 `Fecha: ${when} (ECU)`,
                 "Código: (pendiente)",
@@ -117,7 +117,7 @@ export default function AfiliadoLoginPage() {
                 <div className="rounded-2xl border border-slate-800 bg-gradient-to-b from-[#0b1220] to-[#070c16] shadow-2xl px-6 py-7 md:px-8 md:py-8">
                     <div className="space-y-1">
                         <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
-                            Casa Bikers
+                            Baruk593
                         </div>
                         <h1 className="text-2xl md:text-3xl font-extrabold tracking-wide text-slate-50">
                             Ingreso de afiliado

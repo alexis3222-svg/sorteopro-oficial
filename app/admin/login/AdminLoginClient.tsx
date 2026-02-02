@@ -50,7 +50,7 @@ export default function AdminLoginClient() {
             <div className="rounded-2xl border border-slate-800 bg-gradient-to-b from-[#0b1220] to-[#070c16] shadow-2xl px-6 py-7 md:px-10 md:py-10">
                 <div className="space-y-2">
                     <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
-                        SorteoPro • Admin
+                        Baruk593 • Admin
                     </div>
                     <h1 className="text-3xl md:text-4xl font-extrabold tracking-wide text-slate-50">
                         Ingreso de administración

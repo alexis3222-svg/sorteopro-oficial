@@ -45,7 +45,7 @@ export default function LoginPage() {
                 <p
                     className={`${anton.className} text-xs uppercase tracking-[0.25em] text-[#ff9933]`}
                 >
-                    Casa bikers • Acceso
+                    Baruk593 • Acceso
                 </p>
 
                 <h1

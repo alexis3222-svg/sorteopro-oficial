@@ -207,7 +207,7 @@ export default function HomePage() {
     const telefonoValido = /^09\d{8}$/.test(telefonoCliente.trim());
     if (!telefonoValido) {
       setOrderError(
-        "Ingresa un número de WhatsApp ecuatoriano válido (09xxxxxxxx)."
+        "Ingresa un número de WhatsApp válido (09xxxxxxxx)."
       );
       return;
     }
