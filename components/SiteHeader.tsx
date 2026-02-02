@@ -53,7 +53,7 @@ export function SiteHeader() {
                     <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2">
                         {/* LOGO */}
                         <img
-                            src="/baruknegro-04.svg"
+                            src="/baruknaranja-04.svg"
                             alt="BARUK"
                             className="
     h-8 sm:h-9 md:h-10 lg:h-12

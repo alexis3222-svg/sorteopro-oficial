@@ -69,7 +69,7 @@ export default function ResetAfiliadoToolPage() {
                 <div className="rounded-2xl border border-neutral-800 bg-neutral-900/60 p-6 shadow-2xl">
                     <div className="space-y-1">
                         <div className="text-[11px] font-semibold tracking-[0.25em] text-orange-400 uppercase">
-                            Casa Bikers • Admin Tools
+                            Baruk593 • Admin Tools
                         </div>
                         <h1 className="text-xl font-extrabold">Reset afiliado</h1>
                         <p className="text-sm text-slate-400">

@@ -4,11 +4,10 @@
 import { useEffect, useState } from "react";
 
 const FRASES = [
-    "JUEGA KTM DUKE 390",
-    "+DUCATTI MODEL 150",
+    "JUEGA KTM ADVENTURE R390",
+    "+2000 DOLARES EN EFECTIVO",
     "+GO KART 90 CC",
     "¡VÁLIDO PARA TODO EL ECUADOR!",
-    "ACTIVIDAD #1",
 ];
 
 export function FranjaNaranjaRotativa() {

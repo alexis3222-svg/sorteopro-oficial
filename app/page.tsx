@@ -386,9 +386,7 @@ export default function HomePage() {
             </p>
           )}
 
-          <p className="mt-1 text-[15px] md:text-xs font-extrabold tracking-[0.12em] text-slate-600 uppercase">
-            ACTIVIDAD #{numeroActividad}
-          </p>
+          {/* AQUÍ VA LA SECCION DE ACTIVIDAD #1 (LO CUAL LE BORRÉ) */}
         </div>
       </div>
 
@@ -783,7 +781,7 @@ export default function HomePage() {
                     <span className="font-semibold">Número de cuenta:</span> 0048055945
                   </p>
                   <p className="text-center">
-                    <span className="font-semibold">Titular:</span> Alexis Amaguay Vásquez "CASA BIKERS"
+                    <span className="font-semibold">Titular:</span> Alexis Amaguay Vásquez "Baruk593"
                   </p>
 
                   <p className="mt-2 text-center text-slate-300">

@@ -95,7 +95,7 @@ export default function TerminosYCondicionesPage() {
 
                     <p>
                         <span className="font-semibold text-slate-700">8.2.1</span> El ganador
-                        del premio especial deberá enviar un video mencionando a Casa Bikers,
+                        del premio especial deberá enviar un video mencionando a Baruk593,
                         indicando el sorteo, el premio y mostrando el número ganador.
                     </p>
 
@@ -135,7 +135,7 @@ export default function TerminosYCondicionesPage() {
                             11. Pagos con transferencia:
                         </span>{" "}
                         El participante tendrá una hora para realizar el pago y enviar los
-                        datos al WhatsApp de Casa Bikers. De no hacerlo en ese tiempo, el
+                        datos al WhatsApp de Baruk593. De no hacerlo en ese tiempo, el
                         pedido no será procesado y no se permitirá ningún reembolso.
                     </p>
                 </div>
