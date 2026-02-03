@@ -38,14 +38,9 @@ export function middleware(req: NextRequest) {
             return NextResponse.redirect(url);
         }
 
-        // si está forzado a cambiar -> cambiar-clave
-        if (mustChange) {
-            const url = req.nextUrl.clone();
-            url.pathname = "/afiliado/cambiar-clave";
-            return NextResponse.redirect(url);
-        }
-
+        // (opcional) ya no forzamos cambio de clave
         return NextResponse.next();
+
     }
 
     // =========================
