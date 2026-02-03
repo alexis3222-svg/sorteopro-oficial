@@ -2,12 +2,17 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import crypto from "crypto";
 import AfiliadoHeaderClient from "./AfiliadoHeaderClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "affiliate_session";
+
+function hashToken(token: string) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+}
 
 async function getAffiliateFromSession() {
     // ✅ cookies() ES ASYNC en tu versión
@@ -16,14 +21,17 @@ async function getAffiliateFromSession() {
     if (!token) return null;
 
     const nowIso = new Date().toISOString();
+    const tokenHash = hashToken(token);
 
+    // ✅ Buscar sesión por token_hash (consistente con el resto del sistema)
     const { data: session } = await supabaseAdmin
         .from("affiliate_sessions")
-        .select("affiliate_id, expires_at")
-        .eq("token", token)
+        .select("affiliate_id, expires_at, revoked_at")
+        .eq("token_hash", tokenHash)
         .maybeSingle();
 
     if (!session?.affiliate_id) return null;
+    if (session.revoked_at) return null;
     if (session.expires_at && session.expires_at <= nowIso) return null;
 
     const { data: affiliate } = await supabaseAdmin
@@ -44,8 +52,8 @@ export default async function AfiliadoLayout({ children }: { children: ReactNode
     // 🔐 Sin sesión → login
     if (!affiliate) redirect("/afiliado/login");
 
-    // 🔐 Forzar cambio de contraseña
-    if (affiliate.must_change_password) redirect("/afiliado/cambiar-clave");
+    // ✅ Ya NO forzamos cambiar clave aquí (se hace con botón)
+    // if (affiliate.must_change_password) redirect("/afiliado/cambiar-clave");
 
     return (
         <div className="min-h-screen bg-neutral-950 text-slate-100">

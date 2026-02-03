@@ -2,7 +2,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 
 const AFF_COOKIE = "affiliate_session";
-const AFF_FORCE_COOKIE = "affiliate_must_change";
 const ADMIN_COOKIE = "admin_session";
 
 export function middleware(req: NextRequest) {
@@ -13,20 +12,14 @@ export function middleware(req: NextRequest) {
     // =========================
     if (pathname.startsWith("/afiliado")) {
         const token = req.cookies.get(AFF_COOKIE)?.value;
-        const mustChange = req.cookies.get(AFF_FORCE_COOKIE)?.value === "1";
 
         // ✅ SIEMPRE permitir estas rutas (evita loops)
+        // Importante: /afiliado/login debe ser accesible incluso si ya hay sesión
         if (
             pathname === "/afiliado/login" ||
             pathname === "/afiliado/cambiar-clave" ||
             pathname.startsWith("/api/affiliate")
         ) {
-            // si entra a login ya logueado => manda al destino correcto
-            if (pathname === "/afiliado/login" && token) {
-                const url = req.nextUrl.clone();
-                url.pathname = mustChange ? "/afiliado/cambiar-clave" : "/afiliado";
-                return NextResponse.redirect(url);
-            }
             return NextResponse.next();
         }
 
@@ -38,9 +31,8 @@ export function middleware(req: NextRequest) {
             return NextResponse.redirect(url);
         }
 
-        // (opcional) ya no forzamos cambio de clave
+        // ✅ ya no forzamos cambio de clave aquí
         return NextResponse.next();
-
     }
 
     // =========================
