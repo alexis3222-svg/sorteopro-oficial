@@ -8,7 +8,7 @@ type Result =
     | { ok: false; error: string }
     | null;
 
-const LS_KEY = "casabikers_admin_tools_pin";
+const LS_KEY = "baruk593_admin_tools_pin";
 
 export default function ResetAfiliadoToolPage() {
     const [pin, setPin] = useState("");

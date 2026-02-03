@@ -12,12 +12,17 @@ export default function CambiarClaveAfiliadoPage() {
     const [newPassword, setNewPassword] = useState("");
     const [confirm, setConfirm] = useState("");
 
+    // 👁️ estados para mostrar/ocultar
+    const [showCurrent, setShowCurrent] = useState(false);
+    const [showNew, setShowNew] = useState(false);
+    const [showConfirm, setShowConfirm] = useState(false);
+
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
     const [okMsg, setOkMsg] = useState<string | null>(null);
 
     const onSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
-        e.preventDefault(); // ✅ evita que el form haga POST a otra ruta
+        e.preventDefault();
         if (loading) return;
 
         setErrorMsg(null);
@@ -25,8 +30,10 @@ export default function CambiarClaveAfiliadoPage() {
 
         if (!currentPassword) return setErrorMsg("Ingresa tu contraseña actual.");
         if (!newPassword) return setErrorMsg("Ingresa tu nueva contraseña.");
-        if (newPassword.length < 8) return setErrorMsg("La nueva contraseña debe tener al menos 8 caracteres.");
-        if (newPassword !== confirm) return setErrorMsg("La confirmación no coincide.");
+        if (newPassword.length < 8)
+            return setErrorMsg("La nueva contraseña debe tener al menos 8 caracteres.");
+        if (newPassword !== confirm)
+            return setErrorMsg("La confirmación no coincide.");
 
         setLoading(true);
         try {
@@ -34,7 +41,11 @@ export default function CambiarClaveAfiliadoPage() {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ currentPassword, newPassword, confirmPassword: confirm }),
+                body: JSON.stringify({
+                    currentPassword,
+                    newPassword,
+                    confirmPassword: confirm,
+                }),
             });
 
             const j = await r.json().catch(() => null);
@@ -86,40 +97,75 @@ export default function CambiarClaveAfiliadoPage() {
                     )}
 
                     <form onSubmit={onSubmit} className="mt-6 space-y-4">
+                        {/* CONTRASEÑA ACTUAL */}
                         <div className="space-y-2">
                             <label className="text-xs text-slate-300">Contraseña actual</label>
-                            <input
-                                value={currentPassword}
-                                onChange={(e) => setCurrentPassword(e.target.value)}
-                                className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-orange-400"
-                                type="password"
-                                placeholder="••••••••"
-                                autoComplete="current-password"
-                            />
+                            <div className="relative">
+                                <input
+                                    type={showCurrent ? "text" : "password"}
+                                    value={currentPassword}
+                                    onChange={(e) => setCurrentPassword(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 pr-12 text-sm text-slate-100 outline-none focus:border-orange-400"
+                                    placeholder="••••••••"
+                                    autoComplete="current-password"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowCurrent((v) => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                                    aria-label="Mostrar contraseña actual"
+                                >
+                                    {showCurrent ? "🙈" : "👁️"}
+                                </button>
+                            </div>
                         </div>
 
+                        {/* NUEVA CONTRASEÑA */}
                         <div className="space-y-2">
                             <label className="text-xs text-slate-300">Nueva contraseña</label>
-                            <input
-                                value={newPassword}
-                                onChange={(e) => setNewPassword(e.target.value)}
-                                className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-orange-400"
-                                type="password"
-                                placeholder="mínimo 8 caracteres"
-                                autoComplete="new-password"
-                            />
+                            <div className="relative">
+                                <input
+                                    type={showNew ? "text" : "password"}
+                                    value={newPassword}
+                                    onChange={(e) => setNewPassword(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 pr-12 text-sm text-slate-100 outline-none focus:border-orange-400"
+                                    placeholder="mínimo 8 caracteres"
+                                    autoComplete="new-password"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowNew((v) => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                                    aria-label="Mostrar nueva contraseña"
+                                >
+                                    {showNew ? "🙈" : "👁️"}
+                                </button>
+                            </div>
                         </div>
 
+                        {/* CONFIRMAR CONTRASEÑA */}
                         <div className="space-y-2">
-                            <label className="text-xs text-slate-300">Confirmar nueva contraseña</label>
-                            <input
-                                value={confirm}
-                                onChange={(e) => setConfirm(e.target.value)}
-                                className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-orange-400"
-                                type="password"
-                                placeholder="repite la nueva contraseña"
-                                autoComplete="new-password"
-                            />
+                            <label className="text-xs text-slate-300">
+                                Confirmar nueva contraseña
+                            </label>
+                            <div className="relative">
+                                <input
+                                    type={showConfirm ? "text" : "password"}
+                                    value={confirm}
+                                    onChange={(e) => setConfirm(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 pr-12 text-sm text-slate-100 outline-none focus:border-orange-400"
+                                    placeholder="repite la nueva contraseña"
+                                    autoComplete="new-password"
+                                />
+                                <button
+                                    type="button"
+                                    onClick={() => setShowConfirm((v) => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-200"
+                                    aria-label="Mostrar confirmación"
+                                >
+                                    {showConfirm ? "🙈" : "👁️"}
+                                </button>
+                            </div>
                         </div>
 
                         <button
