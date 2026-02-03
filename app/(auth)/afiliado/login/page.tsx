@@ -29,6 +29,7 @@ export default function AfiliadoLoginPage() {
 
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
+    const [showPassword, setShowPassword] = useState(false); // ✅ NUEVO
 
     const [loading, setLoading] = useState(false);
     const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -38,6 +39,8 @@ export default function AfiliadoLoginPage() {
 
     const onSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
+        if (loading) return;
+
         setErrorMsg(null);
         setFpMsg(null);
 
@@ -52,8 +55,8 @@ export default function AfiliadoLoginPage() {
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    identifier: u,   // ✅ para endpoint nuevo
-                    username: u,     // ✅ para endpoint viejo
+                    identifier: u, // ✅ para endpoint nuevo
+                    username: u, // ✅ para endpoint viejo
                     password,
                 }),
             });
@@ -129,7 +132,7 @@ export default function AfiliadoLoginPage() {
                         <p className="text-sm text-slate-400">Accede con tu usuario y contraseña.</p>
                     </div>
 
-                    {/* ✅ Mensajes (aquí sí renderiza) */}
+                    {/* ✅ Mensajes */}
                     {errorMsg && (
                         <div className="mt-4 rounded-xl border border-red-500/40 bg-red-500/10 px-4 py-3 text-sm text-red-200">
                             {errorMsg}
@@ -144,35 +147,47 @@ export default function AfiliadoLoginPage() {
 
                     <form onSubmit={onSubmit} className="mt-6 space-y-4">
                         <div className="space-y-2">
-                            <label className="text-xs text-slate-300">Usuario</label>
+                            <label className="text-xs text-slate-300">Usuario o Email</label>
                             <input
                                 value={username}
                                 onChange={(e) => setUsername(e.target.value)}
                                 className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-orange-400"
-                                placeholder="tu_usuario"
+                                placeholder="tu usuario o email"
                                 autoComplete="username"
                             />
                         </div>
 
                         <div className="space-y-2">
                             <label className="text-xs text-slate-300">Contraseña</label>
-                            <input
-                                value={password}
-                                onChange={(e) => setPassword(e.target.value)}
-                                className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-orange-400"
-                                placeholder="••••••••"
-                                type="password"
-                                autoComplete="current-password"
-                            />
+
+                            {/* ✅ Input con botón ojo */}
+                            <div className="relative">
+                                <input
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 pr-12 text-sm text-slate-100 outline-none focus:border-orange-400"
+                                    placeholder="••••••••"
+                                    type={showPassword ? "text" : "password"}
+                                    autoComplete="current-password"
+                                />
+
+                                <button
+                                    type="button"
+                                    onClick={() => setShowPassword((v) => !v)}
+                                    className="absolute right-3 top-1/2 -translate-y-1/2 rounded-lg px-2 py-1 text-slate-300 hover:text-orange-200 hover:bg-white/5 transition"
+                                    aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                                    title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                                >
+                                    {showPassword ? "🙈" : "👁️"}
+                                </button>
+                            </div>
                         </div>
 
                         <button
                             disabled={loading}
                             className={[
                                 "w-full rounded-xl px-4 py-3 text-sm font-extrabold tracking-wide transition",
-                                loading
-                                    ? "bg-slate-700 text-slate-200 cursor-not-allowed"
-                                    : "bg-orange-500 text-black hover:bg-orange-400",
+                                loading ? "bg-slate-700 text-slate-200 cursor-not-allowed" : "bg-orange-500 text-black hover:bg-orange-400",
                             ].join(" ")}
                         >
                             {loading ? "Ingresando…" : "Ingresar"}
@@ -192,9 +207,7 @@ export default function AfiliadoLoginPage() {
                                 disabled={fpLoading}
                                 className={[
                                     "text-xs underline underline-offset-4",
-                                    fpLoading
-                                        ? "text-slate-400 cursor-not-allowed"
-                                        : "text-orange-300 hover:text-orange-200",
+                                    fpLoading ? "text-slate-400 cursor-not-allowed" : "text-orange-300 hover:text-orange-200",
                                 ].join(" ")}
                             >
                                 {fpLoading ? "Enviando…" : "Olvidé mi contraseña"}
