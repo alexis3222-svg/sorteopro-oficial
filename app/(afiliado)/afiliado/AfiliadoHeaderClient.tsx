@@ -66,17 +66,17 @@ export default function AfiliadoHeaderClient() {
                         onClick={goChangePassword}
                         className={
                             isDark
-                                ? "rounded-xl border border-neutral-700 px-3 py-1.5 text-xs hover:bg-neutral-800 transition"
+                                ? "rounded-xl border border-[#FF6600] px-3 py-1.5 text-xs hover:bg-[#FF6600] transition"
                                 : "rounded-xl border border-neutral-300 px-3 py-1.5 text-xs hover:bg-neutral-50 transition"
                         }
                     >
-                        Cambiar clave
+                        Cambiar Contraseña
                     </button>
 
                     {/* ✅ Mantiene logout como estaba */}
                     <button
                         onClick={logout}
-                        className="rounded-xl border border-[#FF7F00] px-3 py-1.5 text-xs hover:bg-[#FF7F00] hover:text-white transition"
+                        className="rounded-xl border border-[#FF6600] px-3 py-1.5 text-xs hover:bg-[#FF6600] hover:text-white transition"
                     >
                         Cerrar sesión
                     </button>
