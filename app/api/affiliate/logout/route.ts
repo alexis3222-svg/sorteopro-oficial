@@ -1,48 +1,44 @@
 // app/api/affiliate/logout/route.ts
 import { NextResponse, type NextRequest } from "next/server";
-import { cookies } from "next/headers";
+import crypto from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const COOKIE_NAME = "affiliate_session";
+const AFF_COOKIE = "affiliate_session";
+const AFF_FORCE_COOKIE = "affiliate_must_change";
 
-export async function POST(_req: NextRequest) {
+function hashToken(token: string) {
+    return crypto.createHash("sha256").update(token).digest("hex");
+}
+
+export async function POST(req: NextRequest) {
     try {
-        const cookieStore = await cookies();
-        const token = cookieStore.get(COOKIE_NAME)?.value;
+        // ✅ Leer cookie desde el request (compatible con cualquier Next)
+        const token = req.cookies.get(AFF_COOKIE)?.value;
 
         if (token) {
-            // Revocar sesión (no importa si no existe)
+            const tokenHash = hashToken(token);
+
+            // ✅ Revocar por token_hash (tu sistema usa hash)
             await supabaseAdmin
                 .from("affiliate_sessions")
                 .update({ revoked_at: new Date().toISOString() })
-                .eq("token", token);
+                .eq("token_hash", tokenHash);
         }
 
-        // Borrar cookie
         const res = NextResponse.json({ ok: true });
 
-        res.cookies.set({
-            name: COOKIE_NAME,
-            value: "",
-            path: "/",
-            maxAge: 0,
-        });
+        // ✅ Borrar cookies SIEMPRE
+        res.cookies.set(AFF_COOKIE, "", { path: "/", maxAge: 0 });
+        res.cookies.set(AFF_FORCE_COOKIE, "", { path: "/", maxAge: 0 });
 
         return res;
     } catch {
-        // Logout SIEMPRE responde ok (no revelar estado interno)
         const res = NextResponse.json({ ok: true });
-
-        res.cookies.set({
-            name: COOKIE_NAME,
-            value: "",
-            path: "/",
-            maxAge: 0,
-        });
-
+        res.cookies.set(AFF_COOKIE, "", { path: "/", maxAge: 0 });
+        res.cookies.set(AFF_FORCE_COOKIE, "", { path: "/", maxAge: 0 });
         return res;
     }
 }
