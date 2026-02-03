@@ -49,7 +49,10 @@ export async function resetAfiliadoAction(formData: FormData) {
 
     const { error } = await supabaseAdmin
         .from("affiliates")
-        .update({ password_hash: passwordHash })
+        .update({
+            password_hash: passwordHash,
+            must_change_password: true, // ✅ CLAVE: obliga cambio al entrar
+        })
         .eq("id", affiliate.id);
 
     if (error) {
