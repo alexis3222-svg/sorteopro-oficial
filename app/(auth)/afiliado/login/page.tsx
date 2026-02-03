@@ -42,7 +42,7 @@ export default function AfiliadoLoginPage() {
         setFpMsg(null);
 
         const u = username.trim();
-        if (!u) return setErrorMsg("Ingresa tu usuario.");
+        if (!u) return setErrorMsg("Ingresa tu usuario o email.");
         if (!password) return setErrorMsg("Ingresa tu contraseña.");
 
         setLoading(true);
@@ -51,7 +51,11 @@ export default function AfiliadoLoginPage() {
                 method: "POST",
                 credentials: "include",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ username: u, password }),
+                body: JSON.stringify({
+                    identifier: u,   // ✅ para endpoint nuevo
+                    username: u,     // ✅ para endpoint viejo
+                    password,
+                }),
             });
 
             const j = await r.json().catch(() => null);
