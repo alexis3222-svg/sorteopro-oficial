@@ -78,30 +78,19 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        const mustChange = affiliate.must_change_password === true;
+        // ✅ Ya NO forzamos cambiar clave desde login.
+        // El cambio de clave se hace desde el botón dentro del panel.
+        const res = NextResponse.json({ ok: true, redirect: "/afiliado" });
 
-        const redirectTo = mustChange ? "/afiliado/cambiar-clave" : "/afiliado";
-        const res = NextResponse.json({ ok: true, redirect: redirectTo });
-
-        res.cookies.set({
-            name: COOKIE_NAME, // affiliate_session
-            value: token,
-            httpOnly: true,
-            secure: process.env.NODE_ENV === "production",
-            sameSite: "lax",
-            path: "/",
-            maxAge: SESSION_DAYS * 24 * 60 * 60,
-        });
-
-        // ✅ NUEVO: bandera para que el middleware fuerce cambiar clave
+        // ✅ IMPORTANTE: ya no usamos affiliate_must_change
         res.cookies.set({
             name: "affiliate_must_change",
-            value: mustChange ? "1" : "0",
+            value: "0",
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
             path: "/",
-            maxAge: SESSION_DAYS * 24 * 60 * 60,
+            maxAge: 0, // lo borramos
         });
 
         return res;
