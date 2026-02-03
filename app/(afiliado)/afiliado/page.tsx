@@ -57,10 +57,12 @@ export default function AfiliadoDashboardPage() {
     const [qrSrc, setQrSrc] = useState<string>("");
 
     // retiro form
-    const [wAmount, setWAmount] = useState<string>("");
-    const [wDestination, setWDestination] = useState<string>("");
-    const [wNotes, setWNotes] = useState<string>("");
+    const [wAmount, setWAmount] = useState("");
+    const [wDestination, setWDestination] = useState(""); // ✅ lo seguimos usando solo para limpiar/compatibilidad
 
+    const [wBank, setWBank] = useState("Banco Pichincha");
+    const [wAccountType, setWAccountType] = useState("Ahorros");
+    const [wAccountNumber, setWAccountNumber] = useState("");
     const [wSending, setWSending] = useState(false);
     const [wErr, setWErr] = useState<string | null>(null);
     const [wOk, setWOk] = useState<string | null>(null);
@@ -125,7 +127,6 @@ export default function AfiliadoDashboardPage() {
             </span>
         );
     };
-
 
     const loadAll = async () => {
         setLoading(true);
@@ -215,12 +216,19 @@ export default function AfiliadoDashboardPage() {
         setTimeout(() => setCopied(false), 1200);
     };
 
-    const requestWithdraw = async () => {
+    // ✅ CAMBIO QUIRÚRGICO: ahora recibe el destination final (para evitar variable inexistente)
+    const requestWithdraw = async (destinationFinal: string) => {
         setWErr(null);
         setWOk(null);
 
         if (!isOk) {
             setWErr("Sesión inválida. Inicia sesión nuevamente.");
+            return;
+        }
+
+        // ✅ Validación nueva: número de cuenta obligatorio
+        if (!wAccountNumber.trim()) {
+            setWErr("Ingresa el número de cuenta.");
             return;
         }
 
@@ -253,8 +261,7 @@ export default function AfiliadoDashboardPage() {
                 cache: "no-store",
                 body: JSON.stringify({
                     amount: amt,
-                    destination: wDestination.trim() || null,
-                    notes: wNotes.trim() || null,
+                    destination: destinationFinal.trim() || null, // ✅ aquí va completo (incluye cuenta)
                 }),
             });
 
@@ -268,8 +275,7 @@ export default function AfiliadoDashboardPage() {
             setWOk("Retiro solicitado ✅ Queda en revisión.");
             setWAmount("");
             setWDestination("");
-            setWNotes("");
-
+            setWAccountNumber(""); // ✅ opcional: limpiar cuenta
             await loadAll();
         } catch {
             setWErr("Error de conexión. Intenta de nuevo.");
@@ -317,39 +323,80 @@ export default function AfiliadoDashboardPage() {
 
             {/* Cards */}
             <div className="grid gap-4 md:grid-cols-3">
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-                    <p className="text-xs text-slate-400">Estado</p>
-                    <p className="mt-2 text-sm">{loading ? "Cargando…" : isOk ? "Sesión activa ✅" : "Sesión inválida"}</p>
+                {/* ✅ ESTADO (verde moderno) */}
+                <div
+                    className="
+      rounded-2xl p-5
+      border border-emerald-400/20
+      bg-gradient-to-br from-emerald-950/40 via-neutral-900/40 to-neutral-950/60
+      shadow-[0_0_30px_-12px_rgba(16,185,129,0.35)]
+    "
+                >
+                    <p className="text-xs text-emerald-200/80">Estado</p>
+                    <p className="mt-2 text-sm text-slate-100">
+                        {loading ? "Cargando…" : isOk ? "Sesión activa ✅" : "Sesión inválida"}
+                    </p>
                     {error ? <p className="mt-2 text-xs text-red-300">{error}</p> : null}
                 </div>
 
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-                    <p className="text-xs text-slate-400">Tu usuario</p>
-                    <p className="mt-2 text-lg font-semibold">{loading ? "…" : isOk ? me.affiliate.username : "—"}</p>
-                    <p className="mt-1 text-xs text-slate-400">
-                        Código: <span className="text-slate-200">{loading ? "…" : isOk ? code : "—"}</span>
+                {/* ✅ TU USUARIO (azul moderno) */}
+                <div
+                    className="
+      rounded-2xl p-5
+      border border-sky-400/20
+      bg-gradient-to-br from-sky-950/40 via-neutral-900/40 to-neutral-950/60
+      shadow-[0_0_30px_-12px_rgba(56,189,248,0.35)]
+    "
+                >
+                    <p className="text-xs text-sky-200/80">Tu usuario</p>
+                    <p className="mt-2 text-lg font-semibold text-slate-50">
+                        {loading ? "…" : isOk ? me.affiliate.username : "—"}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-300/80">
+                        Código:{" "}
+                        <span className="text-slate-100">
+                            {loading ? "…" : isOk ? code : "—"}
+                        </span>
                     </p>
                 </div>
 
-                <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
-                    <p className="text-xs text-slate-400">Billetera</p>
-                    <p className="mt-2 text-2xl font-semibold">${formatMoney(wallet?.balance_available)}</p>
-                    <p className="mt-1 text-xs text-slate-400">Disponible para retiro.</p>
+                {/* ✅ BILLETERA (naranja premium) */}
+                <div
+                    className="
+      rounded-2xl p-5
+      border border-[#FF7F00]/30
+      bg-gradient-to-br from-[#FF7F00]/15 via-neutral-900/40 to-neutral-950/70
+      shadow-[0_0_35px_-10px_rgba(255,127,0,0.45)]
+    "
+                >
+                    <p className="text-xs text-orange-200/80">Billetera</p>
+
+                    <p className="mt-2 text-2xl font-semibold text-[#FF9A2F] drop-shadow">
+                        ${formatMoney(wallet?.balance_available)}
+                    </p>
+
+                    <p className="mt-1 text-xs text-slate-300/80">Disponible para retiro.</p>
 
                     <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                            <p className="text-slate-400">Pendiente</p>
-                            <p className="mt-1 text-slate-200">${formatMoney(wallet?.balance_pending)}</p>
+                        <div className="rounded-xl border border-amber-400/15 bg-neutral-950/40 p-3">
+                            <p className="text-slate-300/80">Pendiente</p>
+                            <p className="mt-1 text-slate-100 font-medium">
+                                ${formatMoney(wallet?.balance_pending)}
+                            </p>
                         </div>
-                        <div className="rounded-xl border border-neutral-800 bg-neutral-950/40 p-3">
-                            <p className="text-slate-400">Retirado</p>
-                            <p className="mt-1 text-slate-200">${formatMoney(wallet?.balance_withdrawn)}</p>
+
+                        <div className="rounded-xl border border-emerald-400/15 bg-neutral-950/40 p-3">
+                            <p className="text-slate-300/80">Retirado</p>
+                            <p className="mt-1 text-slate-100 font-medium">
+                                ${formatMoney(wallet?.balance_withdrawn)}
+                            </p>
                         </div>
                     </div>
 
                     {!canWithdraw ? (
                         <p className="mt-3 text-[11px] text-yellow-200/90">
-                            Mínimo de retiro: <b>${MIN_WITHDRAW.toFixed(2)}</b>. Disponible: <b>${avail.toFixed(2)}</b>.
+                            Mínimo de retiro: <b>${MIN_WITHDRAW.toFixed(2)}</b>. Disponible:{" "}
+                            <b>${avail.toFixed(2)}</b>.
                         </p>
                     ) : null}
                 </div>
@@ -361,13 +408,19 @@ export default function AfiliadoDashboardPage() {
                     <div>
                         <p className="text-sm font-semibold">Solicitar retiro</p>
                         <p className="mt-1 text-xs text-slate-400">
-                            Mínimo: <b>${MIN_WITHDRAW.toFixed(2)}</b> • Se descuenta de “Disponible” y pasa a “Pendiente” hasta que Admin apruebe.
+                            Mínimo: <b>${MIN_WITHDRAW.toFixed(2)}</b> • Se descuenta de “Disponible” y pasa a
+                            “Pendiente” hasta que Admin apruebe.
                         </p>
                     </div>
 
                     <button
                         type="button"
-                        onClick={requestWithdraw}
+                        onClick={() => {
+                            // ✅ Construye destino FINAL (incluye número de cuenta)
+                            const destinationFinal = `Banco: ${wBank} | Tipo: ${wAccountType} | Cuenta: ${wAccountNumber || "-"}`;
+                            setWDestination(destinationFinal); // (opcional) para compatibilidad/mostrar
+                            requestWithdraw(destinationFinal);
+                        }}
                         disabled={!canWithdraw || wSending}
                         className="rounded-xl border-2 border-[#FF7F00] px-4 py-2 text-sm font-semibold text-white hover:bg-[#FF7F00] hover:text-black transition disabled:opacity-50"
                     >
@@ -375,9 +428,52 @@ export default function AfiliadoDashboardPage() {
                     </button>
                 </div>
 
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                    {/* BANCO */}
                     <label className="block">
-                        <span className="text-xs font-semibold text-slate-300">Monto</span>
+                        <span className="text-xs font-semibold text-slate-300">Banco</span>
+                        <select
+                            value={wBank}
+                            onChange={(e) => setWBank(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
+                        >
+                            <option>Banco Pichincha</option>
+                            <option>Banco Guayaquil</option>
+                            <option>Produbanco</option>
+                            <option>Banco del Pacífico</option>
+                            <option>Cooperativa JEP</option>
+                            <option>Otra</option>
+                        </select>
+                    </label>
+
+                    {/* TIPO DE CUENTA */}
+                    <label className="block">
+                        <span className="text-xs font-semibold text-slate-300">Tipo de cuenta</span>
+                        <select
+                            value={wAccountType}
+                            onChange={(e) => setWAccountType(e.target.value)}
+                            className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
+                        >
+                            <option>Ahorros</option>
+                            <option>Corriente</option>
+                        </select>
+                    </label>
+
+                    {/* NÚMERO DE CUENTA */}
+                    <label className="block">
+                        <span className="text-xs font-semibold text-slate-300">Número de cuenta</span>
+                        <input
+                            value={wAccountNumber}
+                            onChange={(e) => setWAccountNumber(e.target.value)}
+                            placeholder="Ej: 0123456789"
+                            inputMode="numeric"
+                            className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
+                        />
+                    </label>
+
+                    {/* MONTO */}
+                    <label className="block">
+                        <span className="text-xs font-semibold text-slate-300">Monto a retirar</span>
                         <input
                             value={wAmount}
                             onChange={(e) => setWAmount(e.target.value)}
@@ -386,26 +482,14 @@ export default function AfiliadoDashboardPage() {
                             className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
                         />
                     </label>
+                </div>
 
-                    <label className="block">
-                        <span className="text-xs font-semibold text-slate-300">Destino (opcional)</span>
-                        <input
-                            value={wDestination}
-                            onChange={(e) => setWDestination(e.target.value)}
-                            placeholder="Ej: Banco Pichincha - cuenta ahorros ..."
-                            className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
-                        />
-                    </label>
-
-                    <label className="block">
-                        <span className="text-xs font-semibold text-slate-300">Nota (opcional)</span>
-                        <input
-                            value={wNotes}
-                            onChange={(e) => setWNotes(e.target.value)}
-                            placeholder="Ej: Retiro semanal"
-                            className="mt-1 w-full rounded-xl border border-neutral-800 bg-neutral-950/60 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
-                        />
-                    </label>
+                {/* Mostrar destino final */}
+                <div className="mt-3 text-[11px] text-slate-400">
+                    Destino:{" "}
+                    <span className="text-slate-200">
+                        {` ${wBank} | Tipo: ${wAccountType} | Cuenta: ${wAccountNumber || "-"}`}
+                    </span>
                 </div>
 
                 {wErr ? (
@@ -429,26 +513,42 @@ export default function AfiliadoDashboardPage() {
                 </div>
 
                 <div className="mt-4 overflow-hidden rounded-xl border border-neutral-800">
-                    <div className="grid grid-cols-5 bg-neutral-950/60 px-4 py-2 text-xs text-slate-400">
+                    <div className="grid grid-cols-[120px_120px_1fr_180px] bg-neutral-950/60 px-4 py-2 text-xs text-slate-400">
                         <span>Monto</span>
                         <span>Estado</span>
                         <span>Destino</span>
-                        <span>Fecha</span>
-                        <span>Nota</span>
+                        <span className="text-right pr-9">Fecha</span>
                     </div>
 
                     {withdrawals.length === 0 ? (
-                        <div className="px-4 py-4 text-sm text-slate-400">Aún no has solicitado retiros.</div>
+                        <div className="px-4 py-4 text-sm text-slate-400">
+                            Aún no has solicitado retiros.
+                        </div>
                     ) : (
                         withdrawals.map((w) => (
-                            <div key={w.id} className="grid grid-cols-5 border-t border-neutral-800 px-4 py-3 text-sm">
-                                <span className="text-slate-200">${formatMoney(w.amount)}</span>
-                                <span>{statusBadge(w.status)}</span>
-                                <span className="text-slate-300 truncate">{w.destination || "—"}</span>
-                                <span className="text-xs text-slate-400">
+                            <div
+                                key={w.id}
+                                className="grid grid-cols-[120px_120px_1fr_180px] border-t border-neutral-800 px-4 py-3 text-sm"
+                            >
+                                {/* MONTO */}
+                                <span className="text-slate-200">
+                                    ${formatMoney(w.amount)}
+                                </span>
+
+                                {/* ESTADO */}
+                                <span>
+                                    {statusBadge(w.status)}
+                                </span>
+
+                                {/* DESTINO */}
+                                <span className="text-slate-300 truncate pr-4">
+                                    {w.destination || "—"}
+                                </span>
+
+                                {/* FECHA */}
+                                <span className="text-xs text-slate-400 text-right">
                                     {w.created_at ? new Date(w.created_at).toLocaleString() : "—"}
                                 </span>
-                                <span className="text-slate-300 truncate">{w.review_note || w.notes || "—"}</span>
                             </div>
                         ))
                     )}
@@ -459,8 +559,15 @@ export default function AfiliadoDashboardPage() {
             <div className="rounded-2xl border border-neutral-800 bg-neutral-900/20 p-5">
                 <div className="grid gap-4 lg:grid-cols-2">
                     {/* Link */}
-                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-5">
-                        <p className="text-xs text-slate-400">Tu link de referido</p>
+                    <div
+                        className="
+        rounded-2xl p-5
+        border border-sky-400/20
+        bg-gradient-to-br from-sky-950/40 via-neutral-900/40 to-neutral-950/70
+        shadow-[0_0_30px_-12px_rgba(56,189,248,0.35)]
+      "
+                    >
+                        <p className="text-xs text-sky-200/80">Tu link de referido</p>
                         <p className="mt-1 text-sm text-slate-200">
                             Compártelo para que las compras queden ligadas a tu cuenta.
                         </p>
@@ -469,14 +576,26 @@ export default function AfiliadoDashboardPage() {
                             readOnly
                             value={isOk ? link : ""}
                             placeholder={loading ? "Cargando…" : ""}
-                            className="mt-3 w-full rounded-xl border border-neutral-700 bg-neutral-950/60 px-3 py-2 text-sm outline-none"
+                            className="
+          mt-3 w-full rounded-xl
+          border border-sky-400/30
+          bg-neutral-950/70
+          px-3 py-2 text-sm text-slate-100
+          outline-none focus:border-sky-400
+        "
                         />
 
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                             <button
                                 onClick={copy}
                                 disabled={!isOk || !link}
-                                className="rounded-xl border border-[#FF7F00] px-4 py-2 text-sm font-semibold hover:bg-[#FF7F00] hover:text-white transition disabled:opacity-50"
+                                className="
+            rounded-xl px-4 py-2 text-sm font-semibold
+            border border-[#FF7F00]
+            text-white
+            hover:bg-[#FF7F00] hover:text-black
+            transition disabled:opacity-50
+          "
                             >
                                 {copied ? "Copiado ✅" : "Copiar link"}
                             </button>
@@ -486,7 +605,12 @@ export default function AfiliadoDashboardPage() {
                                     href={link}
                                     target="_blank"
                                     rel="noreferrer"
-                                    className="rounded-xl border border-neutral-700 px-4 py-2 text-sm font-semibold hover:bg-neutral-800 transition"
+                                    className="
+              rounded-xl px-4 py-2 text-sm font-semibold
+              border border-sky-400/30
+              text-slate-100
+              hover:bg-sky-900/40 transition
+            "
                                 >
                                     Abrir link
                                 </a>
@@ -495,14 +619,23 @@ export default function AfiliadoDashboardPage() {
                     </div>
 
                     {/* QR */}
-                    <div className="rounded-2xl border border-neutral-800 bg-neutral-950/30 p-5">
+                    <div
+                        className="
+        rounded-2xl p-5
+        border border-emerald-400/20
+        bg-gradient-to-br from-emerald-950/40 via-neutral-900/40 to-neutral-950/70
+        shadow-[0_0_30px_-12px_rgba(16,185,129,0.35)]
+      "
+                    >
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                             <div>
-                                <p className="text-xs text-slate-400">Tu QR</p>
+                                <p className="text-xs text-emerald-200/80">Tu QR</p>
                                 <p className="mt-1 text-sm text-slate-200">
-                                    Escanéalo o compártelo. Este QR apunta a tu link con <span className="font-semibold">ref</span>.
+                                    Escanéalo o compártelo. Este QR apunta a tu link con{" "}
+                                    <span className="font-semibold text-emerald-300">ref</span>.
                                 </p>
                             </div>
+
 
                             <div className="flex gap-2">
                                 <a

@@ -125,7 +125,7 @@ export default function WithdrawalsClient() {
         <div className="mx-auto max-w-6xl px-4 py-8 md:py-12 space-y-6">
             <header className="space-y-2">
                 <div className="text-xs font-semibold tracking-[0.2em] text-orange-400 uppercase">
-                    Casa Bikers • Admin
+                    Baruk593 • Admin
                 </div>
 
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -142,8 +142,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("pending")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "pending"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Pendientes
@@ -152,8 +152,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("paid")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "paid"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Pagados
@@ -162,8 +162,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("rejected")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "rejected"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Rechazados
@@ -172,8 +172,8 @@ export default function WithdrawalsClient() {
                         <button
                             onClick={() => setFilter("all")}
                             className={`rounded-full px-3 py-1 text-xs font-semibold border ${status === "all"
-                                    ? "border-orange-400 bg-orange-500 text-black"
-                                    : "border-slate-700 text-slate-200 hover:border-orange-400"
+                                ? "border-orange-400 bg-orange-500 text-black"
+                                : "border-slate-700 text-slate-200 hover:border-orange-400"
                                 }`}
                         >
                             Todo
@@ -211,8 +211,7 @@ export default function WithdrawalsClient() {
                                 <th className="px-3 py-3 text-left">Monto</th>
                                 <th className="px-3 py-3 text-left">Destino</th>
                                 <th className="px-3 py-3 text-left">Estado</th>
-                                <th className="px-3 py-3 text-left">Referencia / Nota</th>
-                                <th className="px-3 py-3 text-left">Acciones</th>
+
                             </tr>
                         </thead>
 
@@ -277,7 +276,7 @@ export default function WithdrawalsClient() {
                                             </span>
                                         </td>
 
-                                        <td className="px-3 py-3 text-slate-300">{w.notes || "—"}</td>
+
 
                                         <td className="px-3 py-3">
                                             {st === "pending" ? (
