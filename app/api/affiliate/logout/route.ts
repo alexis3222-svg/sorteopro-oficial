@@ -25,7 +25,7 @@ export async function POST(req: NextRequest) {
             await supabaseAdmin
                 .from("affiliate_sessions")
                 .update({ revoked_at: new Date().toISOString() })
-                .eq("token_hash", tokenHash);
+                .eq("token", token);
         }
 
         const res = NextResponse.json({ ok: true });

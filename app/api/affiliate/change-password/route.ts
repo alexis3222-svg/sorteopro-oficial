@@ -46,7 +46,7 @@ export async function POST(req: NextRequest) {
         const { data: session, error: sessErr } = await supabaseAdmin
             .from("affiliate_sessions")
             .select("id, affiliate_id")
-            .eq("token_hash", tokenHash)
+            .eq("token", token)
             .maybeSingle();
 
         if (sessErr || !session?.affiliate_id) {
