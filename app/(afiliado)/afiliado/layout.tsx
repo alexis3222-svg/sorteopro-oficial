@@ -2,17 +2,12 @@
 import type { ReactNode } from "react";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
-import crypto from "crypto";
 import AfiliadoHeaderClient from "./AfiliadoHeaderClient";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const dynamic = "force-dynamic";
 
 const COOKIE_NAME = "affiliate_session";
-
-function hashToken(token: string) {
-    return crypto.createHash("sha256").update(token).digest("hex");
-}
 
 async function getAffiliateFromSession() {
     // ✅ cookies() ES ASYNC en tu versión
@@ -21,13 +16,12 @@ async function getAffiliateFromSession() {
     if (!token) return null;
 
     const nowIso = new Date().toISOString();
-    const tokenHash = hashToken(token);
 
-    // ✅ Buscar sesión por token_hash (consistente con el resto del sistema)
+    // ✅ Buscar sesión por token (PLAIN) porque tu DB tiene columna `token`
     const { data: session } = await supabaseAdmin
         .from("affiliate_sessions")
         .select("affiliate_id, expires_at, revoked_at")
-        .eq("token_hash", tokenHash)
+        .eq("token", token)
         .maybeSingle();
 
     if (!session?.affiliate_id) return null;
