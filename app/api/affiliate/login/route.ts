@@ -1,7 +1,7 @@
 // app/api/affiliate/login/route.ts
 import { NextResponse, type NextRequest } from "next/server";
 import bcrypt from "bcryptjs";
-import { randomUUID } from "crypto";
+import { randomUUID, createHash } from "crypto";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
@@ -15,35 +15,44 @@ function jsonError(message = "Credenciales inválidas", status = 401) {
     return NextResponse.json({ ok: false, error: message }, { status });
 }
 
+function hashToken(token: string) {
+    return createHash("sha256").update(token).digest("hex");
+}
+
 export async function POST(req: NextRequest) {
     try {
         const body = await req.json().catch(() => null);
-        const username = (body?.username ?? "").toString().trim();
+
+        // ✅ Acepta username o identifier (compatibilidad)
+        const identifier = (body?.identifier ?? body?.username ?? "")
+            .toString()
+            .trim()
+            .toLowerCase();
+
         const password = (body?.password ?? "").toString();
 
-        if (!username || !password) {
+        if (!identifier || !password) {
             return jsonError("Credenciales inválidas", 401);
         }
 
-        // 1) Buscar affiliate por username
+        // 1) Buscar affiliate por username O email
         const { data: affiliate, error: findErr } = await supabaseAdmin
             .from("affiliates")
-            .select("id, username, password_hash, is_active, must_change_password")
-            .eq("username", username)
+            .select("id, username, email, password_hash, is_active")
+            .or(`username.eq.${identifier},email.eq.${identifier}`)
             .maybeSingle();
 
-        // Respuesta genérica SIEMPRE
         if (findErr || !affiliate) return jsonError();
-
-        // 2) Validar activo
         if (affiliate.is_active === false) return jsonError();
 
-        // 3) Verificar password
-        const okPass = await bcrypt.compare(password, affiliate.password_hash);
+        // 2) Verificar password
+        const okPass = await bcrypt.compare(password, String(affiliate.password_hash || ""));
         if (!okPass) return jsonError();
 
-        // 4) Crear sesión server-side
+        // 3) Crear sesión server-side
         const token = randomUUID();
+        const tokenHash = hashToken(token);
+
         const expiresAt = new Date(Date.now() + SESSION_DAYS * 24 * 60 * 60 * 1000);
 
         const ip =
@@ -51,11 +60,12 @@ export async function POST(req: NextRequest) {
             req.headers.get("x-real-ip") ??
             null;
 
-        const userAgent = req.headers.get("user-agent");
+        const userAgent = req.headers.get("user-agent") ?? null;
 
+        // ✅ Guardar sesión con token_hash (consistente con layout/change-password/logout)
         const { error: insErr } = await supabaseAdmin.from("affiliate_sessions").insert({
             affiliate_id: affiliate.id,
-            token,
+            token_hash: tokenHash,
             expires_at: expiresAt.toISOString(),
             ip,
             user_agent: userAgent,
@@ -68,34 +78,33 @@ export async function POST(req: NextRequest) {
             );
         }
 
-        // 5) Set cookie httpOnly
-        if (process.env.NODE_ENV !== "production") {
-            console.log(
-                "[affiliate-login] user:",
-                affiliate.username,
-                "must_change_password:",
-                affiliate.must_change_password
-            );
-        }
-
-        // ✅ Ya NO forzamos cambiar clave desde login.
-        // El cambio de clave se hace desde el botón dentro del panel.
+        // 4) Respuesta + cookies
         const res = NextResponse.json({ ok: true, redirect: "/afiliado" });
 
-        // ✅ IMPORTANTE: ya no usamos affiliate_must_change
+        // ✅ Cookie de sesión (NECESARIA)
         res.cookies.set({
-            name: "affiliate_must_change",
-            value: "0",
+            name: COOKIE_NAME, // affiliate_session
+            value: token,
             httpOnly: true,
             secure: process.env.NODE_ENV === "production",
             sameSite: "lax",
             path: "/",
-            maxAge: 0, // lo borramos
+            maxAge: SESSION_DAYS * 24 * 60 * 60,
+        });
+
+        // ✅ Limpieza de cookie vieja (si existía)
+        res.cookies.set({
+            name: "affiliate_must_change",
+            value: "",
+            httpOnly: true,
+            secure: process.env.NODE_ENV === "production",
+            sameSite: "lax",
+            path: "/",
+            maxAge: 0,
         });
 
         return res;
-
-    } catch (e) {
+    } catch {
         return NextResponse.json(
             { ok: false, error: "Error interno. Intenta de nuevo." },
             { status: 500 }
