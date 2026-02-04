@@ -326,16 +326,28 @@ export default function AdminSociosPage() {
                                             </td>
 
                                             <td className="px-3 py-2">
-                                                <button
-                                                    disabled={savingId === s.id}
-                                                    onClick={() => toggleEstado(s)}
-                                                    className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
-                                                        ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
-                                                        : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
-                                                        }`}
-                                                >
-                                                    {savingId === s.id ? "Guardando…" : s.status === "active" ? "Suspender" : "Activar"}
-                                                </button>
+                                                <div className="flex items-center gap-2">
+                                                    {/* VER */}
+                                                    <Link
+                                                        href={`/admin/affiliate/socios/${s.id}`}
+                                                        className="rounded-full px-3 py-1 text-[11px] font-semibold border border-sky-500/40 text-sky-200 hover:bg-sky-500/10 transition"
+                                                        title="Ver ventas del socio"
+                                                    >
+                                                        Ver
+                                                    </Link>
+
+                                                    {/* ACTIVAR / SUSPENDER */}
+                                                    <button
+                                                        disabled={savingId === s.id}
+                                                        onClick={() => toggleEstado(s)}
+                                                        className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
+                                                                ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
+                                                                : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+                                                            }`}
+                                                    >
+                                                        {savingId === s.id ? "Guardando…" : s.status === "active" ? "Suspender" : "Activar"}
+                                                    </button>
+                                                </div>
                                             </td>
                                         </tr>
                                     );

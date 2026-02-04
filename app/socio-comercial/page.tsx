@@ -160,10 +160,10 @@ export default function SocioComercialPage() {
                         />
 
                         <Field
-                            label="Escribe tu alias"
+                            label="Crea tu username"
                             value={username}
                             onChange={setUsername}
-                            placeholder="Ej: juan322"
+                            placeholder="Ej: juan322 (en minusculas)"
                             name="username"
                             autoComplete="username"
                         />
@@ -173,13 +173,13 @@ export default function SocioComercialPage() {
                             type="password"
                             value={password}
                             onChange={setPassword}
-                            placeholder="Ej: juan123456"
+                            placeholder="••••••••"
                             name="password"
                             autoComplete="new-password"
                         />
 
                         <Field
-                            label="Confirmar nueva contraseña"
+                            label="Confirmar contraseña"
                             type="password"
                             value={confirmPassword}
                             onChange={setConfirmPassword}
