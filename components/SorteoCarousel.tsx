@@ -9,11 +9,10 @@ type Slide = {
 };
 
 interface SorteoCarouselProps {
-    images?: string[];   // 👉 urls dinámicas desde Supabase
-    titulo?: string;     // para el alt dinámico
+    images?: string[];
+    titulo?: string;
 }
 
-// slides por defecto (las que ya tenías en /public)
 const defaultSlides: Slide[] = [
     { id: 1, src: "/gokart-1.jpg", alt: "Go Kart vista 1" },
     { id: 2, src: "/gokart-2.jpg", alt: "Go Kart vista 2" },
@@ -21,7 +20,6 @@ const defaultSlides: Slide[] = [
 ];
 
 export function SorteoCarousel({ images, titulo }: SorteoCarouselProps) {
-    // Si vienen imágenes desde props, las usamos; si no, usamos las default
     const slides: Slide[] =
         images && images.length > 0
             ? images.map((src, index) => ({
@@ -33,7 +31,6 @@ export function SorteoCarousel({ images, titulo }: SorteoCarouselProps) {
 
     const [current, setCurrent] = useState(0);
 
-    // cambio automático
     useEffect(() => {
         const id = setInterval(() => {
             setCurrent((prev) => (prev + 1) % slides.length);
@@ -44,23 +41,21 @@ export function SorteoCarousel({ images, titulo }: SorteoCarouselProps) {
     if (slides.length === 0) return null;
 
     return (
-        <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-black/5">
-            <div className="relative w-full h-[420px] sm:h-[520px] md:h-[620px] lg:h-[720px]">
+        <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-white">
+            <div className="flex h-[220px] w-full items-center justify-center sm:h-[280px] md:h-[360px] lg:h-[440px] xl:h-[520px] p-2 md:p-4">
                 <img
                     key={slides[current].id}
                     src={slides[current].src}
                     alt={slides[current].alt}
-                    className="h-full w-full object-cover object-center"
-
+                    className="h-full w-full object-contain object-center"
                 />
             </div>
 
-            {/* Puntos indicadores */}
             <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-2">
                 {slides.map((slide, index) => (
                     <button
                         key={slide.id}
-                        className={`h-2 w-2 rounded-full transition ${index === current ? "bg-white" : "bg-white/40"
+                        className={`h-2 w-2 rounded-full transition ${index === current ? "bg-black" : "bg-black/30"
                             }`}
                         onClick={() => setCurrent(index)}
                         aria-label={`Ir a la imagen ${index + 1}`}
