@@ -4,6 +4,7 @@ import "./globals.css";
 import { SiteHeader } from "../components/SiteHeader";
 import type { ReactNode } from "react";
 import Link from "next/link";
+import Script from "next/script";
 
 export const metadata = {
   title: {
@@ -26,7 +27,40 @@ export default function RootLayout({
 }) {
   return (
     <html lang="es">
+
+      {/* META PIXEL */}
+      <Script
+        id="meta-pixel"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `
+            !function(f,b,e,v,n,t,s)
+            {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+            n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+            if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+            n.queue=[];t=b.createElement(e);t.async=!0;
+            t.src=v;s=b.getElementsByTagName(e)[0];
+            s.parentNode.insertBefore(t,s)}(window, document,'script',
+            'https://connect.facebook.net/en_US/fbevents.js');
+            fbq('init', '679718581870884');
+            fbq('track', 'PageView');
+          `,
+        }}
+      />
+
       <body className="bg-white text-slate-900 antialiased">
+
+        {/* Meta Pixel noscript */}
+        <noscript>
+          <img
+            height="1"
+            width="1"
+            style={{ display: "none" }}
+            src="https://www.facebook.com/tr?id=679718581870884&ev=PageView&noscript=1"
+            alt=""
+          />
+        </noscript>
+
         <div className="min-h-screen flex flex-col bg-white">
 
           {/* ────────────── HEADER FIJO ────────────── */}
@@ -50,7 +84,7 @@ export default function RootLayout({
               </Link>
 
               <p className="mt-2 text-[10px] md:text-[11px] text-slate-400">
-                Created for: Alexis Amaguay Vásquez
+                Created for: Baruk593
               </p>
             </div>
           </footer>
