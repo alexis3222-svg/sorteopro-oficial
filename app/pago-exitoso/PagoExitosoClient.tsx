@@ -1,10 +1,11 @@
 "use client";
 export const dynamic = "force-dynamic";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Anton } from "next/font/google";
 import { supabase } from "@/lib/supabaseClient";
+import { trackPurchase } from "@/lib/metaPixel";
 
 const anton = Anton({ subsets: ["latin"], weight: "400" });
 
@@ -48,6 +49,7 @@ export default function PagoExitosoClient() {
     const [sorteo, setSorteo] = useState<SorteoRow | null>(null);
     const [numeros, setNumeros] = useState<number[]>([]);
     const [softMsg, setSoftMsg] = useState<string | null>(null);
+    const purchaseSentRef = useRef(false);
 
     useEffect(() => {
         let cancelled = false;
@@ -148,6 +150,28 @@ export default function PagoExitosoClient() {
         };
     }, [pedidoId, tx]);
 
+    useEffect(() => {
+        if (purchaseSentRef.current) return;
+        if (!pedido) return;
+        if (numeros.length === 0) return;
+
+        const cantidad = Number(pedido.cantidad_numeros ?? 0);
+        const precioUnitario = Number(sorteo?.precio_numero ?? 0);
+        const total = cantidad > 0 && precioUnitario > 0 ? cantidad * precioUnitario : 0;
+
+        trackPurchase({
+            value: total,
+            currency: "USD",
+            content_name: sorteo?.titulo ?? "Compra tickets Baruk593",
+            content_category: "sorteo",
+            content_ids: [tx ?? String(pedido.id)],
+            content_type: "product",
+            num_items: cantidad,
+        });
+
+        purchaseSentRef.current = true;
+    }, [pedido, sorteo, numeros, tx]);
+
     const tituloGrande = sorteo?.titulo ?? "Sorteo activo";
     const actividadLabel = pedido?.actividad_numero ?? sorteo?.actividad_numero ?? "—";
 
@@ -213,8 +237,8 @@ export default function PagoExitosoClient() {
 
                                 <h2
                                     className={`${anton.className} mt-3 uppercase leading-snug ${tituloGrande.length > 40
-                                            ? "text-xl md:text-2xl tracking-[0.06em]"
-                                            : "text-2xl md:text-3xl tracking-[0.08em]"
+                                        ? "text-xl md:text-2xl tracking-[0.06em]"
+                                        : "text-2xl md:text-3xl tracking-[0.08em]"
                                         }`}
                                 >
                                     {tituloGrande}

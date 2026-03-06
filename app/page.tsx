@@ -7,6 +7,7 @@ import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
 import { PremiosInstantaneos } from "@/components/PremiosInstantaneos";
+import { trackAddToCart, trackViewContent } from "../lib/metaPixel";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -65,12 +66,25 @@ export default function HomePage() {
         .limit(1)
         .single();
 
-      if (!error) setSorteo(data);
+      if (!error && data) {
+        setSorteo(data);
+
+        trackViewContent({
+          content_name: data.titulo ?? "Sorteo Baruk593",
+          content_category: "sorteo",
+          content_ids: [String(data.id)],
+          content_type: "product",
+          value: Number(data.precio_numero ?? 0),
+          currency: "USD",
+        });
+      }
+
       setLoading(false);
     };
 
     fetchData();
   }, []);
+
   // 🔗 Capturar código de afiliado (?ref=CODE) y persistirlo
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -127,15 +141,24 @@ export default function HomePage() {
 
   const handleComprarClick = (cantidad: number) => {
     if (agotado) {
-      return; // ⛔ Sorteo agotado, no abrir modal
+      return;
     }
+
+    trackAddToCart({
+      content_name: sorteo?.titulo ?? "Sorteo Baruk593",
+      content_category: "sorteo",
+      content_ids: [String(sorteo?.id ?? "sin-id")],
+      content_type: "product",
+      num_items: cantidad,
+      value: Number(cantidad * precioUnidad),
+      currency: "USD",
+    });
 
     setSelectedCantidad(cantidad);
     setModalStep("resumen");
     setIsModalOpen(true);
     setOrderError(null);
   };
-
 
   const handleCerrarModal = () => {
     setIsModalOpen(false);
