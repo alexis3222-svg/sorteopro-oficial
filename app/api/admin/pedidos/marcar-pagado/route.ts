@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import { procesarPedidoPagado } from "@/lib/procesarPedidoPagado";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -49,9 +50,16 @@ export async function POST(req: NextRequest) {
         );
 
         if (rpcErr) {
-            console.error("RPC admin_aprobar_pedido_y_asignar error:", rpcErr);
+            console.error(
+                "RPC admin_aprobar_pedido_y_asignar error:",
+                rpcErr
+            );
+
             return NextResponse.json(
-                { ok: false, error: rpcErr.message || "Error en RPC" },
+                {
+                    ok: false,
+                    error: rpcErr.message || "Error en RPC",
+                },
                 { status: 500 }
             );
         }
@@ -60,7 +68,46 @@ export async function POST(req: NextRequest) {
 
         if (!row?.ok) {
             return NextResponse.json(
-                { ok: false, error: "No se pudo aprobar y asignar" },
+                {
+                    ok: false,
+                    error:
+                        row?.error ||
+                        "No se pudo aprobar y asignar",
+                },
+                { status: 500 }
+            );
+        }
+
+        /*
+         * La RPC ya dejó el pedido pagado y asignó sus números.
+         * Ahora creamos una Tarjeta de la Suerte por cada número.
+         */
+        const processing = await procesarPedidoPagado(pedidoId);
+
+        if (!processing.ok) {
+            console.error(
+                "Pago aprobado, pero falló la creación de tarjetas:",
+                processing
+            );
+
+            return NextResponse.json(
+                {
+                    ok: false,
+
+                    /*
+                     * Este dato es importante:
+                     * el pedido YA fue aprobado.
+                     * El cliente no debe volver a pagar.
+                     */
+                    paymentApproved: true,
+                    pedidoId,
+
+                    error:
+                        "El pago fue aprobado y los números fueron asignados, " +
+                        "pero no se pudieron crear las Tarjetas de la Suerte.",
+
+                    processing,
+                },
                 { status: 500 }
             );
         }
@@ -68,10 +115,12 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({
             ok: true,
             pedidoId,
-            alreadyAssigned: !!row.already_assigned,
+            alreadyAssigned: Boolean(row.already_assigned),
             numeros: row.numeros || [],
             modo,
+            processing,
         });
+
     } catch (e: any) {
         console.error("marcar-pagado error:", e);
         return NextResponse.json(
