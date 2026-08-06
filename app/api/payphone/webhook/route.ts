@@ -2,8 +2,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import axios from "axios";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
-
+import { procesarPedidoPagado } from "@/lib/procesarPedidoPagado";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
@@ -129,9 +128,14 @@ async function processPayment(id: number, clientTxId: string) {
     }
 
     // 4) Asignar números (idempotente)
-    const assigned = await asignarNumerosPorPedidoId(pedido.id);
-
-    return { ok: true as const, pending: false as const, approved: true as const, pedidoId: pedido.id, assigned };
+    const processing = await procesarPedidoPagado(pedido.id);
+    return {
+        ok: true as const,
+        pending: false as const,
+        approved: true as const,
+        pedidoId: pedido.id,
+        processing,
+    };
 }
 
 // ✅ PayPhone llega por GET a URL de respuesta
