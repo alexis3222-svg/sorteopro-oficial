@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
+import { entregarPremioTarjetasDigitales } from "@/lib/entregarPremioTarjetasDigitales";
 
 type ProcesarPedidoPagadoResultado =
     | {
@@ -35,6 +36,11 @@ interface PedidoProcesable {
 
     tipo_compra: "self" | "gift" | null;
     card_design_id: string | null;
+
+    es_pedido_premio: boolean | null;
+    claim_origen_id: string | null;
+    card_origen_premio_id: string | null;
+    prize_generation_depth: number | null;
 
     cards_processing_status:
     | "pending"
@@ -107,17 +113,21 @@ export async function procesarPedidoPagado(
             await supabaseAdmin
                 .from("pedidos")
                 .select(`
-          id,
-          estado,
-          sorteo_id,
-          cantidad_numeros,
-          nombre,
-          correo,
-          telefono,
-          tipo_compra,
-          card_design_id,
-          cards_processing_status
-        `)
+  id,
+  estado,
+  sorteo_id,
+  cantidad_numeros,
+  nombre,
+  correo,
+  telefono,
+  tipo_compra,
+  card_design_id,
+  cards_processing_status,
+  es_pedido_premio,
+  claim_origen_id,
+  card_origen_premio_id,
+  prize_generation_depth
+`)
                 .eq("id", pedidoId)
                 .single();
 
@@ -352,8 +362,11 @@ export async function procesarPedidoPagado(
             owner_email: ownerEmail,
             owner_phone: ownerPhone,
 
-            origin:
-                tipoCompra === "gift" ? "gift" : "purchase",
+            origin: pedido.es_pedido_premio
+                ? "instant_prize"
+                : tipoCompra === "gift"
+                    ? "gift"
+                    : "purchase",
 
             extra_type: "none",
             sphere_id: null,
@@ -448,16 +461,14 @@ export async function procesarPedidoPagado(
         }
 
         /*
-         * 9. Asignar el resultado adicional de cada tarjeta.
-         *
-         * La RPC controla:
-         * - 85 % solo número;
-         * - 10 % esfera;
-         * - 5 % premio;
-         * - stock;
-         * - concurrencia;
-         * - idempotencia.
-         */
+ * 9. Asignar el resultado adicional de cada tarjeta.
+ *
+ * Si el resultado es un premio digital de Baruk Cards:
+ * - crea el reclamo;
+ * - crea el pedido gratuito;
+ * - procesa sus números y tarjetas;
+ * - marca la entrega como completada.
+ */
         for (const card of finalCards ?? []) {
             const { data: extraData, error: extraError } =
                 await supabaseAdmin.rpc(
@@ -505,6 +516,162 @@ export async function procesarPedidoPagado(
                     code: "CARDS_FAILED",
                     error: message,
                 };
+            }
+
+            /*
+             * Solo los premios necesitan una comprobación adicional.
+             */
+            if (
+                extraResult.extra_type === "prize" &&
+                extraResult.prize_id
+            ) {
+                const { data: prizeData, error: prizeError } =
+                    await supabaseAdmin
+                        .from("card_prizes")
+                        .select(`
+          id,
+          tipo,
+          cantidad_cards
+        `)
+                        .eq("id", extraResult.prize_id)
+                        .single();
+
+                if (prizeError || !prizeData) {
+                    const message =
+                        `La tarjeta ${card.id} recibió un premio, ` +
+                        `pero no fue posible consultar sus datos`;
+
+                    await markProcessingFailed(
+                        pedidoId,
+                        message,
+                    );
+
+                    return {
+                        ok: false,
+                        pedidoId,
+                        code: "CARDS_FAILED",
+                        error: message,
+                    };
+                }
+
+                /*
+                 * Los premios físicos, dinero y experiencias se entregarán
+                 * mediante el flujo normal de reclamos.
+                 *
+                 * Solo digital_cards genera un pedido automáticamente.
+                 */
+                if (prizeData.tipo === "digital_cards") {
+                    const currentDepth = Number(
+                        pedido.prize_generation_depth ?? 0,
+                    );
+
+                    /*
+                     * En el nivel máximo no creamos otro pedido para evitar
+                     * una cadena ilimitada.
+                     *
+                     * El premio queda asignado a la tarjeta y podrá ser
+                     * gestionado posteriormente desde administración.
+                     */
+                    if (currentDepth >= 2) {
+                        console.warn(
+                            `La tarjeta ${card.id} ganó tarjetas digitales, ` +
+                            `pero alcanzó la profundidad máxima`,
+                        );
+
+                        continue;
+                    }
+
+                    const delivery =
+                        await entregarPremioTarjetasDigitales(
+                            card.id,
+                        );
+
+                    if (
+                        !delivery.ok ||
+                        !delivery.pedidoEntregaId ||
+                        !delivery.claimId
+                    ) {
+                        const message =
+                            delivery.error ??
+                            `No se pudo entregar el premio digital ` +
+                            `de la tarjeta ${card.id}`;
+
+                        await markProcessingFailed(
+                            pedidoId,
+                            message,
+                        );
+
+                        return {
+                            ok: false,
+                            pedidoId,
+                            code: "CARDS_FAILED",
+                            error: message,
+                        };
+                    }
+
+                    /*
+                     * Procesar el pedido gratuito:
+                     * - asignar sus números;
+                     * - crear sus tarjetas;
+                     * - asignar sus extras.
+                     */
+                    const childProcessing =
+                        await procesarPedidoPagado(
+                            delivery.pedidoEntregaId,
+                        );
+
+                    if (!childProcessing.ok) {
+                        const message =
+                            `Se creó el pedido gratuito ` +
+                            `${delivery.pedidoEntregaId}, pero no pudo procesarse: ` +
+                            `${childProcessing.error}`;
+
+                        await markProcessingFailed(
+                            pedidoId,
+                            message,
+                        );
+
+                        return {
+                            ok: false,
+                            pedidoId,
+                            code: "CARDS_FAILED",
+                            error: message,
+                        };
+                    }
+
+                    /*
+                     * Marcar el reclamo digital como entregado.
+                     */
+                    const { error: deliveredError } =
+                        await supabaseAdmin
+                            .from("prize_claims")
+                            .update({
+                                estado: "delivered",
+                                delivered_at:
+                                    new Date().toISOString(),
+                                entrega_automatica: true,
+                            })
+                            .eq("id", delivery.claimId);
+
+                    if (deliveredError) {
+                        const message =
+                            `Las tarjetas gratuitas fueron creadas, ` +
+                            `pero no se pudo marcar el reclamo como entregado: ` +
+                            `${deliveredError.message}`;
+
+                        await markProcessingFailed(
+                            pedidoId,
+                            message,
+                        );
+
+                        return {
+                            ok: false,
+                            pedidoId,
+                            code: "CARDS_FAILED",
+                            error: message,
+                        };
+                    }
+                }
             }
         }
 
