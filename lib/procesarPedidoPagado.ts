@@ -399,8 +399,17 @@ export async function procesarPedidoPagado(
         const { data: finalCards, error: finalCardsError } =
             await supabaseAdmin
                 .from("baruk_cards")
-                .select("id")
-                .eq("pedido_id", pedidoId);
+                .select(`
+      id,
+      extra_type,
+      sphere_id,
+      prize_id,
+      extra_processed_at
+    `)
+                .eq("pedido_id", pedidoId)
+                .order("created_at", {
+                    ascending: true,
+                });
 
         if (finalCardsError) {
             await markProcessingFailed(
@@ -439,9 +448,68 @@ export async function procesarPedidoPagado(
         }
 
         /*
-         * 9. Marcar regalo como pagado.
+         * 9. Asignar el resultado adicional de cada tarjeta.
          *
-         * El envío por WhatsApp y correo se integrará después.
+         * La RPC controla:
+         * - 85 % solo número;
+         * - 10 % esfera;
+         * - 5 % premio;
+         * - stock;
+         * - concurrencia;
+         * - idempotencia.
+         */
+        for (const card of finalCards ?? []) {
+            const { data: extraData, error: extraError } =
+                await supabaseAdmin.rpc(
+                    "assign_baruk_card_extra",
+                    {
+                        p_card_id: card.id,
+                    },
+                );
+
+            if (extraError) {
+                const message =
+                    `No se pudo asignar el resultado de la tarjeta ` +
+                    `${card.id}: ${extraError.message}`;
+
+                await markProcessingFailed(
+                    pedidoId,
+                    message,
+                );
+
+                return {
+                    ok: false,
+                    pedidoId,
+                    code: "CARDS_FAILED",
+                    error: message,
+                };
+            }
+
+            const extraResult = Array.isArray(extraData)
+                ? extraData[0]
+                : extraData;
+
+            if (!extraResult) {
+                const message =
+                    `La asignación de la tarjeta ${card.id} ` +
+                    `no devolvió ningún resultado`;
+
+                await markProcessingFailed(
+                    pedidoId,
+                    message,
+                );
+
+                return {
+                    ok: false,
+                    pedidoId,
+                    code: "CARDS_FAILED",
+                    error: message,
+                };
+            }
+        }
+
+        /*
+         * 10. Marcar regalo como pagado.
          */
 
         if (giftId) {
@@ -461,7 +529,7 @@ export async function procesarPedidoPagado(
         }
 
         /*
-         * 10. Marcar el pedido como procesado.
+         * 11. Marcar el pedido como procesado.
          */
 
         const processedAt = new Date().toISOString();
