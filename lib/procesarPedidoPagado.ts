@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
 import { entregarPremioTarjetasDigitales } from "@/lib/entregarPremioTarjetasDigitales";
+import { registrarReclamoPremio } from "@/lib/registrarReclamoPremio";
 
 type ProcesarPedidoPagadoResultado =
     | {
@@ -468,6 +469,8 @@ export async function procesarPedidoPagado(
  * - crea el pedido gratuito;
  * - procesa sus números y tarjetas;
  * - marca la entrega como completada.
+ *
+ * Los demás premios crean únicamente un reclamo.
  */
         for (const card of finalCards ?? []) {
             const { data: extraData, error: extraError } =
@@ -475,7 +478,7 @@ export async function procesarPedidoPagado(
                     "assign_baruk_card_extra",
                     {
                         p_card_id: card.id,
-                    },
+                    }
                 );
 
             if (extraError) {
@@ -485,7 +488,7 @@ export async function procesarPedidoPagado(
 
                 await markProcessingFailed(
                     pedidoId,
-                    message,
+                    message
                 );
 
                 return {
@@ -507,7 +510,7 @@ export async function procesarPedidoPagado(
 
                 await markProcessingFailed(
                     pedidoId,
-                    message,
+                    message
                 );
 
                 return {
@@ -519,31 +522,113 @@ export async function procesarPedidoPagado(
             }
 
             /*
-             * Solo los premios necesitan una comprobación adicional.
+             * Si no salió premio, no necesitamos hacer nada más.
              */
             if (
-                extraResult.extra_type === "prize" &&
-                extraResult.prize_id
+                extraResult.extra_type !== "prize" ||
+                !extraResult.prize_id
             ) {
-                const { data: prizeData, error: prizeError } =
-                    await supabaseAdmin
-                        .from("card_prizes")
-                        .select(`
-          id,
-          tipo,
-          cantidad_cards
-        `)
-                        .eq("id", extraResult.prize_id)
-                        .single();
+                continue;
+            }
 
-                if (prizeError || !prizeData) {
+            /*
+             * Consultar información del premio.
+             */
+            const { data: prizeData, error: prizeError } =
+                await supabaseAdmin
+                    .from("card_prizes")
+                    .select(`
+                id,
+                tipo,
+                cantidad_cards
+            `)
+                    .eq("id", extraResult.prize_id)
+                    .single();
+
+            if (prizeError || !prizeData) {
+                const message =
+                    `La tarjeta ${card.id} recibió un premio, ` +
+                    `pero no fue posible consultar sus datos`;
+
+                await markProcessingFailed(
+                    pedidoId,
+                    message
+                );
+
+                return {
+                    ok: false,
+                    pedidoId,
+                    code: "CARDS_FAILED",
+                    error: message,
+                };
+            }
+
+            /*
+             * ========================================================
+             * PREMIO DIGITAL: Baruk Cards adicionales
+             * ========================================================
+             */
+            if (prizeData.tipo === "digital_cards") {
+                const currentDepth = Number(
+                    pedido.prize_generation_depth ?? 0
+                );
+
+                /*
+                 * Evita cadenas infinitas de tarjetas gratuitas.
+                 */
+                if (currentDepth >= 2) {
+                    console.warn(
+                        `La tarjeta ${card.id} ganó tarjetas digitales, ` +
+                        `pero alcanzó la profundidad máxima`
+                    );
+
+                    /*
+                     * Registramos el premio como reclamo pendiente
+                     * para que pueda gestionarse manualmente.
+                     */
+                    const claim =
+                        await registrarReclamoPremio(card.id);
+
+                    if (!claim.ok) {
+                        const message =
+                            `La tarjeta ${card.id} alcanzó la profundidad ` +
+                            `máxima y no pudo registrar su reclamo: ` +
+                            `${claim.error}`;
+
+                        await markProcessingFailed(
+                            pedidoId,
+                            message
+                        );
+
+                        return {
+                            ok: false,
+                            pedidoId,
+                            code: "CARDS_FAILED",
+                            error: message,
+                        };
+                    }
+
+                    continue;
+                }
+
+                const delivery =
+                    await entregarPremioTarjetasDigitales(
+                        card.id
+                    );
+
+                if (
+                    !delivery.ok ||
+                    !delivery.pedidoEntregaId ||
+                    !delivery.claimId
+                ) {
                     const message =
-                        `La tarjeta ${card.id} recibió un premio, ` +
-                        `pero no fue posible consultar sus datos`;
+                        delivery.error ??
+                        `No se pudo entregar el premio digital ` +
+                        `de la tarjeta ${card.id}`;
 
                     await markProcessingFailed(
                         pedidoId,
-                        message,
+                        message
                     );
 
                     return {
@@ -555,123 +640,103 @@ export async function procesarPedidoPagado(
                 }
 
                 /*
-                 * Los premios físicos, dinero y experiencias se entregarán
-                 * mediante el flujo normal de reclamos.
-                 *
-                 * Solo digital_cards genera un pedido automáticamente.
+                 * Procesar el pedido gratuito:
+                 * - asignar números;
+                 * - crear tarjetas;
+                 * - asignar extras.
                  */
-                if (prizeData.tipo === "digital_cards") {
-                    const currentDepth = Number(
-                        pedido.prize_generation_depth ?? 0,
+                const childProcessing =
+                    await procesarPedidoPagado(
+                        delivery.pedidoEntregaId
                     );
 
-                    /*
-                     * En el nivel máximo no creamos otro pedido para evitar
-                     * una cadena ilimitada.
-                     *
-                     * El premio queda asignado a la tarjeta y podrá ser
-                     * gestionado posteriormente desde administración.
-                     */
-                    if (currentDepth >= 2) {
-                        console.warn(
-                            `La tarjeta ${card.id} ganó tarjetas digitales, ` +
-                            `pero alcanzó la profundidad máxima`,
-                        );
+                if (!childProcessing.ok) {
+                    const message =
+                        `Se creó el pedido gratuito ` +
+                        `${delivery.pedidoEntregaId}, ` +
+                        `pero no pudo procesarse: ` +
+                        `${childProcessing.error}`;
 
-                        continue;
-                    }
+                    await markProcessingFailed(
+                        pedidoId,
+                        message
+                    );
 
-                    const delivery =
-                        await entregarPremioTarjetasDigitales(
-                            card.id,
-                        );
-
-                    if (
-                        !delivery.ok ||
-                        !delivery.pedidoEntregaId ||
-                        !delivery.claimId
-                    ) {
-                        const message =
-                            delivery.error ??
-                            `No se pudo entregar el premio digital ` +
-                            `de la tarjeta ${card.id}`;
-
-                        await markProcessingFailed(
-                            pedidoId,
-                            message,
-                        );
-
-                        return {
-                            ok: false,
-                            pedidoId,
-                            code: "CARDS_FAILED",
-                            error: message,
-                        };
-                    }
-
-                    /*
-                     * Procesar el pedido gratuito:
-                     * - asignar sus números;
-                     * - crear sus tarjetas;
-                     * - asignar sus extras.
-                     */
-                    const childProcessing =
-                        await procesarPedidoPagado(
-                            delivery.pedidoEntregaId,
-                        );
-
-                    if (!childProcessing.ok) {
-                        const message =
-                            `Se creó el pedido gratuito ` +
-                            `${delivery.pedidoEntregaId}, pero no pudo procesarse: ` +
-                            `${childProcessing.error}`;
-
-                        await markProcessingFailed(
-                            pedidoId,
-                            message,
-                        );
-
-                        return {
-                            ok: false,
-                            pedidoId,
-                            code: "CARDS_FAILED",
-                            error: message,
-                        };
-                    }
-
-                    /*
-                     * Marcar el reclamo digital como entregado.
-                     */
-                    const { error: deliveredError } =
-                        await supabaseAdmin
-                            .from("prize_claims")
-                            .update({
-                                estado: "delivered",
-                                delivered_at:
-                                    new Date().toISOString(),
-                                entrega_automatica: true,
-                            })
-                            .eq("id", delivery.claimId);
-
-                    if (deliveredError) {
-                        const message =
-                            `Las tarjetas gratuitas fueron creadas, ` +
-                            `pero no se pudo marcar el reclamo como entregado: ` +
-                            `${deliveredError.message}`;
-
-                        await markProcessingFailed(
-                            pedidoId,
-                            message,
-                        );
-
-                        return {
-                            ok: false,
-                            pedidoId,
-                            code: "CARDS_FAILED",
-                            error: message,
-                        };
-                    }
+                    return {
+                        ok: false,
+                        pedidoId,
+                        code: "CARDS_FAILED",
+                        error: message,
+                    };
                 }
+
+                /*
+                 * Marcar reclamo digital como entregado.
+                 */
+                const { error: deliveredError } =
+                    await supabaseAdmin
+                        .from("prize_claims")
+                        .update({
+                            estado: "delivered",
+                            delivered_at:
+                                new Date().toISOString(),
+                            entrega_automatica: true,
+                        })
+                        .eq("id", delivery.claimId);
+
+                if (deliveredError) {
+                    const message =
+                        `Las tarjetas gratuitas fueron creadas, ` +
+                        `pero no se pudo marcar el reclamo ` +
+                        `como entregado: ` +
+                        `${deliveredError.message}`;
+
+                    await markProcessingFailed(
+                        pedidoId,
+                        message
+                    );
+
+                    return {
+                        ok: false,
+                        pedidoId,
+                        code: "CARDS_FAILED",
+                        error: message,
+                    };
+                }
+
+                continue;
+            }
+
+            /*
+             * ========================================================
+             * PREMIOS MANUALES
+             *
+             * physical
+             * cash
+             * experience
+             * discount
+             * ========================================================
+             */
+            const claim =
+                await registrarReclamoPremio(card.id);
+
+            if (!claim.ok) {
+                const message =
+                    `La tarjeta ${card.id} recibió un premio, ` +
+                    `pero no pudo registrarse el reclamo: ` +
+                    `${claim.error}`;
+
+                await markProcessingFailed(
+                    pedidoId,
+                    message
+                );
+
+                return {
+                    ok: false,
+                    pedidoId,
+                    code: "CARDS_FAILED",
+                    error: message,
+                };
             }
         }
 
