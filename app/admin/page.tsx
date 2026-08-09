@@ -300,6 +300,13 @@ export default function AdminHomePage() {
                                 </Link>
 
                                 <Link
+                                    href="/admin/premios"
+                                    className="inline-flex items-center rounded-full border border-orange-500/60 bg-orange-500/10 px-4 py-2 text-xs font-semibold text-orange-200 hover:bg-orange-500/20"
+                                >
+                                    Premios Baruk
+                                </Link>
+
+                                <Link
                                     href="/"
                                     className="inline-flex items-center rounded-full border border-slate-700 bg-transparent px-4 py-2 text-xs font-semibold text-slate-200 hover:border-orange-500 hover:text-orange-200"
                                 >

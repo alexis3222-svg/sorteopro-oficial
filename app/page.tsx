@@ -2,12 +2,12 @@
 
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { SorteoCarousel } from "../components/SorteoCarousel";
-import { ProgressBar } from "../components/ProgressBar";
 import { Anton } from "next/font/google";
 import { supabase } from "../lib/supabaseClient";
 import { PremiosInstantaneos } from "@/components/PremiosInstantaneos";
 import { trackAddToCart, trackViewContent } from "../lib/metaPixel";
+import BarukHero from "@/components/baruk/BarukHero";
+import BarukPurchaseSection from "@/components/baruk/BarukPurchaseSection";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -15,6 +15,8 @@ const anton = Anton({
 });
 
 type ModalStep = "resumen" | "pago" | "ok";
+
+type TipoCompra = "self" | "gift";
 
 type NumeroAsignado = {
   numero: string | number;
@@ -34,7 +36,8 @@ export default function HomePage() {
 
   // estado para el modal de compra
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedCantidad, setSelectedCantidad] = useState<number | null>(null);
+  const [selectedCantidad, setSelectedCantidad] =
+    useState<number | null>(5);
   const [modalStep, setModalStep] = useState<ModalStep>("resumen");
 
   // ✅ SOLO estos 2 métodos (coinciden con /api/pedidos/crear)
@@ -45,6 +48,20 @@ export default function HomePage() {
   const [nombreCliente, setNombreCliente] = useState("");
   const [telefonoCliente, setTelefonoCliente] = useState("");
   const [correoCliente, setCorreoCliente] = useState("");
+  const [tipoCompra, setTipoCompra] =
+    useState<TipoCompra>("self");
+
+  const [destinatarioNombre, setDestinatarioNombre] =
+    useState("");
+
+  const [destinatarioTelefono, setDestinatarioTelefono] =
+    useState("");
+
+  const [destinatarioCorreo, setDestinatarioCorreo] =
+    useState("");
+
+  const [mensajeRegalo, setMensajeRegalo] =
+    useState("");
 
   // estado de guardado
   const [savingOrder, setSavingOrder] = useState(false);
@@ -129,8 +146,6 @@ export default function HomePage() {
     .map((p: string) => p.trim())
     .filter(Boolean);
 
-  const paquetes = [5, 9, 12, 20, 30, 50];
-
   // 👉 imagen principal del hero, tomada de la BD
   const imagenHero: string | null = sorteo.imagen_url ?? null;
 
@@ -139,35 +154,97 @@ export default function HomePage() {
     ? sorteo.galeria_urls
     : [];
 
-  const handleComprarClick = (cantidad: number) => {
+  const handleComprarClick = (
+    cantidad: number
+  ) => {
     if (agotado) {
       return;
     }
 
     trackAddToCart({
-      content_name: sorteo?.titulo ?? "Sorteo Baruk593",
-      content_category: "sorteo",
-      content_ids: [String(sorteo?.id ?? "sin-id")],
-      content_type: "product",
-      num_items: cantidad,
-      value: Number(cantidad * precioUnidad),
-      currency: "USD",
+      content_name:
+        sorteo?.titulo ??
+        "Baruk Card",
+
+      content_category:
+        "baruk_card",
+
+      content_ids: [
+        String(
+          sorteo?.id ??
+          "sin-id"
+        ),
+      ],
+
+      content_type:
+        "product",
+
+      num_items:
+        cantidad,
+
+      value:
+        Number(
+          cantidad *
+          precioUnidad
+        ),
+
+      currency:
+        "USD",
     });
 
-    setSelectedCantidad(cantidad);
-    setModalStep("resumen");
-    setIsModalOpen(true);
-    setOrderError(null);
+    setSelectedCantidad(
+      cantidad
+    );
+
+    /*
+     * El resumen de cantidad y total
+     * ya aparece en la ficha de producto
+     * Baruk Card del Home.
+     *
+     * Por eso abrimos directamente
+     * Datos y método de pago.
+     */
+    setModalStep(
+      "pago"
+    );
+
+    setIsModalOpen(
+      true
+    );
+
+    setOrderError(
+      null
+    );
   };
 
   const handleCerrarModal = () => {
     setIsModalOpen(false);
-    setSelectedCantidad(null);
+
+    // Dejamos 5 Baruk Cards seleccionadas
+    // en el configurador principal.
+    setSelectedCantidad(5);
+
+    // Reiniciamos el modal.
     setModalStep("resumen");
+
+    // Datos del comprador.
     setNombreCliente("");
     setTelefonoCliente("");
     setCorreoCliente("");
+
+    // Tipo de compra.
+    setTipoCompra("self");
+
+    // Datos del destinatario.
+    setDestinatarioNombre("");
+    setDestinatarioTelefono("");
+    setDestinatarioCorreo("");
+    setMensajeRegalo("");
+
+    // Método de pago.
     setMetodoPago("transferencia");
+
+    // Estados del pedido.
     setOrderError(null);
     setSavingOrder(false);
   };
@@ -183,21 +260,84 @@ export default function HomePage() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        sorteo_id: sorteo.id,
-        actividad_numero: numeroActividad,
-        // ✅ TS: aquí ya validamos antes, pero TS no lo sabe
-        cantidad_numeros: selectedCantidad!,
-        precio_unitario: precioUnidad,
-        total: totalPaquete,
-        nombre: nombreCliente.trim(),
-        telefono: telefonoCliente.trim(),
-        correo: correoCliente.trim(),
-        metodo_pago: metodoPago,
+        sorteo_id:
+          sorteo.id,
 
-        // ✅ PRO-1: mandamos el mismo valor en 3 keys (compatibilidad total)
+        actividad_numero:
+          numeroActividad,
+
+        cantidad_numeros:
+          selectedCantidad!,
+
+        precio_unitario:
+          precioUnidad,
+
+        total:
+          totalPaquete,
+
+        /*
+         * ============================================
+         * DATOS DEL COMPRADOR
+         * ============================================
+         */
+
+        nombre:
+          nombreCliente.trim(),
+
+        telefono:
+          telefonoCliente.trim(),
+
+        correo:
+          correoCliente
+            .trim()
+            .toLowerCase(),
+
+        metodo_pago:
+          metodoPago,
+
+        /*
+         * ============================================
+         * COMPRA NORMAL / REGALO
+         * ============================================
+         */
+
+        tipo_compra:
+          tipoCompra,
+
+        /*
+         * Solo enviamos destinatario cuando
+         * la compra es un regalo.
+         */
+        gift:
+          tipoCompra === "gift"
+            ? {
+              destinatarioNombre:
+                destinatarioNombre.trim(),
+
+              destinatarioCorreo:
+                destinatarioCorreo
+                  .trim()
+                  .toLowerCase(),
+
+              destinatarioTelefono:
+                destinatarioTelefono.trim(),
+
+              mensaje:
+                mensajeRegalo.trim() ||
+                null,
+            }
+            : null,
+
+        /*
+         * PayPhone
+         */
         clientTransactionId,
-        client_transaction_id: clientTransactionId,
-        tx: clientTransactionId,
+
+        client_transaction_id:
+          clientTransactionId,
+
+        tx:
+          clientTransactionId,
       }),
       cache: "no-store",
     });
@@ -248,8 +388,63 @@ export default function HomePage() {
       return;
     }
 
+    /*
+ * =====================================================
+ * VALIDACIONES DEL REGALO
+ * =====================================================
+ */
+
+    if (tipoCompra === "gift") {
+      if (!destinatarioNombre.trim()) {
+        setOrderError(
+          "Ingresa el nombre de la persona que recibirá el regalo."
+        );
+        return;
+      }
+
+      if (!destinatarioTelefono.trim()) {
+        setOrderError(
+          "Ingresa el WhatsApp de la persona que recibirá el regalo."
+        );
+        return;
+      }
+
+      const telefonoDestinatarioValido =
+        /^09\d{8}$/.test(
+          destinatarioTelefono.trim()
+        );
+
+      if (!telefonoDestinatarioValido) {
+        setOrderError(
+          "Ingresa un WhatsApp válido para el destinatario (09xxxxxxxx)."
+        );
+        return;
+      }
+
+      if (!destinatarioCorreo.trim()) {
+        setOrderError(
+          "Ingresa el correo electrónico de la persona que recibirá el regalo."
+        );
+        return;
+      }
+
+      const correoDestinatarioValido =
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+          destinatarioCorreo.trim()
+        );
+
+      if (!correoDestinatarioValido) {
+        setOrderError(
+          "Ingresa un correo electrónico válido para el destinatario."
+        );
+        return;
+      }
+    }
+
     if (selectedCantidad == null) {
-      setOrderError("No se detectó el paquete seleccionado.");
+      setOrderError(
+        "No se detectó el paquete seleccionado."
+      );
       return;
     }
 
@@ -329,7 +524,16 @@ export default function HomePage() {
         .select("id")
         .eq("sorteo_id", sorteo.id)
         .eq("correo", correo)
-        .eq("estado", "pagado");
+        .in(
+          "estado",
+          [
+            "pagado",
+            "confirmado",
+          ]
+        )
+        .or(
+          "tipo_compra.eq.self,tipo_compra.is.null"
+        );
 
       if (pedidosError) {
         console.error("Error buscando pedidos por correo:", pedidosError);
@@ -382,125 +586,88 @@ export default function HomePage() {
   };
 
   return (
-    <div className="mx-auto flex max-w-4xl flex-col gap-10">
-      {/* BLOQUE PREMIOS ESTILO PF */}
-      <div className="w-full pt-2 md:pt-4">
-        <div className="mx-auto max-w-3xl px-4 text-center space-y-0.0 md:space-y-2">
-          <p
-            className={`${anton.className} text-lg md:text-2xl uppercase tracking-[0.12em] text-[#ff6600]`}
-          >
-            JUEGA
-          </p>
+    <div className="flex w-full flex-col">
+      {/* =====================================================
+    HERO BARUK593
+===================================================== */}
 
-          {premios.length > 0 ? (
-            premios.map((premio, index) => (
-              <p
-                key={index}
-                className={`${anton.className} text-lg md:text-2xl uppercase tracking-[0.12em] text-[#2b2b2b]`}
-              >
-                {index === 0 ? premio : `+ ${premio}`}
-              </p>
-            ))
-          ) : (
-            <p
-              className={`${anton.className} text-lg md:text-2xl uppercase tracking-[0.12em] text-[#2b2b2b]`}
-            >
-              {sorteo.titulo}
-            </p>
-          )}
+      <BarukHero
+        titulo={sorteo.titulo}
+        imagenUrl={imagenHero}
+        galeriaUrls={galeriaHero}
+        precioUnidad={precioUnidad}
+        agotado={agotado}
 
-          {/* AQUÍ VA LA SECCION DE ACTIVIDAD #1 (LO CUAL LE BORRÉ) */}
-        </div>
-      </div>
+        progreso={progresoMostrado}
+        vendidos={vendidos}
+        total={total}
+      />
 
-      {/* SECCIÓN HERO / ENCABEZADO */}
-      <section className="space-y-6">
-        {galeriaHero.length > 0 ? (
-          <SorteoCarousel images={galeriaHero} titulo={sorteo.titulo} />
-        ) : imagenHero ? (
-          <div className="relative w-full overflow-hidden rounded-2xl border border-white/10 bg-white aspect-[12/5] md:aspect-[12/5]">
-            <img
-              src={imagenHero}
-              alt={sorteo.titulo ?? "Imagen del sorteo"}
-              className="absolute inset-0 h-full w-full object-contain p-3"
-            />
-          </div>
+      {/* =====================================================
+    COMPRAR BARUK CARDS
+===================================================== */}
 
+      <BarukPurchaseSection
+        precioUnidad={
+          precioUnidad
+        }
 
-        ) : (
-          <SorteoCarousel />
-        )}
+        agotado={
+          agotado
+        }
 
-        <div className="space-y-4 py-3">
-          <p
-            className={`${anton.className} text-center text-[28px] md:text-[34px] uppercase tracking-tight text-[#2b2b2b]`}
-          >
-            ¡CANTIDADES LIMITADAS!
-          </p>
+        cantidadSeleccionada={
+          selectedCantidad
+        }
 
-          <ProgressBar value={progresoMostrado} />
+        onCantidadChange={
+          setSelectedCantidad
+        }
 
-          <p className="text-center text-[13px] md:text-[15px] font-normal text-slate-600 leading-relaxed">
-            El sorteo se activa automáticamente cuando la barra de progreso llegue al 100%.
-          </p>
-        </div>
-      </section>
+        tipoCompra={
+          tipoCompra
+        }
 
-      {/* SECCIÓN: ADQUIERE TUS NÚMEROS / AGOTADO */}
-      <section className="space-y-3">
-        {agotado ? (
-          <div className="rounded-2xl border border-slate-200 bg-white px-6 py-8 shadow-sm text-center">
-            <div className="text-3xl">☹️</div>
+        onTipoCompraChange={
+          setTipoCompra
+        }
 
-            <p className="mt-3 text-lg md:text-xl font-extrabold uppercase tracking-wide text-slate-800">
-              ¡LOS NÚMEROS PARA ESTA ACTIVIDAD SE AGOTARON!
-            </p>
+        destinatarioNombre={
+          destinatarioNombre
+        }
 
-            <p className="mt-2 text-xs md:text-sm text-slate-600">
-              Los premios se jugarán una vez vendida la totalidad de los números.
-            </p>
-          </div>
-        ) : (
-          <>
-            {/* Encabezado SOLO cuando NO está agotado */}
-            <div className="space-y-2 text-center">
-              <p className="text-lg md:text-xl font-extrabold uppercase tracking-[0.3em] text-slate-700">
-                ¡ADQUIERE TUS NÚMEROS!
-              </p>
+        onDestinatarioNombreChange={
+          setDestinatarioNombre
+        }
 
-              <p className="text-[13px] font-extrabold text-slate-700">
-                Valor de la unidad:{" "}
-                <span className="font-extrabold text-slate-700">
-                  ${precioUnidad.toFixed(2)}
-                </span>
-              </p>
-            </div>
+        destinatarioCorreo={
+          destinatarioCorreo
+        }
 
-            {/* Paquetes */}
-            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-3">
-              {paquetes.map((cantidad) => (
-                <article
-                  key={cantidad}
-                  className="flex flex-col items-center gap-1 rounded-2xl border border-white/10 bg-[#202020]/90 px-4 py-4 shadow-md"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-200">
-                    x{cantidad} números
-                  </p>
-                  <p className="text-2xl font-bold text-white">
-                    {(cantidad * precioUnidad).toFixed(2)}
-                  </p>
-                  <button
-                    className="mt-2 w-full rounded-xl bg-[#FF6600] px-3 py-2 text-xs font-extrabold text-slate-950 hover:bg-[#FF7F00]"
-                    onClick={() => handleComprarClick(cantidad)}
-                  >
-                    Comprar
-                  </button>
-                </article>
-              ))}
-            </div>
-          </>
-        )}
-      </section>
+        onDestinatarioCorreoChange={
+          setDestinatarioCorreo
+        }
+
+        destinatarioTelefono={
+          destinatarioTelefono
+        }
+
+        onDestinatarioTelefonoChange={
+          setDestinatarioTelefono
+        }
+
+        mensajeRegalo={
+          mensajeRegalo
+        }
+
+        onMensajeRegaloChange={
+          setMensajeRegalo
+        }
+
+        onComprar={
+          handleComprarClick
+        }
+      />
 
       {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS */}
       <section className="w-full pb-10 md:pb-14">
@@ -571,10 +738,10 @@ export default function HomePage() {
       <PremiosInstantaneos />
 
       {/* CÓMO PARTICIPAR */}
-      <div className="mt-16">
-        <h2 className="text-center text-[22px] md:text-[24px] font-extrabold uppercase tracking-wide text-[#3a3a3a]">
-          ¿Cómo participar?
-        </h2>
+      <div
+        id="como-funciona"
+        className="mt-16 scroll-mt-24"
+      >
 
         <div className="mx-auto max-w-3xl text-center text-[14px] md:text-[15px] text-slate-500 leading-relaxed space-y-3">
 
@@ -638,6 +805,26 @@ export default function HomePage() {
                   En el siguiente paso podrás elegir tu método de pago y dejar
                   tus datos para confirmar la reserva de tus números.
                 </p>
+                {tipoCompra === "gift" && (
+
+                  <div className="mt-4 rounded-xl border border-[#FF7F00]/30 bg-[#FF7F00]/10 p-4 text-center">
+
+                    <p className="text-xs font-bold text-[#ff9933]">
+                      🎁 Este pedido es un regalo para {destinatarioNombre}
+                    </p>
+
+                    <p className="mt-2 text-[11px] leading-5 text-slate-300">
+                      Una vez confirmado el pago, las Baruk Cards
+                      quedarán vinculadas al destinatario mediante:
+                    </p>
+
+                    <p className="mt-2 break-all text-[11px] font-semibold text-white">
+                      {destinatarioCorreo}
+                    </p>
+
+                  </div>
+
+                )}
 
                 <div className="mt-5 flex flex-col gap-2">
                   <button
@@ -673,6 +860,10 @@ export default function HomePage() {
 
                 <div className="mt-4 space-y-3 text-sm text-slate-200">
                   <div className="space-y-1">
+
+                    <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#FF7F00]">
+                      Tus datos de compra
+                    </p>
                     <label className="text-xs text-slate-300">
                       Nombre completo
                     </label>

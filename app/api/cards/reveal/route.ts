@@ -1,56 +1,163 @@
-import { NextRequest, NextResponse } from "next/server";
+// app/api/cards/reveal/route.ts
+
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
+
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function normalizeEmail(value: unknown): string {
+function normalizeEmail(
+    value: unknown
+): string {
     return String(value ?? "")
         .trim()
         .toLowerCase();
 }
 
-export async function POST(req: NextRequest) {
+export async function POST(
+    req: NextRequest
+) {
     try {
-        const body = await req.json().catch(() => null);
+        /*
+         * =====================================================
+         * 1. LEER BODY
+         * =====================================================
+         */
 
-        const cardId = String(
-            body?.cardId ?? ""
-        ).trim();
+        const body =
+            await req.json().catch(
+                () => null
+            );
 
-        const ownerEmail = normalizeEmail(
-            body?.email
-        );
+        const cardId =
+            String(
+                body?.cardId ?? ""
+            ).trim();
+
+        const fallbackEmail =
+            normalizeEmail(
+                body?.email
+            );
 
         if (!cardId) {
             return NextResponse.json(
                 {
                     ok: false,
-                    error: "Falta cardId",
+                    error:
+                        "Falta cardId",
                 },
-                { status: 400 }
-            );
-        }
-
-        if (!ownerEmail) {
-            return NextResponse.json(
                 {
-                    ok: false,
-                    error: "Falta correo del propietario",
-                },
-                { status: 400 }
+                    status: 400,
+                }
             );
         }
 
         /*
-         * 1. Leer tarjeta y número asignado.
+         * =====================================================
+         * 2. DETECTAR SESIÓN AUTENTICADA
+         * =====================================================
+         *
+         * Si llega:
+         *
+         * Authorization: Bearer <token>
+         *
+         * validamos la identidad directamente
+         * con Supabase Auth.
          */
-        const { data: card, error: cardError } =
+
+        const authorization =
+            req.headers.get(
+                "authorization"
+            );
+
+        let authenticatedUser:
+            | {
+                id: string;
+                email: string;
+            }
+            | null = null;
+
+        if (
+            authorization?.startsWith(
+                "Bearer "
+            )
+        ) {
+            const accessToken =
+                authorization
+                    .replace(
+                        "Bearer ",
+                        ""
+                    )
+                    .trim();
+
+            if (!accessToken) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Token de sesión inválido",
+                    },
+                    {
+                        status: 401,
+                    }
+                );
+            }
+
+            const {
+                data: userData,
+                error: userError,
+            } =
+                await supabaseAdmin.auth.getUser(
+                    accessToken
+                );
+
+            if (
+                userError ||
+                !userData.user
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "La sesión no es válida o ha expirado",
+                    },
+                    {
+                        status: 401,
+                    }
+                );
+            }
+
+            authenticatedUser = {
+                id:
+                    userData.user.id,
+
+                email:
+                    normalizeEmail(
+                        userData.user.email
+                    ),
+            };
+        }
+
+        /*
+         * =====================================================
+         * 3. LEER TARJETA
+         * =====================================================
+         */
+
+        const {
+            data: card,
+            error: cardError,
+        } =
             await supabaseAdmin
                 .from("baruk_cards")
                 .select(`
                     id,
                     pedido_id,
+                    owner_user_id,
                     owner_email,
                     owner_type,
                     estado,
@@ -64,91 +171,288 @@ export async function POST(req: NextRequest) {
                         numero
                     )
                 `)
-                .eq("id", cardId)
-                .single();
-
-        if (cardError || !card) {
-            return NextResponse.json(
-                {
-                    ok: false,
-                    error: "Tarjeta no encontrada",
-                },
-                { status: 404 }
-            );
-        }
-
-        /*
-         * 2. Validar propietario.
-         *
-         * Más adelante esta validación se sustituirá
-         * por sesión/magic link.
-         */
-        const storedEmail = normalizeEmail(
-            card.owner_email
-        );
+                .eq(
+                    "id",
+                    cardId
+                )
+                .maybeSingle();
 
         if (
-            !storedEmail ||
-            storedEmail !== ownerEmail
+            cardError ||
+            !card
         ) {
+            if (cardError) {
+                console.error(
+                    "Error leyendo Baruk Card:",
+                    cardError
+                );
+            }
+
             return NextResponse.json(
                 {
                     ok: false,
                     error:
-                        "No tienes autorización para revelar esta tarjeta",
+                        "Tarjeta no encontrada",
                 },
-                { status: 403 }
+                {
+                    status: 404,
+                }
             );
         }
 
-        if (card.estado === "cancelled") {
+        /*
+         * =====================================================
+         * 4. VALIDAR PROPIETARIO
+         * =====================================================
+         *
+         * MODO A:
+         * usuario autenticado -> owner_user_id
+         *
+         * MODO B:
+         * flujo temporal /mi-compra -> owner_email
+         */
+
+        const storedEmail =
+            normalizeEmail(
+                card.owner_email
+            );
+
+        if (authenticatedUser) {
+            /*
+             * ---------------------------------------------
+             * USUARIO AUTENTICADO
+             * ---------------------------------------------
+             */
+
+            if (
+                card.owner_user_id
+            ) {
+                /*
+                 * Si ya existe owner_user_id,
+                 * debe coincidir exactamente con
+                 * el usuario autenticado.
+                 */
+
+                if (
+                    card.owner_user_id !==
+                    authenticatedUser.id
+                ) {
+                    return NextResponse.json(
+                        {
+                            ok: false,
+                            error:
+                                "No tienes autorización para revelar esta tarjeta",
+                        },
+                        {
+                            status: 403,
+                        }
+                    );
+                }
+            } else {
+                /*
+                 * La tarjeta puede ser histórica y
+                 * todavía no tener owner_user_id.
+                 *
+                 * Como el usuario YA está autenticado,
+                 * podemos verificar el correo y
+                 * vincularla automáticamente.
+                 */
+
+                if (
+                    !storedEmail ||
+                    !authenticatedUser.email ||
+                    storedEmail !==
+                    authenticatedUser.email
+                ) {
+                    return NextResponse.json(
+                        {
+                            ok: false,
+                            error:
+                                "Esta tarjeta no pertenece a tu cuenta",
+                        },
+                        {
+                            status: 403,
+                        }
+                    );
+                }
+
+                const {
+                    error:
+                    linkCardError,
+                } =
+                    await supabaseAdmin
+                        .from(
+                            "baruk_cards"
+                        )
+                        .update({
+                            owner_user_id:
+                                authenticatedUser.id,
+
+                            updated_at:
+                                new Date().toISOString(),
+                        })
+                        .eq(
+                            "id",
+                            card.id
+                        )
+                        .is(
+                            "owner_user_id",
+                            null
+                        );
+
+                if (
+                    linkCardError
+                ) {
+                    console.error(
+                        "Error vinculando tarjeta durante reveal:",
+                        linkCardError
+                    );
+
+                    return NextResponse.json(
+                        {
+                            ok: false,
+                            error:
+                                "No se pudo vincular la tarjeta a tu cuenta",
+                        },
+                        {
+                            status: 500,
+                        }
+                    );
+                }
+            }
+        } else {
+            /*
+             * ---------------------------------------------
+             * COMPATIBILIDAD TEMPORAL CON /MI-COMPRA
+             * ---------------------------------------------
+             *
+             * Todavía acepta correo porque /mi-compra
+             * no ha sido migrado completamente a una
+             * sesión autenticada.
+             */
+
+            if (!fallbackEmail) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Debes iniciar sesión para revelar esta tarjeta",
+                    },
+                    {
+                        status: 401,
+                    }
+                );
+            }
+
+            if (
+                !storedEmail ||
+                storedEmail !==
+                fallbackEmail
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "No tienes autorización para revelar esta tarjeta",
+                    },
+                    {
+                        status: 403,
+                    }
+                );
+            }
+        }
+
+        /*
+         * =====================================================
+         * 5. COMPROBAR ESTADO
+         * =====================================================
+         */
+
+        if (
+            card.estado ===
+            "cancelled"
+        ) {
             return NextResponse.json(
                 {
                     ok: false,
                     error:
                         "Esta tarjeta se encuentra cancelada",
                 },
-                { status: 409 }
+                {
+                    status: 409,
+                }
             );
         }
 
         /*
-         * 3. Obtener número.
+         * =====================================================
+         * 6. OBTENER NÚMERO DE PARTICIPACIÓN
+         * =====================================================
          */
+
         const relation =
             card.numeros_asignados as
-            | { numero: number }
-            | { numero: number }[]
+            | {
+                numero: number;
+            }
+            | {
+                numero: number;
+            }[]
             | null;
 
-        const numero = Array.isArray(relation)
-            ? Number(relation[0]?.numero)
-            : Number(relation?.numero);
+        const numero =
+            Array.isArray(
+                relation
+            )
+                ? Number(
+                    relation[0]
+                        ?.numero
+                )
+                : Number(
+                    relation?.numero
+                );
 
-        if (!Number.isFinite(numero)) {
+        if (
+            !Number.isFinite(
+                numero
+            )
+        ) {
             return NextResponse.json(
                 {
                     ok: false,
                     error:
                         "No se pudo obtener el número de participación",
                 },
-                { status: 500 }
+                {
+                    status: 500,
+                }
             );
         }
 
         /*
-         * 4. Leer esfera o premio, si existe.
+         * =====================================================
+         * 7. CARGAR ESFERA O PREMIO
+         * =====================================================
          */
+
         let sphere = null;
         let prize = null;
 
         if (
-            card.extra_type === "sphere" &&
+            card.extra_type ===
+            "sphere" &&
             card.sphere_id
         ) {
-            const { data } =
+            const {
+                data:
+                sphereData,
+                error:
+                sphereError,
+            } =
                 await supabaseAdmin
-                    .from("spheres")
+                    .from(
+                        "spheres"
+                    )
                     .select(`
                         id,
                         numero,
@@ -156,19 +460,41 @@ export async function POST(req: NextRequest) {
                         descripcion,
                         imagen_url
                     `)
-                    .eq("id", card.sphere_id)
-                    .single();
+                    .eq(
+                        "id",
+                        card.sphere_id
+                    )
+                    .maybeSingle();
 
-            sphere = data ?? null;
+            if (
+                sphereError
+            ) {
+                console.error(
+                    "Error leyendo esfera:",
+                    sphereError
+                );
+            }
+
+            sphere =
+                sphereData ??
+                null;
         }
 
         if (
-            card.extra_type === "prize" &&
+            card.extra_type ===
+            "prize" &&
             card.prize_id
         ) {
-            const { data } =
+            const {
+                data:
+                prizeData,
+                error:
+                prizeError,
+            } =
                 await supabaseAdmin
-                    .from("card_prizes")
+                    .from(
+                        "card_prizes"
+                    )
                     .select(`
                         id,
                         nombre,
@@ -178,27 +504,57 @@ export async function POST(req: NextRequest) {
                         cantidad_cards,
                         valor_referencial
                     `)
-                    .eq("id", card.prize_id)
-                    .single();
+                    .eq(
+                        "id",
+                        card.prize_id
+                    )
+                    .maybeSingle();
 
-            prize = data ?? null;
+            if (
+                prizeError
+            ) {
+                console.error(
+                    "Error leyendo premio:",
+                    prizeError
+                );
+            }
+
+            prize =
+                prizeData ??
+                null;
         }
 
         /*
-         * 5. Si ya fue revelada, devolvemos exactamente
-         * el mismo resultado.
+         * =====================================================
+         * 8. SI YA FUE REVELADA
+         * =====================================================
+         *
+         * Nunca se vuelve a sortear.
+         * Se devuelve exactamente el resultado almacenado.
          */
-        if (card.revealed) {
+
+        if (
+            card.revealed
+        ) {
             return NextResponse.json({
                 ok: true,
-                alreadyRevealed: true,
+
+                alreadyRevealed:
+                    true,
+
                 card: {
-                    id: card.id,
+                    id:
+                        card.id,
+
                     numero,
+
                     extraType:
                         card.extra_type,
+
                     sphere,
+
                     prize,
+
                     revealedAt:
                         card.revealed_at,
                 },
@@ -206,49 +562,170 @@ export async function POST(req: NextRequest) {
         }
 
         /*
-         * 6. Registrar revelado.
+         * =====================================================
+         * 9. REGISTRAR REVELADO
+         * =====================================================
          */
+
         const revealedAt =
             new Date().toISOString();
 
-        const { error: revealError } =
+        const {
+            data: revealedRow,
+            error: revealError,
+        } =
             await supabaseAdmin
-                .from("baruk_cards")
+                .from(
+                    "baruk_cards"
+                )
                 .update({
-                    revealed: true,
-                    revealed_at: revealedAt,
-                    estado: "revealed",
-                    updated_at:
-                        new Date().toISOString(),
-                })
-                .eq("id", card.id)
-                .eq("revealed", false);
+                    revealed:
+                        true,
 
-        if (revealError) {
+                    revealed_at:
+                        revealedAt,
+
+                    estado:
+                        "revealed",
+
+                    updated_at:
+                        revealedAt,
+                })
+                .eq(
+                    "id",
+                    card.id
+                )
+                .eq(
+                    "revealed",
+                    false
+                )
+                .select(`
+                    id,
+                    revealed_at
+                `)
+                .maybeSingle();
+
+        if (
+            revealError
+        ) {
+            console.error(
+                "Error revelando Baruk Card:",
+                revealError
+            );
+
             return NextResponse.json(
                 {
                     ok: false,
                     error:
                         "No se pudo revelar la tarjeta",
                 },
-                { status: 500 }
+                {
+                    status: 500,
+                }
             );
         }
 
+        /*
+         * Puede ocurrir que dos solicitudes intenten
+         * revelar la misma tarjeta casi simultáneamente.
+         *
+         * Si la segunda no actualizó ninguna fila,
+         * simplemente recuperamos la fecha real
+         * almacenada.
+         */
+
+        if (
+            !revealedRow
+        ) {
+            const {
+                data:
+                currentCard,
+                error:
+                currentCardError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "baruk_cards"
+                    )
+                    .select(`
+                        revealed,
+                        revealed_at
+                    `)
+                    .eq(
+                        "id",
+                        card.id
+                    )
+                    .maybeSingle();
+
+            if (
+                currentCardError
+            ) {
+                console.error(
+                    "Error verificando revelado concurrente:",
+                    currentCardError
+                );
+            }
+
+            return NextResponse.json({
+                ok: true,
+
+                alreadyRevealed:
+                    true,
+
+                card: {
+                    id:
+                        card.id,
+
+                    numero,
+
+                    extraType:
+                        card.extra_type,
+
+                    sphere,
+
+                    prize,
+
+                    revealedAt:
+                        currentCard
+                            ?.revealed_at ??
+                        revealedAt,
+                },
+            });
+        }
+
+        /*
+         * =====================================================
+         * 10. RESPUESTA
+         * =====================================================
+         */
+
         return NextResponse.json({
             ok: true,
-            alreadyRevealed: false,
+
+            alreadyRevealed:
+                false,
+
             card: {
-                id: card.id,
+                id:
+                    card.id,
+
                 numero,
+
                 extraType:
                     card.extra_type,
+
                 sphere,
+
                 prize,
-                revealedAt,
+
+                revealedAt:
+                    revealedRow.revealed_at ??
+                    revealedAt,
             },
         });
-    } catch (error: unknown) {
+    } catch (
+    error: unknown
+    ) {
         console.error(
             "cards/reveal error:",
             error
@@ -257,12 +734,16 @@ export async function POST(req: NextRequest) {
         return NextResponse.json(
             {
                 ok: false,
+
                 error:
-                    error instanceof Error
+                    error instanceof
+                        Error
                         ? error.message
                         : "Error interno",
             },
-            { status: 500 }
+            {
+                status: 500,
+            }
         );
     }
 }

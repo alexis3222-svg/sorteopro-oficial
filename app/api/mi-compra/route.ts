@@ -1,60 +1,155 @@
 // app/api/mi-compra/route.ts
-import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!; // SERVICE ROLE, solo servidor
+import { NextRequest, NextResponse } from "next/server";
+import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const supabase = createClient(supabaseUrl, supabaseServiceKey);
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
-export async function GET(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const tx = searchParams.get("tx");
-
-    if (!tx) {
-        return NextResponse.json(
-            { error: "Falta el parámetro tx" },
-            { status: 400 }
-        );
-    }
-
+export async function GET(req: NextRequest) {
     try {
-        // 1) Buscar el pedido por el tx que viene de PayPhone
-        const { data: pedido, error: pedidoError } = await supabase
-            .from("pedidos")
-            .select(
-                "id, nombre, telefono, correo, estado, metodo_pago, total, created_at, payphone_client_transaction_id"
-            )
-            .eq("payphone_client_transaction_id", tx)
-            .single();
+        const { searchParams } = new URL(req.url);
 
-        if (pedidoError || !pedido) {
-            // <- ESTE 404 ES JSON, NO ES LA PÁGINA BLANCA DE NEXT
+        const tx = String(
+            searchParams.get("tx") ?? ""
+        ).trim();
+
+        if (!tx) {
             return NextResponse.json(
-                { error: "No se encontró la compra para este tx" },
+                {
+                    ok: false,
+                    error: "Falta el identificador de compra",
+                },
+                { status: 400 }
+            );
+        }
+
+        /*
+         * 1. Buscar el pedido utilizando el
+         * clientTransactionId de PayPhone.
+         */
+        const { data: pedido, error: pedidoError } =
+            await supabaseAdmin
+                .from("pedidos")
+                .select(`
+                    id,
+                    nombre,
+                    telefono,
+                    correo,
+                    cantidad_numeros,
+                    precio_unitario,
+                    total,
+                    metodo_pago,
+                    estado,
+                    created_at,
+                    actividad_numero,
+                    sorteo_id,
+                    payphone_client_transaction_id,
+                    tipo_compra,
+                    cards_processing_status
+                `)
+                .eq(
+                    "payphone_client_transaction_id",
+                    tx
+                )
+                .maybeSingle();
+
+        if (pedidoError) {
+            console.error(
+                "mi-compra pedido error:",
+                pedidoError
+            );
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error: "No se pudo consultar la compra",
+                },
+                { status: 500 }
+            );
+        }
+
+        if (!pedido) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "No se encontró una compra para este identificador",
+                },
                 { status: 404 }
             );
         }
 
-        // 2) Más adelante podemos leer los boletos desde otra tabla (tickets, numeros_asignados, etc.)
-        const boletos: string[] = [];
+        /*
+         * 2. Consultar las Baruk Cards creadas
+         * para ese pedido.
+         *
+         * IMPORTANTE:
+         *
+         * No enviamos:
+         * - numero
+         * - extra_type
+         * - sphere_id
+         * - prize_id
+         *
+         * porque el usuario todavía no debe saber
+         * el resultado.
+         */
+        const { data: cards, error: cardsError } =
+            await supabaseAdmin
+                .from("baruk_cards")
+                .select(`
+                    id,
+                    revealed,
+                    revealed_at,
+                    estado,
+                    created_at
+                `)
+                .eq("pedido_id", pedido.id)
+                .order("created_at", {
+                    ascending: true,
+                });
 
-        // 3) Respuesta para el frontend
+        if (cardsError) {
+            console.error(
+                "mi-compra cards error:",
+                cardsError
+            );
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "No se pudieron consultar las Baruk Cards",
+                },
+                { status: 500 }
+            );
+        }
+
+        /*
+         * 3. Respuesta para MiCompraClient.
+         */
         return NextResponse.json({
-            tx,
-            nombre: pedido.nombre,
-            telefono: pedido.telefono,
-            email: pedido.correo,
-            estado: pedido.estado || "pagado",
-            metodoPago: pedido.metodo_pago || "payphone",
-            total: Number(pedido.total) || 0,
-            fecha: pedido.created_at,
-            boletos,
+            ok: true,
+
+            pedido,
+
+            cards: cards ?? [],
         });
-    } catch (err: any) {
-        console.error(err);
+    } catch (error: unknown) {
+        console.error(
+            "api/mi-compra error:",
+            error
+        );
+
         return NextResponse.json(
-            { error: "Error interno al consultar la compra" },
+            {
+                ok: false,
+                error:
+                    error instanceof Error
+                        ? error.message
+                        : "Error interno al consultar la compra",
+            },
             { status: 500 }
         );
     }

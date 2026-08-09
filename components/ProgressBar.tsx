@@ -50,7 +50,7 @@ export function ProgressBar({ value }: ProgressBarProps) {
 
             {/* ---- TEXTO SUPERIOR ---- */}
             <p className="text-center text-base md:text-lg font-semibold text-slate-800">
-                Números vendidos:{" "}
+                Tarjetas vendidas:{" "}
                 <span className="font-bold text-slate-900">{clamped.toFixed(2)}%</span>
             </p>
 
