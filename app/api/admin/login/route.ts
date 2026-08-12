@@ -1,49 +1,148 @@
 // app/api/admin/login/route.ts
-import { NextRequest, NextResponse } from "next/server";
+
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
+
+import {
+    ADMIN_COOKIE,
+    SESSION_DURATION_SECONDS,
+    createAdminSessionToken,
+} from "@/lib/adminSession";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-export async function POST(req: NextRequest) {
+export async function POST(
+    req: NextRequest
+) {
     try {
-        const body = await req.json().catch(() => ({}));
-        const secret = String(body?.secret ?? "").trim();
+        const body =
+            await req
+                .json()
+                .catch(() => ({}));
+
+        const secret =
+            String(
+                body?.secret ?? ""
+            ).trim();
+
+        /* ========================================================
+           ADMIN SECRET
+        ======================================================== */
 
         const expected =
-            (process.env.ADMIN_SECRET ||
-                process.env.NEXT_PUBLIC_ADMIN_SECRET ||
-                "").trim();
+            process.env.ADMIN_SECRET
+                ?.trim();
+
+        /*
+         * IMPORTANTE:
+         *
+         * Nunca usamos:
+         *
+         * NEXT_PUBLIC_ADMIN_SECRET
+         *
+         * porque un secreto administrativo no debe
+         * exponerse al cliente.
+         */
 
         if (!expected) {
+            console.error(
+                "ADMIN_SECRET no está configurado."
+            );
+
             return NextResponse.json(
-                { ok: false, error: "ADMIN_SECRET no configurado" },
-                { status: 500 }
+                {
+                    ok: false,
+                    error:
+                        "Configuración administrativa incompleta.",
+                },
+                {
+                    status: 500,
+                }
             );
         }
 
-        if (!secret || secret !== expected) {
+        /* ========================================================
+           VALIDAR CREDENCIALES
+        ======================================================== */
+
+        if (
+            !secret ||
+            secret !== expected
+        ) {
             return NextResponse.json(
-                { ok: false, error: "Credenciales inválidas" },
-                { status: 401 }
+                {
+                    ok: false,
+                    error:
+                        "Credenciales inválidas.",
+                },
+                {
+                    status: 401,
+                }
             );
         }
 
-        const res = NextResponse.json({ ok: true });
+        /* ========================================================
+           CREAR SESIÓN FIRMADA
+        ======================================================== */
 
-        // ✅ Cookie persistente (30 días)
-        res.cookies.set("admin_session", "1", {
-            httpOnly: true,
-            secure: true,      // en Vercel siempre https
-            sameSite: "lax",
-            path: "/",
-            maxAge: 60 * 60 * 24 * 30,
-        });
+        const sessionToken =
+            await createAdminSessionToken();
 
-        return res;
-    } catch {
+        const response =
+            NextResponse.json({
+                ok: true,
+            });
+
+        /* ========================================================
+           COOKIE
+        ======================================================== */
+
+        response.cookies.set(
+            ADMIN_COOKIE,
+            sessionToken,
+            {
+                httpOnly: true,
+
+                /*
+                 * En Vercel:
+                 * HTTPS -> true
+                 *
+                 * En localhost:
+                 * HTTP -> false
+                 */
+                secure:
+                    process.env.NODE_ENV ===
+                    "production",
+
+                sameSite: "lax",
+
+                path: "/",
+
+                maxAge:
+                    SESSION_DURATION_SECONDS,
+            }
+        );
+
+        return response;
+
+    } catch (error) {
+        console.error(
+            "Error login admin:",
+            error
+        );
+
         return NextResponse.json(
-            { ok: false, error: "Body inválido" },
-            { status: 400 }
+            {
+                ok: false,
+                error:
+                    "No se pudo iniciar sesión.",
+            },
+            {
+                status: 500,
+            }
         );
     }
 }

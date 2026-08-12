@@ -8,6 +8,8 @@ import { PremiosInstantaneos } from "@/components/PremiosInstantaneos";
 import { trackAddToCart, trackViewContent } from "../lib/metaPixel";
 import BarukHero from "@/components/baruk/BarukHero";
 import BarukPurchaseSection from "@/components/baruk/BarukPurchaseSection";
+import BarukShop from "@/components/baruk/BarukShop";
+import BarukHowItWorks from "@/components/baruk/BarukHowItWorks";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -669,73 +671,201 @@ export default function HomePage() {
         }
       />
 
-      {/* 🔍 SECCIÓN: CONSULTA TUS NÚMEROS */}
-      <section className="w-full pb-10 md:pb-14">
-        <div className="mx-auto max-w-3xl rounded-2xl border border-slate-200 bg-white px-5 py-6 shadow-sm">
-          <h3
-            className={`${anton.className} text-base md:text-lg uppercase tracking-[0.18em] text-[#2b2b2b] text-center`}
-          >
-            Consulta tus números
-          </h3>
+      {/* =====================================================
+    CÓMO FUNCIONA
+===================================================== */}
 
-          <p className="mt-2 text-xs md:text-sm text-slate-600 text-center">
-            Ingresa el correo que usaste al realizar tu compra y te mostraremos
-            los números asignados a tus boletos para esta actividad.
-          </p>
+      <BarukHowItWorks />
 
-          <form
-            onSubmit={handleBuscarNumeros}
-            className="mt-4 flex flex-col gap-3 md:flex-row md:items-center"
-          >
-            <input
-              type="email"
-              value={buscaCorreo}
-              onChange={(e) => setBuscaCorreo(e.target.value)}
-              className="flex-1 rounded-lg border border-slate-300 px-3 py-2 text-sm outline-none focus:border-[#FF7F00]"
-              placeholder="correo@ejemplo.com"
-            />
-            <button
-              type="submit"
-              disabled={buscandoNumeros}
-              className="rounded-lg bg-[#FF6600] px-4 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff9933] disabled:opacity-60 disabled:cursor-not-allowed"
-            >
-              {buscandoNumeros ? "Buscando..." : "Ver mis números"}
-            </button>
-          </form>
+      {/* =====================================================
+    CONSULTA TUS NÚMEROS
+===================================================== */}
 
-          {errorBusqueda && (
-            <p className="mt-3 text-xs text-red-500 text-center">
-              {errorBusqueda}
-            </p>
-          )}
+      <section className="w-full py-10 md:py-14">
+        <div className="mx-auto max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-[#fafafa]">
 
-          {numerosCliente.length > 0 && (
-            <div className="mt-5">
-              <p className="text-xs md:text-sm text-slate-700 text-center mb-3">
-                Estos son los números que tienes asignados actualmente para la
-                actividad #{numeroActividad}:
+          <div className="grid md:grid-cols-[0.85fr_1.15fr]">
+
+            {/* TEXTO */}
+            <div className="border-b border-slate-200 px-6 py-7 md:border-b-0 md:border-r md:px-8 md:py-9">
+
+              <p className="text-[10px] font-black uppercase tracking-[0.20em] text-[#ff6600]">
+                Tus compras
               </p>
 
-              <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-2 justify-items-center">
+              <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#171717] md:text-3xl">
+                Consulta tus números
+              </h2>
+
+              <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
+                Ingresa el correo utilizado en tu compra para consultar los
+                números de participación vinculados a tus Baruk Cards.
+              </p>
+
+              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[11px] font-semibold text-slate-400">
+                <span>🔒 Consulta segura</span>
+                <span>⚡ Acceso inmediato</span>
+              </div>
+
+            </div>
+
+            {/* FORMULARIO */}
+            <div className="flex items-center px-6 py-7 md:px-8 md:py-9">
+
+              <form
+                onSubmit={handleBuscarNumeros}
+                className="w-full"
+              >
+                <label
+                  htmlFor="correo-consulta"
+                  className="text-xs font-bold text-slate-600"
+                >
+                  Correo de compra
+                </label>
+
+                <div className="mt-2 flex flex-col gap-3 sm:flex-row">
+
+                  <input
+                    id="correo-consulta"
+                    type="email"
+                    value={buscaCorreo}
+                    onChange={(e) =>
+                      setBuscaCorreo(e.target.value)
+                    }
+                    className="
+                min-h-[50px]
+                flex-1
+                rounded-xl
+                border
+                border-slate-300
+                bg-white
+                px-4
+                text-sm
+                outline-none
+                transition
+
+                focus:border-[#ff6600]
+                focus:ring-2
+                focus:ring-orange-100
+              "
+                    placeholder="correo@ejemplo.com"
+                  />
+
+                  <button
+                    type="submit"
+                    disabled={buscandoNumeros}
+                    className="
+                min-h-[50px]
+                rounded-xl
+                bg-[#ff6600]
+                px-6
+                text-sm
+                font-black
+                text-white
+                transition
+
+                hover:bg-[#f15f00]
+
+                disabled:cursor-not-allowed
+                disabled:opacity-60
+              "
+                  >
+                    {buscandoNumeros
+                      ? "Consultando..."
+                      : "Consultar"}
+                  </button>
+
+                </div>
+
+                <p className="mt-3 text-[11px] leading-5 text-slate-400">
+                  Usa el mismo correo electrónico registrado al momento de realizar tu compra.
+                </p>
+
+                {errorBusqueda && (
+                  <p className="mt-3 text-xs font-semibold text-red-500">
+                    {errorBusqueda}
+                  </p>
+                )}
+
+              </form>
+
+            </div>
+
+          </div>
+
+          {/* RESULTADOS */}
+          {numerosCliente.length > 0 && (
+            <div className="border-t border-slate-200 bg-white px-6 py-7 md:px-8">
+
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#ff6600]">
+                    Tus Baruk Cards
+                  </p>
+
+                  <p className="mt-1 text-sm font-semibold text-slate-600">
+                    Números de participación asignados para esta actividad
+                  </p>
+                </div>
+
+                <p className="text-xs font-semibold text-slate-400">
+                  Actividad #{numeroActividad}
+                </p>
+
+              </div>
+
+              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+
                 {numerosCliente.map((num) => (
                   <div
                     key={num}
-                    className="min-w-[72px] rounded-xl border border-[#FF7F00]/60 bg-[#FFF7EC] px-3 py-2 text-center shadow-sm"
+                    className="
+                rounded-2xl
+                border
+                border-orange-200
+                bg-[#fffaf6]
+                px-4
+                py-4
+                text-center
+                transition
+
+                hover:-translate-y-0.5
+                hover:border-orange-300
+                hover:shadow-md
+              "
                   >
+                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
+                      Número
+                    </p>
+
                     <span
-                      className={`${anton.className} text-sm tracking-[0.16em] text-[#2b2b2b]`}
+                      className={`${anton.className} mt-1 block text-xl tracking-[0.12em] text-[#ff6600]`}
                     >
                       {num}
                     </span>
                   </div>
                 ))}
+
               </div>
+
             </div>
           )}
+
         </div>
       </section>
-      {/* 🎁 SECCIÓN: PREMIOS INSTANTÁNEOS */}
+
+      {/* =====================================================
+    PREMIOS INSTANTÁNEOS
+===================================================== */}
+
       <PremiosInstantaneos />
+
+      {/* =====================================================
+    PRODUCTOS EN TENDENCIA
+===================================================== */}
+
+      <BarukShop />
 
       {/* CÓMO PARTICIPAR */}
       <div
@@ -743,29 +873,6 @@ export default function HomePage() {
         className="mt-16 scroll-mt-24"
       >
 
-        <div className="mx-auto max-w-3xl text-center text-[14px] md:text-[15px] text-slate-500 leading-relaxed space-y-3">
-
-          <p>
-            1. Selecciona el paquete de números que desees, recuerda que mientras más
-            números tengas, más oportunidades tendrás de ganar.
-          </p>
-
-          <p>
-            2. Serás redirigido a un modal donde seleccionarás tu forma de pago y
-            llenarás tus datos.
-          </p>
-
-          <p>
-            3. Una vez realizado el pago, automáticamente y de manera aleatoria se
-            asignarán tus números, los mismos que serán enviados al correo
-            electrónico registrado con la compra. Podrás revisarlos también en la parte de arriba en el apartado
-            <span className="font-medium text-neutral-600">
-              {" "}
-              “Consulta tus números”
-            </span>
-            .
-          </p>
-        </div>
       </div>
 
       {/* MODAL COMPRA */}

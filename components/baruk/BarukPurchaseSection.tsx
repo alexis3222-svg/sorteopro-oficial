@@ -64,12 +64,10 @@ export default function BarukPurchaseSection({
             id="comprar-baruk-card"
             className="w-full bg-white"
         >
-            <div className="w-full px-4 py-6 sm:px-6 lg:px-8 xl:px-10">
-
+            <div className="w-full py-8 md:py-10">
                 {/* CABECERA COMPACTA */}
 
                 <div className="mb-5 border-b border-gray-200 pb-4">
-
 
 
                     <h2 className="mt-1 text-xl font-black text-gray-900 md:text-2xl">

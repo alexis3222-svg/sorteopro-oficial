@@ -86,28 +86,20 @@ export default function BarukHero({
         relative
         grid
         w-full
-        max-w-none
         items-center
         gap-8
 
-        px-5
+        px-0
         pt-5
         pb-10
 
-        sm:px-7
-
-        md:px-8
         md:pt-6
         md:pb-12
 
         lg:grid-cols-[minmax(0,0.92fr)_minmax(0,1.08fr)]
         lg:gap-10
-        lg:px-10
         lg:pt-7
         lg:pb-14
-
-        xl:px-12
-        2xl:px-14
     "
             >
 
@@ -144,25 +136,6 @@ export default function BarukHero({
                         </span>
                     </h1>
 
-                    {/* DESCRIPCIÓN */}
-
-                    <p
-                        className="
-                            mt-7
-                            max-w-[650px]
-                            text-[15px]
-                            leading-7
-                            text-gray-500
-
-                            md:text-[17px]
-                            md:leading-8
-                        "
-                    >
-                        Cada Baruk Card incluye un número único de
-                        participación y puede revelar una esfera
-                        coleccionable o un premio instantáneo.
-                    </p>
-
                     {/* BENEFICIOS */}
 
                     <div className="mt-7 flex flex-wrap gap-2.5">
@@ -186,7 +159,7 @@ export default function BarukHero({
                     <div className="mt-9">
 
                         <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-gray-400">
-                            Valor desde
+                            Valor
                         </p>
 
                         <div className="mt-1 flex items-end gap-2">
@@ -413,18 +386,6 @@ export default function BarukHero({
                             <div className="flex items-end justify-between gap-4">
 
                                 <div>
-
-                                    <p
-                                        className="
-                                            text-[11px]
-                                            font-black
-                                            uppercase
-                                            tracking-[0.18em]
-                                            text-gray-500
-                                        "
-                                    >
-                                        Avance del sorteo
-                                    </p>
 
                                     <p className="mt-1 text-sm font-bold text-gray-900 md:text-base">
                                         {titulo ??

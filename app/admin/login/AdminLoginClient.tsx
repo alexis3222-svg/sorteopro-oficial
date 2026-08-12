@@ -68,11 +68,12 @@ export default function AdminLoginClient() {
                     <div className="space-y-2">
                         <label className="text-xs text-slate-300">ADMIN SECRET</label>
                         <input
+                            type="password"
                             value={secret}
                             onChange={(e) => setSecret(e.target.value)}
                             className="w-full rounded-xl border border-slate-800 bg-black/40 px-4 py-3 text-sm text-slate-100 outline-none focus:border-orange-400"
-                            placeholder="CBPIN-...."
-                            autoComplete="off"
+                            placeholder="ADMIN SECRET"
+                            autoComplete="current-password"
                         />
                         <p className="text-[11px] text-slate-500">
                             Tip: en producción la cookie puede quedar guardada; en local suele perderse al cerrar el navegador.
