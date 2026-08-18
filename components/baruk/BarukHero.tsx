@@ -334,7 +334,7 @@ export default function BarukHero({
                                 />
                             </span>
 
-                            7 esferas
+                            11 esferas
                         </div>
 
                         {/* PREMIO */}

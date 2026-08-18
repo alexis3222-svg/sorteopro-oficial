@@ -506,85 +506,390 @@ export default function HomePage() {
     }
   };
 
-  // 🔍 Buscar números asignados por correo  ✅ (CORREGIDO: fuera de handleConfirmarDatosPago)
-  const handleBuscarNumeros = async (e: FormEvent<HTMLFormElement>) => {
+  // 🔍 Buscar números asignados por correo
+  // Compra normal + Experience Pass recibidas como regalo
+  const handleBuscarNumeros = async (
+    e: FormEvent<HTMLFormElement>
+  ) => {
     e.preventDefault();
+
     setErrorBusqueda(null);
     setNumerosCliente([]);
 
-    const correo = buscaCorreo.trim().toLowerCase();
+    const correo =
+      buscaCorreo
+        .trim()
+        .toLowerCase();
+
+
     if (!correo) {
-      setErrorBusqueda("Ingresa el correo que usaste al realizar tu compra.");
+      setErrorBusqueda(
+        "Ingresa el correo asociado a tus Experience Pass."
+      );
+
       return;
     }
 
+
     setBuscandoNumeros(true);
 
+
     try {
-      // 1) Buscar pedidos pagados de este sorteo con ese correo
-      const { data: pedidos, error: pedidosError } = await supabase
-        .from("pedidos")
-        .select("id")
-        .eq("sorteo_id", sorteo.id)
-        .eq("correo", correo)
-        .in(
-          "estado",
-          [
-            "pagado",
-            "confirmado",
-          ]
+
+      /* ======================================================
+         1. COMPRAS NORMALES DEL USUARIO
+      ====================================================== */
+
+      const {
+        data:
+        pedidosPropios,
+
+        error:
+        pedidosPropiosError,
+      } =
+        await supabase
+          .from(
+            "pedidos"
+          )
+          .select(
+            "id"
+          )
+          .eq(
+            "sorteo_id",
+            sorteo.id
+          )
+          .eq(
+            "correo",
+            correo
+          )
+          .in(
+            "estado",
+            [
+              "pagado",
+              "confirmado",
+            ]
+          )
+          .or(
+            "tipo_compra.eq.self,tipo_compra.is.null"
+          );
+
+
+      if (
+        pedidosPropiosError
+      ) {
+
+        console.error(
+          "Error buscando compras propias:",
+          pedidosPropiosError
+        );
+
+        setErrorBusqueda(
+          "No se pudieron consultar tus participaciones."
+        );
+
+        return;
+      }
+
+
+      /* ======================================================
+         2. REGALOS RECIBIDOS POR ESTE CORREO
+      ====================================================== */
+
+      const {
+        data:
+        regalos,
+
+        error:
+        regalosError,
+      } =
+        await supabase
+          .from(
+            "baruk_gifts"
+          )
+          .select(
+            "pedido_id"
+          )
+          .eq(
+            "destinatario_correo",
+            correo
+          );
+
+
+      if (
+        regalosError
+      ) {
+
+        console.error(
+          "Error buscando regalos recibidos:",
+          regalosError
+        );
+
+        setErrorBusqueda(
+          "No se pudieron consultar tus Experience Pass recibidas como regalo."
+        );
+
+        return;
+      }
+
+
+      const giftPedidoIds =
+        Array.from(
+          new Set(
+            (regalos ?? [])
+              .map(
+                (regalo: any) =>
+                  Number(
+                    regalo.pedido_id
+                  )
+              )
+              .filter(
+                (id) =>
+                  Number.isFinite(
+                    id
+                  ) &&
+                  id > 0
+              )
+          )
+        );
+
+
+      /* ======================================================
+         3. VALIDAR QUE LOS PEDIDOS DE REGALO ESTÉN PAGADOS
+            Y PERTENEZCAN AL SORTEO ACTUAL
+      ====================================================== */
+
+      let pedidosRegaloPagados:
+        {
+          id: number;
+        }[] =
+        [];
+
+
+      if (
+        giftPedidoIds.length >
+        0
+      ) {
+
+        const {
+          data:
+          giftOrders,
+
+          error:
+          giftOrdersError,
+        } =
+          await supabase
+            .from(
+              "pedidos"
+            )
+            .select(
+              "id"
+            )
+            .in(
+              "id",
+              giftPedidoIds
+            )
+            .eq(
+              "sorteo_id",
+              sorteo.id
+            )
+            .in(
+              "estado",
+              [
+                "pagado",
+                "confirmado",
+              ]
+            )
+            .eq(
+              "tipo_compra",
+              "gift"
+            );
+
+
+        if (
+          giftOrdersError
+        ) {
+
+          console.error(
+            "Error validando pedidos de regalo:",
+            giftOrdersError
+          );
+
+          setErrorBusqueda(
+            "No se pudieron validar tus Experience Pass recibidas."
+          );
+
+          return;
+        }
+
+
+        pedidosRegaloPagados =
+          (
+            giftOrders ??
+            []
+          ) as {
+            id: number;
+          }[];
+      }
+
+
+      /* ======================================================
+         4. UNIR:
+            - COMPRAS PROPIAS
+            - REGALOS RECIBIDOS
+      ====================================================== */
+
+      const pedidoIds =
+        Array.from(
+          new Set(
+            [
+              ...(
+                pedidosPropios ??
+                []
+              ).map(
+                (pedido: any) =>
+                  Number(
+                    pedido.id
+                  )
+              ),
+
+              ...pedidosRegaloPagados.map(
+                (
+                  pedido
+                ) =>
+                  Number(
+                    pedido.id
+                  )
+              ),
+            ].filter(
+              (id) =>
+                Number.isFinite(
+                  id
+                ) &&
+                id > 0
+            )
+          )
+        );
+
+
+      if (
+        pedidoIds.length ===
+        0
+      ) {
+
+        setErrorBusqueda(
+          "No encontramos participaciones pagadas asociadas a este correo."
+        );
+
+        return;
+      }
+
+
+      /* ======================================================
+         5. OBTENER LOS NÚMEROS
+      ====================================================== */
+
+      const {
+        data:
+        nums,
+
+        error:
+        numsError,
+      } =
+        await supabase
+          .from(
+            "numeros_asignados"
+          )
+          .select(
+            "numero"
+          )
+          .in(
+            "pedido_id",
+            pedidoIds
+          )
+          .eq(
+            "sorteo_id",
+            sorteo.id
+          );
+
+
+      if (
+        numsError
+      ) {
+
+        console.error(
+          "Error buscando números asignados:",
+          numsError
+        );
+
+        setErrorBusqueda(
+          "No se pudieron obtener tus números."
+        );
+
+        return;
+      }
+
+
+      if (
+        !nums ||
+        nums.length ===
+        0
+      ) {
+
+        setErrorBusqueda(
+          "Aún no hay números asignados. Si acabas de recibir o comprar tus Experience Pass, espera unos momentos."
+        );
+
+        return;
+      }
+
+
+      /* ======================================================
+         6. FORMATEAR NÚMEROS
+      ====================================================== */
+
+      const lista =
+        (
+          nums as NumeroAsignado[]
         )
-        .or(
-          "tipo_compra.eq.self,tipo_compra.is.null"
-        );
+          .map(
+            (item) =>
+              String(
+                item.numero
+              ).padStart(
+                5,
+                "0"
+              )
+          )
+          .sort(
+            () =>
+              Math.random() -
+              0.5
+          );
 
-      if (pedidosError) {
-        console.error("Error buscando pedidos por correo:", pedidosError);
-        setErrorBusqueda("No se pudo consultar tus números. Intenta de nuevo.");
-        return;
-      }
 
-      if (!pedidos || pedidos.length === 0) {
-        setErrorBusqueda(
-          "No encontramos pedidos pagados con ese correo para esta actividad."
-        );
-        return;
-      }
+      setNumerosCliente(
+        lista
+      );
 
-      // ✅ TS: ids numéricos
-      const pedidoIds = pedidos.map((p) => p.id as number);
 
-      // 2) Buscar números asignados a esos pedidos
-      const { data: nums, error: numsError } = await supabase
-        .from("numeros_asignados")
-        .select("numero")
-        .in("pedido_id", pedidoIds)
-        .eq("sorteo_id", sorteo.id);
+    } catch (
+    err
+    ) {
 
-      if (numsError) {
-        console.error("Error buscando números asignados:", numsError);
-        setErrorBusqueda("No se pudieron obtener tus números.");
-        return;
-      }
+      console.error(
+        "Error general buscando números:",
+        err
+      );
 
-      if (!nums || nums.length === 0) {
-        setErrorBusqueda(
-          "Aún no hay números asignados a tus pedidos. Si acabas de pagar, espera unos minutos."
-        );
-        return;
-      }
+      setErrorBusqueda(
+        "Ocurrió un error al buscar tus números."
+      );
 
-      // 3) Formatear y mezclar en orden aleatorio
-      const lista = (nums as NumeroAsignado[])
-        .map((n) => String(n.numero).padStart(5, "0"))
-        .sort(() => Math.random() - 0.5);
-
-      setNumerosCliente(lista);
-    } catch (err) {
-      console.error("Error general buscando números:", err);
-      setErrorBusqueda("Ocurrió un error al buscar tus números.");
     } finally {
-      setBuscandoNumeros(false);
+
+      setBuscandoNumeros(
+        false
+      );
     }
   };
 

@@ -204,6 +204,9 @@ type CardsSummary = {
 };
 
 type AccountPrize = {
+    kind:
+    | "instant"
+    | "collection";
     cardId: string;
 
     claimId:
@@ -222,6 +225,28 @@ type AccountPrize = {
     deliveryOrderId:
     | number
     | null;
+
+    createdAt:
+    | string
+    | null;
+
+    verifiedAt:
+    | string
+    | null;
+
+    scheduledAt:
+    | string
+    | null;
+
+    deliveredAt:
+    | string
+    | null;
+
+    collection?:
+    {
+        uniqueSpheres: number;
+        requiredSpheres: number;
+    };
 
     prize:
     | {
@@ -439,6 +464,20 @@ export default function MiCuentaPage() {
         useState(false);
 
     const [
+        showAllCards,
+        setShowAllCards,
+    ] =
+        useState(false);
+
+    const [
+        sessionRevealedCardIds,
+        setSessionRevealedCardIds,
+    ] =
+        useState<string[]>(
+            []
+        );
+
+    const [
         prizes,
         setPrizes,
     ] =
@@ -533,6 +572,12 @@ export default function MiCuentaPage() {
     const [
         claimingReward,
         setClaimingReward,
+    ] =
+        useState(false);
+
+    const [
+        showRewardCelebration,
+        setShowRewardCelebration,
     ] =
         useState(false);
 
@@ -975,6 +1020,10 @@ export default function MiCuentaPage() {
          * cargamos la colección.
          */
         await Promise.all([
+            loadCards(
+                accessToken
+            ),
+
             loadCollection(
                 accessToken
             ),
@@ -991,6 +1040,14 @@ export default function MiCuentaPage() {
                 accessToken
             ),
         ]);
+
+        setCardsLoaded(
+            true
+        );
+
+        setShowCards(
+            true
+        );
     }
 
     async function loadSphereInventory(
@@ -1182,6 +1239,21 @@ export default function MiCuentaPage() {
                     : "¡Premio reclamado correctamente! Las 11 F1 Spheres utilizadas fueron registradas."
             );
 
+            setShowRewardCelebration(
+                true
+            );
+
+
+            window.setTimeout(
+                () => {
+
+                    setShowRewardCelebration(
+                        false
+                    );
+
+                },
+                4500
+            );
 
             /*
              * Las 11 utilizadas ahora están redeemed.
@@ -1196,6 +1268,10 @@ export default function MiCuentaPage() {
                 ),
 
                 loadSphereInventory(
+                    session.access_token
+                ),
+
+                loadPrizes(
                     session.access_token
                 ),
             ]);
@@ -1227,91 +1303,14 @@ export default function MiCuentaPage() {
         }
     }
 
-    async function handleToggleCards() {
+    function handleToggleCards() {
 
-        /*
-         * Si ya están visibles,
-         * simplemente las ocultamos.
-         */
-        if (showCards) {
-            setShowCards(
-                false
-            );
-
-            return;
-        }
-
-        /*
-         * Si ya se cargaron anteriormente,
-         * no necesitamos volver a consultar
-         * el servidor.
-         */
-        if (cardsLoaded) {
-            setShowCards(
-                true
-            );
-
-            return;
-        }
-
-        setError(
-            null
+        setShowAllCards(
+            (
+                current
+            ) =>
+                !current
         );
-
-        try {
-
-            const {
-                data:
-                sessionData,
-
-                error:
-                sessionError,
-            } =
-                await supabaseBrowser
-                    .auth
-                    .getSession();
-
-            if (
-                sessionError
-            ) {
-                throw sessionError;
-            }
-
-            const session =
-                sessionData.session;
-
-            if (!session) {
-                throw new Error(
-                    "Tu sesión ha finalizado. Vuelve a iniciar sesión."
-                );
-            }
-
-            /*
-             * Las tarjetas solamente se cargan
-             * cuando el usuario decide verlas.
-             */
-            await loadCards(
-                session.access_token
-            );
-
-            setCardsLoaded(
-                true
-            );
-
-            setShowCards(
-                true
-            );
-
-        } catch (
-        err: unknown
-        ) {
-
-            setError(
-                err instanceof Error
-                    ? err.message
-                    : "No se pudieron cargar tus tarjetas."
-            );
-        }
     }
 
     /*
@@ -1594,82 +1593,139 @@ export default function MiCuentaPage() {
         cardId: string,
         revealedAt: string | null
     ) {
+
         /*
-         * 1. Actualizamos inmediatamente la tarjeta
-         * en pantalla.
+         * La tarjeta que acabamos de revelar
+         * permanecerá visible para que el usuario
+         * pueda ver tranquilamente el resultado.
          */
-        setCards((currentCards) =>
-            currentCards.map((card) =>
-                card.id === cardId
-                    ? {
-                        ...card,
-                        revealed: true,
-                        revealed_at:
-                            revealedAt ??
-                            new Date().toISOString(),
-                        estado: "revealed",
-                    }
-                    : card
-            )
+        setSessionRevealedCardIds(
+            (
+                current
+            ) => {
+
+                if (
+                    current.includes(
+                        cardId
+                    )
+                ) {
+                    return current;
+                }
+
+                return [
+                    ...current,
+                    cardId,
+                ];
+            }
         );
 
+
         /*
-         * 2. Actualizamos los contadores de tarjetas
-         * sin necesidad de volver a pedirlas al servidor.
+         * Actualizamos SOLO esa tarjeta localmente.
+         *
+         * NO volvemos a cargar todas las tarjetas.
          */
-        setCardsSummary((current) => ({
-            ...current,
+        setCards(
+            (
+                currentCards
+            ) =>
+                currentCards.map(
+                    (
+                        card
+                    ) =>
+                        card.id ===
+                            cardId
 
-            revealed:
-                current.revealed + 1,
+                            ? {
+                                ...card,
 
-            pending:
-                Math.max(
-                    0,
-                    current.pending - 1
-                ),
-        }));
+                                revealed:
+                                    true,
+
+                                revealed_at:
+                                    revealedAt ??
+                                    new Date()
+                                        .toISOString(),
+
+                                estado:
+                                    "revealed",
+                            }
+
+                            : card
+                )
+        );
+
 
         /*
-         * 3. Recuperamos la sesión para actualizar
-         * colección de esferas y premios.
+         * Actualizar contadores localmente.
+         */
+        setCardsSummary(
+            (
+                current
+            ) => ({
+                ...current,
+
+                revealed:
+                    current.revealed +
+                    1,
+
+                pending:
+                    Math.max(
+                        0,
+                        current.pending -
+                        1
+                    ),
+            })
+        );
+
+
+        /*
+         * Actualizamos únicamente la información
+         * que puede haber cambiado por el revelado:
+         *
+         * - colección F1
+         * - premios
+         * - compras
+         * - inventario de esferas
+         *
+         * IMPORTANTE:
+         * NO llamamos loadCards().
          */
         try {
+
             const {
-                data: sessionData,
-                error: sessionError,
+                data:
+                sessionData,
+
+                error:
+                sessionError,
             } =
                 await supabaseBrowser
                     .auth
                     .getSession();
 
-            if (sessionError) {
+
+            if (
+                sessionError
+            ) {
                 throw sessionError;
             }
+
 
             const session =
                 sessionData.session;
 
-            if (!session) {
+
+            if (
+                !session
+            ) {
                 return;
             }
 
-            /*
-             * La API de colección ahora leerá la tarjeta
-             * recién revelada.
-             *
-             * Si contiene esfera:
-             *   → aumenta colección.
-             *
-             * Si contiene premio:
-             *   → aumenta premios.
-             */
-            await Promise.all([
-                loadCollection(
-                    session.access_token
-                ),
 
-                loadCards(
+            await Promise.all([
+
+                loadCollection(
                     session.access_token
                 ),
 
@@ -1685,9 +1741,14 @@ export default function MiCuentaPage() {
                     session.access_token
                 ),
             ]);
-        } catch (err: unknown) {
+
+        } catch (
+        err:
+            unknown
+        ) {
+
             console.error(
-                "No se pudo actualizar la colección después del revelado:",
+                "No se pudo actualizar la cuenta después del revelado:",
                 err
             );
         }
@@ -2326,6 +2387,21 @@ export default function MiCuentaPage() {
         const summary =
             collection?.summary;
 
+        const visibleCards =
+            showAllCards
+
+                ? cards
+
+                : cards.filter(
+                    (
+                        card
+                    ) =>
+                        !card.revealed ||
+                        sessionRevealedCardIds.includes(
+                            card.id
+                        )
+                );
+
         return (
             <main className="min-h-screen w-full bg-white px-4 pb-20 pt-24 sm:px-6 lg:px-8 xl:px-10">
                 <div className="w-full">
@@ -2543,8 +2619,8 @@ export default function MiCuentaPage() {
 
                         {collection?.reward &&
                             (
-                                summary?.collectionCompleted ||
-                                collection.reward.totalClaims > 0
+                                summary?.canClaimReward ||
+                                showRewardCelebration
                             ) && (
 
                                 <div
@@ -3299,14 +3375,14 @@ export default function MiCuentaPage() {
                                     >
                                         {loadingCards
                                             ? "Cargando..."
-                                            : showCards
-                                                ? "Ocultar tarjetas"
-                                                : `Ver mis tarjetas (${account.totalCards})`
+                                            : showAllCards
+                                                ? `Ver solo por revelar (${cardsSummary.pending})`
+                                                : `Ver todas las Experience Pass (${cardsSummary.total})`
                                         }
 
                                         {!loadingCards && (
                                             <span className="ml-2">
-                                                {showCards
+                                                {showAllCards
                                                     ? "↑"
                                                     : "↓"
                                                 }
@@ -3474,7 +3550,7 @@ export default function MiCuentaPage() {
                                     {/* GRID DE TARJETAS */}
 
                                     {!loadingCards &&
-                                        cards.length > 0 && (
+                                        visibleCards.length > 0 && (
 
                                             <div
                                                 className="
@@ -3485,42 +3561,41 @@ export default function MiCuentaPage() {
     gap-y-14
     "
                                             >
-                                                {cards.map(
-                                                    (
-                                                        card
-                                                    ) => (
+                                                {visibleCards.map((
+                                                    card
+                                                ) => (
 
-                                                        <div
-                                                            key={
+                                                    <div
+                                                        key={
+                                                            card.id
+                                                        }
+                                                        className="flex flex-col items-center"
+                                                    >
+
+                                                        {/* TARJETA */}
+
+                                                        <BarukRevealCard
+                                                            cardId={
                                                                 card.id
                                                             }
-                                                            className="flex flex-col items-center"
-                                                        >
+                                                            email={
+                                                                account.email
+                                                            }
+                                                            initialRevealed={
+                                                                card.revealed
+                                                            }
+                                                            onRevealed={(
+                                                                result
+                                                            ) => {
+                                                                handleCardRevealed(
+                                                                    result.id,
+                                                                    result.revealedAt
+                                                                );
+                                                            }}
+                                                        />
 
-                                                            {/* TARJETA */}
-
-                                                            <BarukRevealCard
-                                                                cardId={
-                                                                    card.id
-                                                                }
-                                                                email={
-                                                                    account.email
-                                                                }
-                                                                initialRevealed={
-                                                                    card.revealed
-                                                                }
-                                                                onRevealed={(
-                                                                    result
-                                                                ) => {
-                                                                    handleCardRevealed(
-                                                                        result.id,
-                                                                        result.revealedAt
-                                                                    );
-                                                                }}
-                                                            />
-
-                                                        </div>
-                                                    )
+                                                    </div>
+                                                )
                                                 )}
 
                                             </div>
@@ -4235,8 +4310,7 @@ export default function MiCuentaPage() {
                                 </h2>
 
                                 <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-                                    Aquí aparecen los premios que ya descubriste
-                                    al revelar tus tarjetas.
+                                    Aquí aparecen todos los premios que has obtenido en Baruk593.
                                 </p>
 
                             </div>
@@ -4367,27 +4441,42 @@ export default function MiCuentaPage() {
                                                                     : "bg-orange-50 text-[#ff6600]";
 
                                                 const typeLabel =
-                                                    item.prize
-                                                        ?.type ===
-                                                        "digital_cards"
-                                                        ? "Baruk Cards"
+                                                    item.kind ===
+                                                        "collection"
+
+                                                        ? "Premio de colección"
+
                                                         : item.prize
                                                             ?.type ===
-                                                            "cash"
-                                                            ? "Premio en efectivo"
+                                                            "digital_cards"
+
+                                                            ? "Baruk Cards"
+
                                                             : item.prize
                                                                 ?.type ===
-                                                                "physical"
-                                                                ? "Premio físico"
+                                                                "cash"
+
+                                                                ? "Premio en efectivo"
+
                                                                 : item.prize
                                                                     ?.type ===
-                                                                    "experience"
-                                                                    ? "Experiencia"
+                                                                    "physical"
+
+                                                                    ? "Premio físico"
+
                                                                     : item.prize
                                                                         ?.type ===
-                                                                        "discount"
-                                                                        ? "Beneficio"
-                                                                        : "Premio";
+                                                                        "experience"
+
+                                                                        ? "Experiencia"
+
+                                                                        : item.prize
+                                                                            ?.type ===
+                                                                            "discount"
+
+                                                                            ? "Beneficio"
+
+                                                                            : "Premio";
 
                                                 return (
                                                     <article

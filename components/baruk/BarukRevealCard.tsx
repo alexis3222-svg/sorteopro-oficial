@@ -128,6 +128,13 @@ export default function BarukRevealCard({
             null
         );
 
+    /*
+* Evita activaciones dobles por toques rápidos,
+* especialmente en teléfonos.
+*/
+    const activationLockRef =
+        useRef(false);
+
     /* ============================================================
        PREPARAR AUDIO DE MOTO
     ============================================================ */
@@ -570,12 +577,28 @@ export default function BarukRevealCard({
     const activateCard =
         async () => {
 
+            /*
+             * Protección adicional para móvil.
+             *
+             * React puede tardar unos milisegundos
+             * en reflejar loading=true.
+             *
+             * Este ref bloquea inmediatamente
+             * cualquier segundo toque.
+             */
+
             if (
                 revealed ||
-                loading
+                loading ||
+                activationLockRef.current
             ) {
                 return;
             }
+
+
+            activationLockRef.current =
+                true;
+
 
             setLoading(
                 true
@@ -585,34 +608,40 @@ export default function BarukRevealCard({
                 null
             );
 
+
             try {
 
                 /*
-                 * Primero obtenemos el resultado real.
+                 * Obtener exclusivamente el resultado
+                 * de ESTA Experience Pass.
                  */
 
                 const cardResult =
                     await requestRevealResult();
 
+
                 setResult(
                     cardResult
                 );
 
+
                 /*
-                 * Ahora encendemos el motor.
+                 * Sonido.
                  */
 
                 void playMotorStart();
 
+
                 /*
-                 * Pequeña espera para que
-                 * la animación de energía tenga sentido.
+                 * Espera corta para mantener
+                 * el efecto de activación.
                  */
 
                 await new Promise<void>(
                     (
                         resolve
                     ) => {
+
                         window.setTimeout(
                             resolve,
                             850
@@ -620,16 +649,19 @@ export default function BarukRevealCard({
                     }
                 );
 
+
                 /*
-                 * Flip.
+                 * Revelamos solamente
+                 * esta instancia de la tarjeta.
                  */
 
                 setRevealed(
                     true
                 );
 
+
                 /*
-                 * Vibración.
+                 * Vibración móvil.
                  */
 
                 if (
@@ -638,6 +670,7 @@ export default function BarukRevealCard({
                     "vibrate" in
                     navigator
                 ) {
+
                     navigator.vibrate(
                         [
                             40,
@@ -647,12 +680,23 @@ export default function BarukRevealCard({
                     );
                 }
 
+
+                /*
+                 * Avisamos a Mi Cuenta.
+                 *
+                 * IMPORTANTE:
+                 * Mi Cuenta NO debe volver a cargar
+                 * todas las tarjetas desde aquí.
+                 */
+
                 onRevealed?.(
                     cardResult
                 );
 
+
             } catch (
-            err: unknown
+            err:
+                unknown
             ) {
 
                 setError(
@@ -661,7 +705,12 @@ export default function BarukRevealCard({
                         : "No se pudo activar la tarjeta"
                 );
 
+
             } finally {
+
+                activationLockRef.current =
+                    false;
+
 
                 setLoading(
                     false

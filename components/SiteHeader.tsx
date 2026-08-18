@@ -27,7 +27,7 @@ const NAVEGACION = [
         label: "Inicio",
     },
     {
-        href: "/como-funciona",
+        href: "/#como-funciona",
         label: "Cómo funciona",
     },
     {
