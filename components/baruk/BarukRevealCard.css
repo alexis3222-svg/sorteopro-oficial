@@ -1,366 +1,1291 @@
+/* ============================================================
+   BARUK593
+   EXPERIENCE PASS
+============================================================ */
+
 .baruk-wrapper {
-    display: flex;
     width: 100%;
+
+    display: flex;
     flex-direction: column;
     align-items: center;
-    justify-content: center;
 }
 
-.baruk-sound,
-.baruk-reset {
-    border: 1px solid rgba(255, 102, 0, 0.45);
-    border-radius: 999px;
-    padding: 10px 18px;
-    background: #ffffff;
-    color: #30343a;
-    box-shadow: 0 8px 22px rgba(30, 35, 40, 0.1);
-    font-family: inherit;
-    font-size: 13px;
-    font-weight: 700;
-    cursor: pointer;
+
+/* ============================================================
+   CONTROL DE SONIDO
+============================================================ */
+
+.baruk-controls {
+    width: min(100%, 430px);
+
+    display: flex;
+    justify-content: flex-end;
+
+    margin-bottom: 9px;
 }
 
 .baruk-sound {
-    margin-bottom: 20px;
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+
+    min-height: 28px;
+
+    padding: 0 10px;
+
+    border: 1px solid #e4e4e7;
+    border-radius: 999px;
+
+    background: #ffffff;
+
+    color: #71717a;
+
+    font-size: 8px;
+    font-weight: 900;
+    letter-spacing: 0.12em;
+
+    cursor: pointer;
+
+    transition:
+        border-color 220ms ease,
+        color 220ms ease,
+        box-shadow 220ms ease;
 }
 
-.baruk-reset {
-    margin-top: 22px;
+.baruk-sound:hover {
+    color: #c1317f;
+
+    border-color:
+        rgba(193,
+            49,
+            127,
+            0.35);
+
+    box-shadow:
+        0 5px 18px rgba(193,
+            49,
+            127,
+            0.12);
 }
+
+.baruk-sound-dot {
+    width: 6px;
+    height: 6px;
+
+    border-radius: 999px;
+
+    background: #a1a1aa;
+
+    transition:
+        background 220ms ease,
+        box-shadow 220ms ease;
+}
+
+.baruk-sound.is-on .baruk-sound-dot {
+    background: #c1317f;
+
+    box-shadow:
+        0 0 10px rgba(193,
+            49,
+            127,
+            0.65);
+}
+
+
+/* ============================================================
+   ESCENA 3D
+============================================================ */
 
 .baruk-card-area {
-    position: relative;
-    display: flex;
     width: 100%;
+
+    display: flex;
     justify-content: center;
+
+    perspective: 1300px;
 }
 
-/*
-  Este botón contiene toda la tarjeta.
-  Se eliminan estilos predeterminados de Vite.
-*/
 .baruk-scene {
-    display: block;
-    position: relative;
+    --tilt-x: 0deg;
+    --tilt-y: 0deg;
 
-    width: min(88vw, 470px);
-    aspect-ratio: 564 / 936;
+    --light-x: 50%;
+    --light-y: 35%;
 
-    margin: 0;
-    border: 0;
-    border-radius: 28px;
+    width: min(100%,
+            430px);
+
     padding: 0;
 
-    appearance: none;
+    border: 0;
+
     background: transparent;
 
     cursor: pointer;
-    perspective: 1800px;
 
-    -webkit-appearance: none;
-    -webkit-tap-highlight-color: transparent;
+    perspective: 1300px;
+
+    -webkit-tap-highlight-color:
+        transparent;
 }
 
-/* Contenedor que gira */
+.baruk-scene:disabled {
+    cursor: default;
+}
+
+
+/* ============================================================
+   FLIP
+============================================================ */
 
 .baruk-flip-card {
-    position: absolute;
-    inset: 0;
+    position: relative;
 
     width: 100%;
-    height: 100%;
 
-    transform-style: preserve-3d;
-    transition: transform 950ms cubic-bezier(0.2, 0.75, 0.2, 1);
+    aspect-ratio:
+        1.586 / 1;
+
+    transform-style:
+        preserve-3d;
+
+    transform:
+        rotateX(var(--tilt-x)) rotateY(var(--tilt-y));
+
+    transition:
+        transform 780ms cubic-bezier(0.16,
+            1,
+            0.3,
+            1);
 }
 
 .baruk-flip-card.is-revealed {
-    transform: rotateY(180deg);
+    transform:
+        rotateX(var(--tilt-x)) rotateY(180deg);
 }
 
-/* Ambas caras */
+
+
+/* ============================================================
+   CARAS
+============================================================ */
 
 .baruk-card-face {
     position: absolute;
     inset: 0;
 
-    display: block;
-    width: 100%;
-    height: 100%;
-
     overflow: hidden;
-    border-radius: 28px;
 
-    background: transparent;
+    display: flex;
+    flex-direction: column;
 
-    backface-visibility: hidden;
-    -webkit-backface-visibility: hidden;
+    border-radius: 22px;
 
-    box-shadow: none;
+    border:
+        1px solid rgba(255,
+            255,
+            255,
+            0.12);
+
+    background:
+        linear-gradient(135deg,
+            #262626 0%,
+            #151515 34%,
+            #0d0d0e 64%,
+            #1b1b1d 100%);
+
+    backface-visibility:
+        hidden;
+
+    -webkit-backface-visibility:
+        hidden;
+
+    box-shadow:
+        0 20px 42px rgba(0,
+            0,
+            0,
+            0.25),
+        inset 0 1px 0 rgba(255,
+            255,
+            255,
+            0.11),
+        inset 0 -1px 0 rgba(0,
+            0,
+            0,
+            0.6);
 }
 
-/* El frente queda delante inicialmente */
-
 .baruk-card-front {
-    z-index: 2;
     transform: rotateY(0deg);
 }
 
-/* La parte posterior comienza girada */
-
 .baruk-card-back {
-    z-index: 1;
     transform: rotateY(180deg);
 }
 
-/*
-  Esta regla es la importante:
-  obliga a la imagen a aparecer y ocupar toda la tarjeta.
-*/
 
-.baruk-image {
+/* ============================================================
+   CARBONO
+============================================================ */
+
+.baruk-carbon {
     position: absolute;
-    z-index: 1;
-
     inset: 0;
 
-    display: block;
+    pointer-events: none;
 
-    width: 100%;
-    height: 100%;
+    opacity: 0.2;
 
-    margin: 0;
-    padding: 0;
+    background-image:
+        linear-gradient(45deg,
+            rgba(255,
+                255,
+                255,
+                0.045) 25%,
+            transparent 25%,
+            transparent 75%,
+            rgba(255,
+                255,
+                255,
+                0.045) 75%),
+        linear-gradient(45deg,
+            rgba(255,
+                255,
+                255,
+                0.025) 25%,
+            transparent 25%,
+            transparent 75%,
+            rgba(255,
+                255,
+                255,
+                0.025) 75%);
 
-    object-fit: fill;
+    background-size:
+        9px 9px;
 
+    background-position:
+        0 0,
+        4.5px 4.5px;
+}
+
+
+/* ============================================================
+   REFLEJO DINÁMICO
+============================================================ */
+
+.baruk-light {
+    position: absolute;
+    inset: -30%;
+
+    pointer-events: none;
+
+    opacity: 0.9;
+
+    background:
+        radial-gradient(circle at var(--light-x) var(--light-y),
+
+            rgba(255,
+                255,
+                255,
+                0.18) 0%,
+
+            rgba(255,
+                255,
+                255,
+                0.055) 17%,
+
+            rgba(193,
+                49,
+                127,
+                0.045) 30%,
+
+            transparent 52%);
+
+    transform:
+        translateZ(1px);
+
+    transition:
+        opacity 250ms ease;
+}
+
+
+/* ============================================================
+   CANAL DE ENERGÍA
+============================================================ */
+
+.baruk-energy-line {
+    position: absolute;
+
+    left: 7%;
+    right: 7%;
+    bottom: 5px;
+
+    height: 2px;
+
+    border-radius: 999px;
+
+    pointer-events: none;
+
+    background:
+        linear-gradient(90deg,
+            transparent 0%,
+            #c1317f 18%,
+            #c1317f 72%,
+            #ff6600 88%,
+            transparent 100%);
+
+    opacity: 0.5;
+
+    box-shadow:
+        0 0 14px rgba(193,
+            49,
+            127,
+            0.45);
+}
+
+
+/* ============================================================
+   BORDE METÁLICO
+============================================================ */
+
+.baruk-metal-border {
+    position: absolute;
+    inset: 1px;
+
+    z-index: 20;
+
+    pointer-events: none;
+
+    border-radius: 20px;
+
+    box-shadow:
+        inset 0 0 0 1px rgba(255,
+            255,
+            255,
+            0.035),
+        inset 18px 0 25px rgba(255,
+            255,
+            255,
+            0.018),
+        inset -18px 0 25px rgba(0,
+            0,
+            0,
+            0.2);
+}
+
+
+/* ============================================================
+   HOVER
+============================================================ */
+
+.baruk-scene:not(:disabled):hover .baruk-card-face {
+    box-shadow:
+        0 27px 52px rgba(0,
+            0,
+            0,
+            0.29),
+        0 0 32px rgba(193,
+            49,
+            127,
+            0.12),
+        inset 0 1px 0 rgba(255,
+            255,
+            255,
+            0.12);
+}
+
+.baruk-scene:not(:disabled):hover .baruk-energy-line {
     opacity: 1;
-    visibility: visible;
 
-    user-select: none;
-    pointer-events: none;
+    box-shadow:
+        0 0 22px rgba(193,
+            49,
+            127,
+            0.68);
 }
 
-/* Animación sobre el ícono del frente */
 
-.baruk-pulse {
+/* ============================================================
+   HEADER
+============================================================ */
+
+.baruk-pass-header {
+    position: relative;
+
+    z-index: 10;
+
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+
+    gap: 15px;
+
+    padding:
+        22px 23px 0;
+}
+
+.baruk-logo {
+    display: inline-flex;
+    align-items: center;
+
+    gap: 7px;
+
+    line-height: 1;
+}
+
+.baruk-logo strong {
+    color: #f8f8f8;
+
+    font-size: 16px;
+    font-weight: 950;
+
+    letter-spacing:
+        -0.045em;
+}
+
+.baruk-logo span {
+    position: relative;
+
+    color: #c1317f;
+
+    font-size: 16px;
+    font-weight: 950;
+
+    letter-spacing:
+        -0.035em;
+}
+
+.baruk-logo span::after {
+    content: "";
+
     position: absolute;
-    z-index: 3;
 
-    top: 45.5%;
-    left: 50%;
+    left: 0;
+    right: 0;
+    bottom: -4px;
 
-    width: 110px;
-    height: 110px;
+    height: 1px;
 
-    transform: translate(-50%, -50%);
-
-    pointer-events: none;
+    background:
+        linear-gradient(90deg,
+            #c1317f,
+            #ff6600);
 }
 
-.baruk-pulse span {
-    position: absolute;
+.baruk-pass-id {
+    color:
+        rgba(255,
+            255,
+            255,
+            0.35);
 
-    top: 50%;
-    left: 50%;
+    font-size: 6.5px;
+    font-weight: 900;
 
-    width: 35px;
-    height: 35px;
-
-    border: 2px solid rgba(255, 102, 0, 0.62);
-    border-radius: 50%;
-
-    transform: translate(-50%, -50%);
-
-    animation: barukPulseAnimation 2.1s infinite;
+    letter-spacing:
+        0.17em;
 }
 
-.baruk-pulse span:nth-child(2) {
-    animation-delay: 0.7s;
+
+/* ============================================================
+   FRENTE
+============================================================ */
+
+.baruk-pass-center {
+    position: relative;
+
+    z-index: 10;
+
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    padding:
+        7px 22px;
+
+    text-align: center;
 }
 
-.baruk-pulse span:nth-child(3) {
-    animation-delay: 1.4s;
+.baruk-experience-label {
+    margin: 0 0 10px;
+
+    color:
+        rgba(255,
+            255,
+            255,
+            0.48);
+
+    font-size: 6.5px;
+    font-weight: 900;
+
+    letter-spacing:
+        0.27em;
 }
 
-/* Número dinámico sobre la imagen posterior */
 
-/* =========================================================
-   NÚMERO DINÁMICO
-   ========================================================= */
+/* ============================================================
+   BOTÓN DE ENCENDIDO
+============================================================ */
 
-.baruk-live-number {
-    position: absolute;
-    z-index: 9;
-
-    left: 50%;
-    top: 46%;
-
-    transform: translate(-50%, -50%);
-
-    width: 76%;
+.baruk-power {
+    position: relative;
 
     display: flex;
     align-items: center;
     justify-content: center;
 
-    /* SIN RECTÁNGULO */
-    background: transparent;
-    border: none;
-    border-radius: 0;
-    box-shadow: none;
-
-    pointer-events: none;
+    width: 69px;
+    height: 69px;
 }
 
-.baruk-live-number::before {
-    display: none;
-    content: none;
-}
-
-.baruk-live-number strong {
-    position: relative;
-    z-index: 2;
-
-    margin: 0;
-    padding: 0;
-
-    color: #f56622;
-
-    font-family: Arial, Helvetica, sans-serif;
-    font-size: clamp(68px, 19vw, 108px);
-    font-weight: 900;
-    line-height: 0.95;
-    letter-spacing: 2px;
-
-    background: transparent;
-    border: none;
-    box-shadow: none;
-
-    text-shadow:
-        0 2px 0 rgba(255, 195, 154, 0.7),
-        0 5px 10px rgba(255, 102, 0, 0.18);
-}
-
-/* Nombre dinámico de la campaña */
-
-.baruk-instruction {
-    margin: 17px 0 0;
-
-    color: #70757b;
-
-    text-align: center;
-    font-size: 13px;
-}
-
-@keyframes barukPulseAnimation {
-    0% {
-        width: 35px;
-        height: 35px;
-        opacity: 0.75;
-    }
-
-    100% {
-        width: 125px;
-        height: 125px;
-        opacity: 0;
-    }
-}
-
-@media (max-width: 500px) {
-    .baruk-scene {
-        width: min(91vw, 420px);
-    }
-
-    .baruk-card-face {
-        border-radius: 23px;
-    }
-}
-
-@media (prefers-reduced-motion: reduce) {
-    .baruk-flip-card {
-        transition: none;
-    }
-
-    .baruk-pulse span {
-        animation: none;
-    }
-}
-
-.baruk-loading {
+.baruk-power-halo {
     position: absolute;
-    z-index: 5;
-
-    left: 50%;
-    bottom: 12%;
-
-    transform: translateX(-50%);
-
-    padding: 10px 18px;
+    inset: -10px;
 
     border-radius: 999px;
 
-    background: rgba(255, 255, 255, 0.94);
-    color: #ff6600;
+    background:
+        radial-gradient(circle,
+            rgba(193,
+                49,
+                127,
+                0.18) 0%,
+            rgba(193,
+                49,
+                127,
+                0.055) 40%,
+            transparent 72%);
 
-    font-size: 14px;
-    font-weight: 800;
+    filter:
+        blur(3px);
+
+    opacity: 0.75;
+
+    transition:
+        transform 300ms ease,
+        opacity 300ms ease;
+}
+
+.baruk-power-button {
+    position: relative;
+
+    z-index: 2;
+
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    width: 62px;
+    height: 62px;
+
+    border-radius: 999px;
+
+    border:
+        1px solid rgba(193,
+            49,
+            127,
+            0.46);
+
+    background:
+        radial-gradient(circle at 42% 35%,
+            #242426 0%,
+            #121214 70%,
+            #09090a 100%);
 
     box-shadow:
-        0 10px 30px rgba(0, 0, 0, 0.12);
+        0 8px 20px rgba(0,
+            0,
+            0,
+            0.38),
+        inset 0 1px 0 rgba(255,
+            255,
+            255,
+            0.1),
+        0 0 18px rgba(193,
+            49,
+            127,
+            0.13);
 
-    pointer-events: none;
+    transition:
+        transform 250ms ease,
+        border-color 250ms ease,
+        box-shadow 250ms ease;
 }
 
-.baruk-result-overlay {
-    position: absolute;
-    inset: 0;
-    z-index: 8;
-    pointer-events: none;
+.baruk-scene:not(:disabled):hover .baruk-power-button {
+    transform:
+        scale(1.045);
+
+    border-color:
+        rgba(193,
+            49,
+            127,
+            0.85);
+
+    box-shadow:
+        0 9px 22px rgba(0,
+            0,
+            0,
+            0.4),
+        inset 0 1px 0 rgba(255,
+            255,
+            255,
+            0.12),
+        0 0 28px rgba(193,
+            49,
+            127,
+            0.35);
 }
 
-/* Texto pequeño debajo del número */
-/* =========================================================
-   PREMIO / ESFERA DEBAJO DEL NÚMERO
-   ========================================================= */
+.baruk-scene:not(:disabled):hover .baruk-power-halo {
+    opacity: 1;
 
-.baruk-result-caption {
+    transform:
+        scale(1.13);
+}
+
+
+/* ============================================================
+   SÍMBOLO POWER
+============================================================ */
+
+.baruk-power-symbol {
+    position: relative;
+
+    width: 24px;
+    height: 24px;
+
+    border:
+        2.3px solid #c1317f;
+
+    border-top-color:
+        transparent;
+
+    border-radius: 999px;
+
+    transform:
+        rotate(45deg);
+
+    box-shadow:
+        0 0 9px rgba(193,
+            49,
+            127,
+            0.3);
+}
+
+.baruk-power-symbol span {
     position: absolute;
-    z-index: 10;
 
     left: 50%;
-    top: 56%;
+    top: -6px;
 
-    transform: translateX(-50%);
+    width: 2.4px;
+    height: 12px;
 
-    width: 72%;
+    transform:
+        translateX(-50%) rotate(-45deg);
 
-    text-align: center;
-    pointer-events: none;
+    border-radius: 999px;
+
+    background: #c1317f;
+
+    box-shadow:
+        0 0 8px rgba(193,
+            49,
+            127,
+            0.55);
 }
 
-.baruk-result-caption span {
+
+/* ============================================================
+   ACTIVAR
+============================================================ */
+
+.baruk-activate-label {
+    margin:
+        8px 0 0;
+
+    color: #c1317f;
+
+    font-size: 6.5px;
+    font-weight: 950;
+
+    letter-spacing:
+        0.24em;
+}
+
+.baruk-pass-copy {
+    margin:
+        7px 0 0;
+
+    color:
+        rgba(255,
+            255,
+            255,
+            0.72);
+
+    font-size: 8px;
+    font-weight: 900;
+
+    letter-spacing:
+        0.14em;
+}
+
+
+/* ============================================================
+   ANIMACIÓN DE ARRANQUE
+============================================================ */
+
+.baruk-flip-card.is-activating .baruk-power-halo {
+    animation:
+        barukEngineHalo 420ms ease-in-out infinite alternate;
+}
+
+.baruk-flip-card.is-activating .baruk-power-button {
+    animation:
+        barukEngineButton 220ms ease-in-out infinite alternate;
+}
+
+.baruk-flip-card.is-activating .baruk-energy-line {
+    animation:
+        barukEnergyStart 680ms ease-in-out infinite;
+}
+
+@keyframes barukEngineHalo {
+
+    from {
+        opacity: 0.55;
+
+        transform:
+            scale(0.92);
+    }
+
+    to {
+        opacity: 1;
+
+        transform:
+            scale(1.24);
+    }
+}
+
+@keyframes barukEngineButton {
+
+    from {
+        transform:
+            scale(0.985);
+    }
+
+    to {
+        transform:
+            scale(1.025);
+    }
+}
+
+@keyframes barukEnergyStart {
+
+    0% {
+        opacity: 0.2;
+
+        filter:
+            brightness(0.8);
+    }
+
+    50% {
+        opacity: 1;
+
+        filter:
+            brightness(1.5);
+    }
+
+    100% {
+        opacity: 0.45;
+
+        filter:
+            brightness(1);
+    }
+}
+
+
+/* ============================================================
+   FOOTER
+============================================================ */
+
+.baruk-pass-footer {
+    position: relative;
+
+    z-index: 10;
+
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+
+    gap: 12px;
+
+    padding:
+        0 23px 18px;
+}
+
+.baruk-series span {
     display: block;
 
-    margin: 0 0 4px;
+    margin-bottom: 2px;
 
-    color: #44484d;
+    color:
+        rgba(255,
+            255,
+            255,
+            0.25);
 
-    font-size: 14px;
-    line-height: 1;
+    font-size: 5px;
     font-weight: 900;
-    letter-spacing: 0.7px;
 
-    text-shadow:
-        0 1px 2px rgba(255, 255, 255, 0.9);
+    letter-spacing:
+        0.18em;
 }
 
-.baruk-result-caption p {
+.baruk-series strong {
+    display: block;
+
+    color: #ff6600;
+
+    font-size: 7px;
+    font-weight: 950;
+
+    letter-spacing:
+        0.16em;
+}
+
+.baruk-footer-wordmark {
+    display: flex;
+    align-items: center;
+
+    gap: 5px;
+
+    color:
+        rgba(255,
+            255,
+            255,
+            0.3);
+
+    font-size: 5px;
+    font-weight: 900;
+
+    letter-spacing:
+        0.11em;
+}
+
+.baruk-footer-wordmark i {
+    width: 3px;
+    height: 3px;
+
+    border-radius: 999px;
+
+    background: #c1317f;
+
+    box-shadow:
+        0 0 5px rgba(193,
+            49,
+            127,
+            0.6);
+}
+
+
+/* ============================================================
+   ESTADO ACTIVADO
+============================================================ */
+
+.baruk-active-status {
+    display: inline-flex;
+    align-items: center;
+
+    gap: 6px;
+
+    color:
+        rgba(255,
+            255,
+            255,
+            0.5);
+
+    font-size: 6px;
+    font-weight: 900;
+
+    letter-spacing:
+        0.16em;
+}
+
+.baruk-active-status i {
+    width: 5px;
+    height: 5px;
+
+    border-radius: 999px;
+
+    background: #c1317f;
+
+    box-shadow:
+        0 0 9px rgba(193,
+            49,
+            127,
+            0.9);
+}
+
+
+/* ============================================================
+   RESULTADO
+============================================================ */
+
+.baruk-result {
+    position: relative;
+
+    z-index: 10;
+
+    flex: 1;
+
+    display: flex;
+    flex-direction: column;
+
+    align-items: center;
+    justify-content: center;
+
+    padding:
+        4px 25px;
+
+    text-align: center;
+}
+
+.baruk-result-eyebrow {
     margin: 0;
 
-    color: #f56622;
+    color:
+        rgba(255,
+            255,
+            255,
+            0.34);
 
-    font-size: 16px;
-    line-height: 1.15;
+    font-size: 6px;
     font-weight: 900;
+
+    letter-spacing:
+        0.24em;
+}
+
+.baruk-live-number {
+    display: block;
+
+    margin-top: 3px;
+
+    color: #ffffff;
+
+    font-size:
+        clamp(30px,
+            6vw,
+            48px);
+
+    font-weight: 950;
+
+    line-height: 1;
+
+    letter-spacing:
+        0.075em;
+
+    text-shadow:
+        0 7px 18px rgba(0,
+            0,
+            0,
+            0.4),
+        0 0 26px rgba(193,
+            49,
+            127,
+            0.08);
+}
+
+.baruk-number-state {
+    margin:
+        5px 0 0;
+
+    color: #ff6600;
+
+    font-size: 5.5px;
+    font-weight: 950;
+
+    letter-spacing:
+        0.16em;
+}
+
+.baruk-result-separator {
+    width: 36px;
+    height: 1px;
+
+    margin:
+        10px 0 8px;
+
+    background:
+        linear-gradient(90deg,
+            transparent,
+            #c1317f,
+            transparent);
+
+    box-shadow:
+        0 0 8px rgba(193,
+            49,
+            127,
+            0.5);
+}
+
+.baruk-result-kind {
+    margin: 0;
+
+    color: #c1317f;
+
+    font-size: 5.5px;
+    font-weight: 950;
+
+    letter-spacing:
+        0.2em;
+}
+
+.baruk-result-title {
+    display: block;
+
+    max-width: 260px;
+
+    margin-top: 4px;
+
+    color: #ffffff;
+
+    font-size: 10px;
+    font-weight: 950;
+
+    line-height: 1.16;
+
+    letter-spacing:
+        -0.01em;
+}
+
+.baruk-result-subtext {
+    display: block;
+
+    max-width: 255px;
+
+    margin-top: 4px;
+
+    color:
+        rgba(255,
+            255,
+            255,
+            0.38);
+
+    font-size: 6px;
+    font-weight: 600;
+
+    line-height: 1.3;
+}
+
+
+/* ============================================================
+   IMAGEN PREMIO / ESFERA
+============================================================ */
+
+.baruk-result-image {
+    width: 34px;
+    height: 34px;
+
+    margin-top: 5px;
+
+    object-fit: contain;
+
+    filter:
+        drop-shadow(0 7px 8px rgba(0,
+                0,
+                0,
+                0.4));
+}
+
+.baruk-result-sphere {
+    border-radius: 999px;
+
+    filter:
+        drop-shadow(0 0 9px rgba(193,
+                49,
+                127,
+                0.36));
+}
+
+
+/* ============================================================
+   ERROR / INSTRUCCIÓN
+============================================================ */
+
+.baruk-error {
+    max-width: 430px;
+
+    margin:
+        10px auto 0;
+
+    color: #dc2626;
+
+    font-size: 10px;
+    font-weight: 700;
+
+    text-align: center;
+}
+
+.baruk-instruction {
+    max-width: 430px;
+
+    margin:
+        12px auto 0;
+
+    color: #8a8f98;
+
+    font-size: 9px;
+    font-weight: 600;
+
+    text-align: center;
+}
+
+
+/* ============================================================
+   RESPONSIVE
+============================================================ */
+
+@media (max-width: 640px) {
+
+    .baruk-controls {
+        margin-bottom: 7px;
+    }
+
+    .baruk-card-face,
+    .baruk-card-core {
+        border-radius: 18px;
+    }
+
+    .baruk-metal-border {
+        border-radius: 16px;
+    }
+
+    .baruk-pass-header {
+        padding:
+            15px 16px 0;
+    }
+
+    .baruk-logo strong,
+    .baruk-logo span {
+        font-size: 12px;
+    }
+
+    .baruk-pass-id {
+        font-size: 5px;
+    }
+
+    .baruk-pass-center {
+        padding:
+            2px 16px;
+    }
+
+    .baruk-experience-label {
+        margin-bottom: 6px;
+
+        font-size: 5px;
+    }
+
+    .baruk-power {
+        width: 50px;
+        height: 50px;
+    }
+
+    .baruk-power-button {
+        width: 45px;
+        height: 45px;
+    }
+
+    .baruk-power-symbol {
+        width: 18px;
+        height: 18px;
+
+        border-width: 1.8px;
+    }
+
+    .baruk-power-symbol span {
+        width: 2px;
+        height: 9px;
+    }
+
+    .baruk-activate-label {
+        margin-top: 5px;
+
+        font-size: 5px;
+    }
+
+    .baruk-pass-copy {
+        margin-top: 4px;
+
+        font-size: 6px;
+    }
+
+    .baruk-pass-footer {
+        padding:
+            0 16px 12px;
+    }
+
+    .baruk-series strong {
+        font-size: 5.5px;
+    }
+
+    .baruk-footer-wordmark {
+        font-size: 4px;
+    }
+
+    .baruk-result {
+        padding:
+            2px 15px;
+    }
+
+    .baruk-live-number {
+        font-size: 27px;
+    }
+
+    .baruk-result-separator {
+        margin:
+            6px 0 5px;
+    }
+
+    .baruk-result-title {
+        font-size: 8px;
+    }
+
+    .baruk-result-subtext {
+        font-size: 5px;
+    }
+
+    .baruk-result-image {
+        width: 25px;
+        height: 25px;
+    }
+}
+
+
+/* ============================================================
+   MOVIMIENTO REDUCIDO
+============================================================ */
+
+@media (prefers-reduced-motion: reduce) {
+
+    .baruk-flip-card,
+    .baruk-power-button,
+    .baruk-power-halo {
+        transition: none;
+    }
+
+    .baruk-flip-card.is-activating .baruk-power-halo,
+
+    .baruk-flip-card.is-activating .baruk-power-button,
+
+    .baruk-flip-card.is-activating .baruk-energy-line {
+        animation: none;
+    }
 }

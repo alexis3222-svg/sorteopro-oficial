@@ -321,19 +321,26 @@ async function processCardsPayment(
     id: number,
     clientTxId: string
 ) {
+
     /* ========================================================
-       1. PEDIDO
+       1. BUSCAR PEDIDO
     ======================================================== */
 
     const {
-        data: pedido,
-        error: pedidoErr,
+        data:
+        pedido,
+
+        error:
+        pedidoErr,
     } =
         await supabaseAdmin
-            .from("pedidos")
+            .from(
+                "pedidos"
+            )
             .select(`
                 id,
                 estado,
+                total,
                 payphone_id
             `)
             .eq(
@@ -347,10 +354,14 @@ async function processCardsPayment(
         pedidoErr ||
         !pedido
     ) {
+
         return {
-            ok: false as const,
+            ok:
+                false as const,
+
             code:
                 "pedido_not_found" as const,
+
             tipo:
                 "cards" as const,
         };
@@ -358,7 +369,7 @@ async function processCardsPayment(
 
 
     /* ========================================================
-       2. CONFIRM PAYPHONE
+       2. CONFIRMAR DIRECTAMENTE CON PAYPHONE
     ======================================================== */
 
     const confirm =
@@ -369,6 +380,7 @@ async function processCardsPayment(
 
 
     if (!confirm.ok) {
+
         console.log(
             "[payphone-confirm] cards failed",
             {
@@ -383,15 +395,82 @@ async function processCardsPayment(
             }
         );
 
+
         return {
-            ok: true as const,
-            pending: true as const,
-            approved: false as const,
+            ok:
+                true as const,
+
+            pending:
+                true as const,
+
+            approved:
+                false as const,
+
             tipo:
                 "cards" as const,
+
+            pedidoId:
+                pedido.id,
         };
     }
 
+
+    /* ========================================================
+       3. VALIDAR CLIENT TRANSACTION ID
+    ======================================================== */
+
+    const confirmedTx =
+        String(
+            confirm.data
+                ?.clientTransactionId ??
+            ""
+        )
+            .trim();
+
+
+    if (
+        !confirmedTx ||
+        confirmedTx !==
+        clientTxId
+    ) {
+
+        console.error(
+            "[payphone-confirm] CARDS TX mismatch",
+            {
+                pedidoId:
+                    pedido.id,
+
+                expected:
+                    clientTxId,
+
+                received:
+                    confirmedTx,
+            }
+        );
+
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                true as const,
+
+            approved:
+                false as const,
+
+            tipo:
+                "cards" as const,
+
+            pedidoId:
+                pedido.id,
+        };
+    }
+
+
+    /* ========================================================
+       4. VALIDAR APROBACIÓN
+    ======================================================== */
 
     const approved =
         isApproved(
@@ -400,8 +479,9 @@ async function processCardsPayment(
 
 
     if (!approved) {
+
         console.log(
-            "[payphone-confirm] cards not_approved",
+            "[payphone-confirm] cards not approved",
             {
                 pedidoId:
                     pedido.id,
@@ -411,52 +491,214 @@ async function processCardsPayment(
             }
         );
 
+
         return {
-            ok: true as const,
-            pending: true as const,
-            approved: false as const,
+            ok:
+                true as const,
+
+            pending:
+                true as const,
+
+            approved:
+                false as const,
+
             tipo:
                 "cards" as const,
+
+            pedidoId:
+                pedido.id,
         };
     }
 
 
     /* ========================================================
-       3. MARCAR PAGADO
-       MISMO FLUJO QUE YA TENÍAS
+       5. VALIDAR MONTO Y MONEDA
+       PAYPHONE TRABAJA LOS MONTOS EN CENTAVOS
+    ======================================================== */
+
+    const expectedAmount =
+        Math.round(
+            Number(
+                pedido.total
+            ) *
+            100
+        );
+
+
+    const paidAmount =
+        Number(
+            confirm.data
+                ?.amount
+        );
+
+
+    const paidCurrency =
+        String(
+            confirm.data
+                ?.currency ??
+            ""
+        )
+            .trim()
+            .toUpperCase();
+
+
+    const transactionId =
+        Number(
+            confirm.data
+                ?.transactionId ??
+            id
+        );
+
+
+    if (
+        !Number.isFinite(
+            expectedAmount
+        ) ||
+        expectedAmount <= 0 ||
+        !Number.isFinite(
+            paidAmount
+        ) ||
+        paidAmount !==
+        expectedAmount ||
+        paidCurrency !==
+        "USD"
+    ) {
+
+        console.error(
+            "[payphone-confirm] CARDS amount/currency mismatch",
+            {
+                pedidoId:
+                    pedido.id,
+
+                expectedAmount,
+
+                paidAmount,
+
+                expectedCurrency:
+                    "USD",
+
+                paidCurrency,
+            }
+        );
+
+
+        /*
+         * PayPhone aprobó un cobro que no coincide
+         * con el pedido Baruk593.
+         *
+         * No generamos números ni tarjetas.
+         * Intentamos devolver el dinero.
+         */
+
+        const reversed =
+            await reverseWithPayPhone(
+                transactionId
+            );
+
+
+        console.error(
+            reversed
+                ? `[payphone-confirm] Pedido ${pedido.id}: pago reversado por diferencia de datos.`
+                : `[payphone-confirm] Pedido ${pedido.id}: REVISIÓN MANUAL. El reverso automático falló.`
+        );
+
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                false as const,
+
+            approved:
+                false as const,
+
+            reversed,
+
+            tipo:
+                "cards" as const,
+
+            pedidoId:
+                pedido.id,
+        };
+    }
+
+
+    /* ========================================================
+       6. MARCAR PEDIDO COMO PAGADO
     ======================================================== */
 
     if (
         pedido.estado !==
         "pagado"
     ) {
-        await supabaseAdmin
-            .from("pedidos")
-            .update({
-                estado:
-                    "pagado",
 
-                payphone_id:
-                    pedido.payphone_id ??
-                    id,
+        const {
+            error:
+            paymentUpdateError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "pedidos"
+                )
+                .update({
 
-                aprobado_at:
-                    new Date()
-                        .toISOString(),
-            })
-            .eq(
-                "id",
-                pedido.id
+                    estado:
+                        "pagado",
+
+                    payphone_id:
+                        pedido.payphone_id ??
+                        transactionId,
+
+                    aprobado_at:
+                        new Date()
+                            .toISOString(),
+                })
+                .eq(
+                    "id",
+                    pedido.id
+                );
+
+
+        if (
+            paymentUpdateError
+        ) {
+
+            console.error(
+                "No se pudo marcar pedido como pagado:",
+                paymentUpdateError
             );
+
+
+            return {
+                ok:
+                    true as const,
+
+                pending:
+                    true as const,
+
+                approved:
+                    false as const,
+
+                tipo:
+                    "cards" as const,
+
+                pedidoId:
+                    pedido.id,
+            };
+        }
 
     } else if (
         !pedido.payphone_id
     ) {
+
         await supabaseAdmin
-            .from("pedidos")
+            .from(
+                "pedidos"
+            )
             .update({
                 payphone_id:
-                    id,
+                    transactionId,
             })
             .eq(
                 "id",
@@ -466,7 +708,7 @@ async function processCardsPayment(
 
 
     /* ========================================================
-       4. PROCESAR BARUK CARDS
+       7. PROCESAR EXPERIENCE PASS
     ======================================================== */
 
     const processing =
@@ -476,11 +718,15 @@ async function processCardsPayment(
 
 
     return {
-        ok: true as const,
 
-        pending: false as const,
+        ok:
+            true as const,
 
-        approved: true as const,
+        pending:
+            false as const,
+
+        approved:
+            true as const,
 
         tipo:
             "cards" as const,
@@ -624,7 +870,7 @@ async function processShopPayment(
 
 
     if (
-        confirmedTx &&
+        !confirmedTx ||
         confirmedTx !==
         clientTxId
     ) {
@@ -724,15 +970,31 @@ async function processShopPayment(
         );
 
 
+    const paidCurrency =
+        String(
+            confirm.data
+                ?.currency ??
+            ""
+        )
+            .trim()
+            .toUpperCase();
+
+
     if (
+        !Number.isFinite(
+            expectedAmount
+        ) ||
+        expectedAmount <= 0 ||
         !Number.isFinite(
             paidAmount
         ) ||
         paidAmount !==
-        expectedAmount
+        expectedAmount ||
+        paidCurrency !==
+        "USD"
     ) {
         console.error(
-            "[payphone-confirm] SHOP amount mismatch",
+            "[payphone-confirm] SHOP amount/currency mismatch",
             {
                 pedidoId:
                     pedido.id,
@@ -740,6 +1002,11 @@ async function processShopPayment(
                 expectedAmount,
 
                 paidAmount,
+
+                expectedCurrency:
+                    "USD",
+
+                paidCurrency,
             }
         );
 
@@ -909,6 +1176,496 @@ async function processShopPayment(
     };
 }
 
+/* ============================================================
+   F1 SPHERE MARKETPLACE
+============================================================ */
+
+async function processMarketplacePayment(
+    id: number,
+    clientTxId: string
+) {
+
+    /* ========================================================
+       1. BUSCAR ORDEN
+    ======================================================== */
+
+    const {
+        data:
+        order,
+
+        error:
+        orderError,
+    } =
+        await supabaseAdmin
+            .from(
+                "sphere_marketplace_orders"
+            )
+            .select(`
+                id,
+                listing_id,
+                sphere_instance_id,
+                buyer_user_id,
+                seller_user_id,
+                price,
+                commission_amount,
+                seller_amount,
+                currency,
+                status,
+                payphone_client_transaction_id,
+                payphone_transaction_id
+            `)
+            .eq(
+                "payphone_client_transaction_id",
+                clientTxId
+            )
+            .maybeSingle();
+
+
+    if (
+        orderError ||
+        !order
+    ) {
+
+        console.error(
+            "[marketplace-payphone] order not found",
+            {
+                clientTxId,
+                error:
+                    orderError,
+            }
+        );
+
+        return {
+            ok:
+                false as const,
+
+            code:
+                "marketplace_order_not_found" as const,
+
+            tipo:
+                "marketplace" as const,
+        };
+    }
+
+
+    /* ========================================================
+       IDEMPOTENCIA
+    ======================================================== */
+
+    if (
+        order.status ===
+        "completed"
+    ) {
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                false as const,
+
+            approved:
+                true as const,
+
+            tipo:
+                "marketplace" as const,
+
+            orderId:
+                order.id,
+        };
+    }
+
+
+    /* ========================================================
+       2. CONFIRMAR CON PAYPHONE
+    ======================================================== */
+
+    const confirm =
+        await confirmWithPayPhone(
+            id,
+            clientTxId
+        );
+
+
+    if (!confirm.ok) {
+
+        console.error(
+            "[marketplace-payphone] confirm failed",
+            {
+                http:
+                    confirm.http,
+
+                raw:
+                    confirm.raw,
+
+                orderId:
+                    order.id,
+            }
+        );
+
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                true as const,
+
+            approved:
+                false as const,
+
+            tipo:
+                "marketplace" as const,
+
+            orderId:
+                order.id,
+        };
+    }
+
+
+    /* ========================================================
+       3. VALIDAR CLIENT TRANSACTION ID
+    ======================================================== */
+
+    const confirmedTx =
+        String(
+            confirm.data
+                ?.clientTransactionId ??
+            ""
+        ).trim();
+
+
+    if (
+        confirmedTx &&
+        confirmedTx !==
+        clientTxId
+    ) {
+
+        console.error(
+            "[marketplace-payphone] TX mismatch",
+            {
+                expected:
+                    clientTxId,
+
+                received:
+                    confirmedTx,
+
+                orderId:
+                    order.id,
+            }
+        );
+
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                true as const,
+
+            approved:
+                false as const,
+
+            tipo:
+                "marketplace" as const,
+
+            orderId:
+                order.id,
+        };
+    }
+
+
+    /* ========================================================
+       4. APROBACIÓN
+    ======================================================== */
+
+    const approved =
+        isApproved(
+            confirm.data
+        );
+
+
+    if (!approved) {
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                false as const,
+
+            approved:
+                false as const,
+
+            tipo:
+                "marketplace" as const,
+
+            orderId:
+                order.id,
+        };
+    }
+
+
+    /* ========================================================
+       5. VALIDAR MONTO
+    ======================================================== */
+
+    const expectedAmount =
+        Math.round(
+            Number(
+                order.price
+            ) *
+            100
+        );
+
+
+    const paidAmount =
+        Number(
+            confirm.data
+                ?.amount
+        );
+
+
+    const transactionId =
+        Number(
+            confirm.data
+                ?.transactionId ??
+            id
+        );
+
+
+    const expectedCurrency =
+        String(
+            order.currency ??
+            "USD"
+        )
+            .trim()
+            .toUpperCase();
+
+
+    const paidCurrency =
+        String(
+            confirm.data
+                ?.currency ??
+            ""
+        )
+            .trim()
+            .toUpperCase();
+
+
+    if (
+        !Number.isFinite(
+            paidAmount
+        ) ||
+        paidAmount !==
+        expectedAmount ||
+        !paidCurrency ||
+        paidCurrency !==
+        expectedCurrency
+    ) {
+
+        console.error(
+            "[marketplace-payphone] amount/currency mismatch",
+            {
+                orderId:
+                    order.id,
+
+                expectedAmount,
+
+                paidAmount,
+
+                expectedCurrency,
+
+                paidCurrency,
+            }
+        );
+
+
+        const reversed =
+            await reverseWithPayPhone(
+                transactionId
+            );
+
+
+        await supabaseAdmin
+            .from(
+                "sphere_marketplace_orders"
+            )
+            .update({
+
+                status:
+                    reversed
+                        ? "failed"
+                        : "paid",
+
+                payment_method:
+                    "payphone",
+
+                payment_transaction_id:
+                    String(
+                        transactionId
+                    ),
+
+                payphone_transaction_id:
+                    String(
+                        transactionId
+                    ),
+
+                updated_at:
+                    new Date()
+                        .toISOString(),
+            })
+            .eq(
+                "id",
+                order.id
+            );
+
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                !reversed,
+
+            approved:
+                false as const,
+
+            reversed,
+
+            tipo:
+                "marketplace" as const,
+
+            orderId:
+                order.id,
+        };
+    }
+
+
+    /* ========================================================
+       6. FINALIZAR VENTA
+    ======================================================== */
+
+    const {
+        error:
+        finalError,
+    } =
+        await supabaseAdmin
+            .rpc(
+                "finalize_sphere_marketplace_order_paid",
+                {
+                    p_order_id:
+                        order.id,
+
+                    p_payphone_transaction_id:
+                        String(
+                            transactionId
+                        ),
+                }
+            );
+
+
+    /* ========================================================
+       SI NO PODEMOS TRANSFERIR LA ESFERA,
+       REVERSAMOS EL PAGO
+    ======================================================== */
+
+    if (finalError) {
+
+        console.error(
+            "[marketplace-finalize] failed",
+            {
+                orderId:
+                    order.id,
+
+                error:
+                    finalError,
+            }
+        );
+
+
+        const reversed =
+            await reverseWithPayPhone(
+                transactionId
+            );
+
+
+        await supabaseAdmin
+            .from(
+                "sphere_marketplace_orders"
+            )
+            .update({
+
+                status:
+                    reversed
+                        ? "failed"
+                        : "paid",
+
+                payment_method:
+                    "payphone",
+
+                payment_transaction_id:
+                    String(
+                        transactionId
+                    ),
+
+                payphone_transaction_id:
+                    String(
+                        transactionId
+                    ),
+
+                updated_at:
+                    new Date()
+                        .toISOString(),
+            })
+            .eq(
+                "id",
+                order.id
+            );
+
+
+        return {
+            ok:
+                true as const,
+
+            pending:
+                !reversed,
+
+            approved:
+                false as const,
+
+            reversed,
+
+            tipo:
+                "marketplace" as const,
+
+            orderId:
+                order.id,
+        };
+    }
+
+
+    /* ========================================================
+       ÉXITO
+    ======================================================== */
+
+    return {
+        ok:
+            true as const,
+
+        pending:
+            false as const,
+
+        approved:
+            true as const,
+
+        tipo:
+            "marketplace" as const,
+
+        orderId:
+            order.id,
+    };
+}
 
 /* ============================================================
    ROUTER DE PAGOS
@@ -927,6 +1684,24 @@ async function processPayment(
      * entrando al flujo de Baruk Cards.
      */
 
+    /*
+ * MARKETPLACE F1 SPHERES
+ */
+    if (
+        clientTxId.startsWith(
+            "MKT-"
+        )
+    ) {
+        return processMarketplacePayment(
+            id,
+            clientTxId
+        );
+    }
+
+
+    /*
+     * BARUK SHOP
+     */
     if (
         clientTxId.startsWith(
             "SHOP-"
@@ -939,6 +1714,9 @@ async function processPayment(
     }
 
 
+    /*
+     * EXPERIENCE PASS / BARUK CARDS
+     */
     return processCardsPayment(
         id,
         clientTxId
@@ -1013,6 +1791,47 @@ export async function GET(
         );
     }
 
+    /* ========================================================
+   F1 SPHERE MARKETPLACE
+======================================================== */
+
+    if (
+        result.tipo ===
+        "marketplace"
+    ) {
+
+        let status =
+            "pendiente";
+
+
+        if (
+            result.approved
+        ) {
+
+            status =
+                "pagado";
+
+        } else if (
+            "reversed" in result &&
+            result.reversed
+        ) {
+
+            status =
+                "reversado";
+
+        } else if (
+            !result.pending
+        ) {
+
+            status =
+                "fallido";
+        }
+
+
+        return html200Redirect(
+            `/marketplace/pago/${result.orderId}?status=${status}`
+        );
+    }
 
     /* ========================================================
        BARUK SHOP
@@ -1054,17 +1873,44 @@ export async function GET(
 
 
     /* ========================================================
-       BARUK CARDS
-       EXACTAMENTE EL DESTINO ACTUAL
-    ======================================================== */
+   EXPERIENCE PASS / BARUK CARDS
+======================================================== */
+
+    if (
+        result.approved
+    ) {
+
+        return html200Redirect(
+            `/pago-exitoso?tx=${encodeURIComponent(
+                tx
+            )}&status=approved`
+        );
+    }
+
+
+    if (
+        result.pending
+    ) {
+
+        return html200Redirect(
+            `/pago-exitoso?tx=${encodeURIComponent(
+                tx
+            )}&status=pending`
+        );
+    }
+
+
+    /*
+     * Si PayPhone no fue aprobado,
+     * hubo diferencia de monto/moneda
+     * o el pago fue reversado,
+     * nunca mostramos pago exitoso.
+     */
 
     return html200Redirect(
-        `/pago-exitoso?tx=${encodeURIComponent(
+        `/pago-fallido?tx=${encodeURIComponent(
             tx
-        )}&status=${result.pending
-            ? "pending"
-            : "approved"
-        }`
+        )}&reason=payment_validation_failed`
     );
 }
 

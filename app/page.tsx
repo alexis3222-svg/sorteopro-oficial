@@ -10,6 +10,7 @@ import BarukHero from "@/components/baruk/BarukHero";
 import BarukPurchaseSection from "@/components/baruk/BarukPurchaseSection";
 import BarukShop from "@/components/baruk/BarukShop";
 import BarukHowItWorks from "@/components/baruk/BarukHowItWorks";
+import BarukParallaxBanner from "@/components/baruk/BarukParallaxBanner";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -599,10 +600,7 @@ export default function HomePage() {
         galeriaUrls={galeriaHero}
         precioUnidad={precioUnidad}
         agotado={agotado}
-
-        progreso={progresoMostrado}
-        vendidos={vendidos}
-        total={total}
+        progreso={progresoReal}
       />
 
       {/* =====================================================
@@ -678,180 +676,456 @@ export default function HomePage() {
       <BarukHowItWorks />
 
       {/* =====================================================
-    CONSULTA TUS NÚMEROS
+    CONSULTA TUS NÚMEROS — COMPACTA
 ===================================================== */}
 
-      <section className="w-full py-10 md:py-14">
-        <div className="mx-auto max-w-5xl overflow-hidden rounded-[28px] border border-slate-200 bg-[#fafafa]">
+      <section
+        id="consulta-numeros"
+        className="
+    scroll-mt-24
+    w-full
+    bg-white
+    py-12
+    md:py-14
+  "
+      >
+        <div
+          className="
+      mx-auto
+      w-full
+      max-w-6xl
+      px-5
+      sm:px-6
+    "
+        >
+          <div
+            className="
+        overflow-hidden
+        rounded-[22px]
+        border
+        border-slate-200
+        bg-white
 
-          <div className="grid md:grid-cols-[0.85fr_1.15fr]">
+        shadow-[0_8px_28px_rgba(0,0,0,0.06)]
 
-            {/* TEXTO */}
-            <div className="border-b border-slate-200 px-6 py-7 md:border-b-0 md:border-r md:px-8 md:py-9">
+        lg:grid
+        lg:grid-cols-[0.72fr_1.28fr]
+      "
+          >
+            {/* ================================================
+          IZQUIERDA
+      ================================================= */}
 
-              <p className="text-[10px] font-black uppercase tracking-[0.20em] text-[#ff6600]">
-                Tus compras
-              </p>
+            <div
+              className="
+          relative
+          overflow-hidden
+          bg-[#171717]
 
-              <h2 className="mt-2 text-2xl font-black tracking-[-0.03em] text-[#171717] md:text-3xl">
-                Consulta tus números
-              </h2>
+          px-7
+          py-7
+          text-white
 
-              <p className="mt-3 max-w-md text-sm leading-6 text-slate-500">
-                Ingresa el correo utilizado en tu compra para consultar los
-                números de participación vinculados a tus Baruk Cards.
-              </p>
+          md:px-8
+          md:py-8
+        "
+            >
+              {/* GLOW */}
 
-              <div className="mt-5 flex flex-wrap gap-x-5 gap-y-2 text-[11px] font-semibold text-slate-400">
-                <span>🔒 Consulta segura</span>
-                <span>⚡ Acceso inmediato</span>
+              <div
+                className="
+            pointer-events-none
+            absolute
+            -right-16
+            -top-20
+
+            h-48
+            w-48
+
+            rounded-full
+            bg-[#C1317F]/20
+            blur-[70px]
+          "
+              />
+
+              <div className="relative z-10">
+
+                <div
+                  className="
+              flex
+              h-9
+              w-9
+              items-center
+              justify-center
+
+              rounded-xl
+
+              border
+              border-white/10
+
+              bg-white/[0.06]
+
+              text-[#C1317F]
+            "
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    className="h-5 w-5"
+                  >
+                    <path
+                      d="M4 6.5C4 5.12 5.12 4 6.5 4h11C18.88 4 20 5.12 20 6.5v11c0 1.38-1.12 2.5-2.5 2.5h-11A2.5 2.5 0 0 1 4 17.5v-11Z"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                    />
+
+                    <path
+                      d="M7.5 9h9M7.5 12h6M7.5 15h4"
+                      stroke="currentColor"
+                      strokeWidth="1.7"
+                      strokeLinecap="round"
+                    />
+                  </svg>
+                </div>
+
+                <p
+                  className="
+              mt-5
+
+              text-[9px]
+              font-black
+              uppercase
+              tracking-[0.2em]
+
+              text-[#C1317F]
+            "
+                >
+                  Tus participaciones
+                </p>
+
+                <h2
+                  className="
+              mt-2
+
+              text-2xl
+              font-black
+              tracking-[-0.04em]
+
+              md:text-[28px]
+            "
+                >
+                  Consulta tus números
+                </h2>
+
+                <p
+                  className="
+              mt-3
+              max-w-sm
+
+              text-[13px]
+              leading-6
+
+              text-white/55
+            "
+                >
+                  Ingresa el correo utilizado en tu compra para consultar
+                  tus números de participación.
+                </p>
+
+                <div
+                  className="
+              mt-5
+              flex
+              flex-wrap
+              gap-5
+
+              text-[10px]
+              font-bold
+              text-white/45
+            "
+                >
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#C1317F]" />
+                    Consulta segura
+                  </span>
+
+                  <span className="flex items-center gap-2">
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#ff6600]" />
+                    Acceso inmediato
+                  </span>
+                </div>
+
               </div>
-
             </div>
 
-            {/* FORMULARIO */}
-            <div className="flex items-center px-6 py-7 md:px-8 md:py-9">
+            {/* ================================================
+          DERECHA
+      ================================================= */}
+
+            <div
+              className="
+          flex
+          flex-col
+          justify-center
+
+          px-7
+          py-7
+
+          md:px-9
+          md:py-8
+        "
+            >
+              <div>
+
+                <p
+                  className="
+              text-[9px]
+              font-black
+              uppercase
+              tracking-[0.18em]
+              text-slate-400
+            "
+                >
+                  Correo de compra
+                </p>
+
+                <h3
+                  className="
+              mt-1
+
+              text-lg
+              font-black
+              tracking-[-0.025em]
+              text-[#171717]
+            "
+                >
+                  Encuentra tus participaciones
+                </h3>
+
+                <p
+                  className="
+              mt-1
+
+              text-xs
+              leading-5
+              text-slate-400
+            "
+                >
+                  Usa el mismo correo registrado cuando realizaste tu compra.
+                </p>
+
+              </div>
+
+              {/* FORM */}
 
               <form
                 onSubmit={handleBuscarNumeros}
-                className="w-full"
+                className="
+            mt-5
+
+            flex
+            flex-col
+            gap-3
+
+            sm:flex-row
+          "
               >
-                <label
-                  htmlFor="correo-consulta"
-                  className="text-xs font-bold text-slate-600"
+                <input
+                  type="email"
+                  value={buscaCorreo}
+                  onChange={(e) =>
+                    setBuscaCorreo(
+                      e.target.value
+                    )
+                  }
+                  required
+                  placeholder="correo@ejemplo.com"
+                  className="
+              min-h-[48px]
+              flex-1
+
+              rounded-xl
+
+              border
+              border-slate-200
+
+              bg-[#fafafa]
+
+              px-4
+
+              text-sm
+              text-[#171717]
+
+              outline-none
+
+              transition-all
+
+              placeholder:text-slate-300
+
+              focus:border-[#C1317F]
+              focus:bg-white
+              focus:shadow-[0_0_0_4px_rgba(193,49,127,0.08)]
+            "
+                />
+
+                <button
+                  type="submit"
+                  disabled={buscandoNumeros}
+                  className="
+              min-h-[48px]
+
+              rounded-xl
+
+              bg-[#171717]
+
+              px-6
+
+              text-xs
+              font-black
+              text-white
+
+              transition-all
+
+              hover:bg-[#C1317F]
+              hover:shadow-[0_6px_20px_rgba(193,49,127,0.25)]
+
+              disabled:cursor-not-allowed
+              disabled:opacity-50
+            "
                 >
-                  Correo de compra
-                </label>
-
-                <div className="mt-2 flex flex-col gap-3 sm:flex-row">
-
-                  <input
-                    id="correo-consulta"
-                    type="email"
-                    value={buscaCorreo}
-                    onChange={(e) =>
-                      setBuscaCorreo(e.target.value)
-                    }
-                    className="
-                min-h-[50px]
-                flex-1
-                rounded-xl
-                border
-                border-slate-300
-                bg-white
-                px-4
-                text-sm
-                outline-none
-                transition
-
-                focus:border-[#ff6600]
-                focus:ring-2
-                focus:ring-orange-100
-              "
-                    placeholder="correo@ejemplo.com"
-                  />
-
-                  <button
-                    type="submit"
-                    disabled={buscandoNumeros}
-                    className="
-                min-h-[50px]
-                rounded-xl
-                bg-[#ff6600]
-                px-6
-                text-sm
-                font-black
-                text-white
-                transition
-
-                hover:bg-[#f15f00]
-
-                disabled:cursor-not-allowed
-                disabled:opacity-60
-              "
-                  >
-                    {buscandoNumeros
-                      ? "Consultando..."
-                      : "Consultar"}
-                  </button>
-
-                </div>
-
-                <p className="mt-3 text-[11px] leading-5 text-slate-400">
-                  Usa el mismo correo electrónico registrado al momento de realizar tu compra.
-                </p>
-
-                {errorBusqueda && (
-                  <p className="mt-3 text-xs font-semibold text-red-500">
-                    {errorBusqueda}
-                  </p>
-                )}
-
+                  {buscandoNumeros
+                    ? "Consultando..."
+                    : "Consultar"}
+                </button>
               </form>
 
-            </div>
+              {/* ERROR */}
 
-          </div>
+              {errorBusqueda && (
+                <div
+                  className="
+              mt-4
 
-          {/* RESULTADOS */}
-          {numerosCliente.length > 0 && (
-            <div className="border-t border-slate-200 bg-white px-6 py-7 md:px-8">
+              rounded-xl
 
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
+              border
+              border-red-200
 
-                <div>
-                  <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#ff6600]">
-                    Tus Baruk Cards
-                  </p>
+              bg-red-50
 
-                  <p className="mt-1 text-sm font-semibold text-slate-600">
-                    Números de participación asignados para esta actividad
-                  </p>
+              px-4
+              py-3
+
+              text-xs
+              font-semibold
+              text-red-600
+            "
+                >
+                  {errorBusqueda}
                 </div>
+              )}
 
-                <p className="text-xs font-semibold text-slate-400">
-                  Actividad #{numeroActividad}
-                </p>
+              {/* RESULTADOS */}
 
-              </div>
-
-              <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-
-                {numerosCliente.map((num) => (
+              {numerosCliente.length > 0 && (
+                <div
+                  className="
+              mt-5
+              border-t
+              border-slate-100
+              pt-5
+            "
+                >
                   <div
-                    key={num}
                     className="
-                rounded-2xl
-                border
-                border-orange-200
-                bg-[#fffaf6]
-                px-4
-                py-4
-                text-center
-                transition
-
-                hover:-translate-y-0.5
-                hover:border-orange-300
-                hover:shadow-md
+                flex
+                items-center
+                justify-between
               "
                   >
-                    <p className="text-[9px] font-black uppercase tracking-[0.18em] text-slate-400">
-                      Número
+                    <p
+                      className="
+                  text-xs
+                  font-black
+                  text-[#171717]
+                "
+                    >
+                      Tus números
                     </p>
 
                     <span
-                      className={`${anton.className} mt-1 block text-xl tracking-[0.12em] text-[#ff6600]`}
+                      className="
+                  text-[10px]
+                  font-bold
+                  text-slate-400
+                "
                     >
-                      {num}
+                      {numerosCliente.length}{" "}
+                      {numerosCliente.length === 1
+                        ? "participación"
+                        : "participaciones"}
                     </span>
                   </div>
-                ))}
 
-              </div>
+                  <div
+                    className="
+                mt-3
+                flex
+                flex-wrap
+                gap-2
+              "
+                  >
+                    {numerosCliente.map(
+                      (num) => (
+                        <div
+                          key={num}
+                          className="
+                      group
+                      relative
+                      overflow-hidden
+
+                      rounded-lg
+
+                      border
+                      border-slate-200
+
+                      bg-white
+
+                      px-3
+                      py-2
+
+                      transition-all
+
+                      hover:border-[#C1317F]/50
+                      hover:shadow-[0_4px_14px_rgba(193,49,127,0.18)]
+                    "
+                        >
+                          <span
+                            className="
+                        relative
+                        z-10
+
+                        text-[11px]
+                        font-black
+                        tracking-[0.08em]
+                        text-[#171717]
+
+                        transition-colors
+
+                        group-hover:text-[#C1317F]
+                      "
+                          >
+                            {num}
+                          </span>
+                        </div>
+                      )
+                    )}
+                  </div>
+                </div>
+              )}
 
             </div>
-          )}
-
+          </div>
         </div>
       </section>
 
@@ -862,7 +1136,13 @@ export default function HomePage() {
       <PremiosInstantaneos />
 
       {/* =====================================================
-    PRODUCTOS EN TENDENCIA
+    PARALLAX BANNER
+===================================================== */}
+
+      <BarukParallaxBanner />
+
+      {/* =====================================================
+    BARUK SHOP
 ===================================================== */}
 
       <BarukShop />

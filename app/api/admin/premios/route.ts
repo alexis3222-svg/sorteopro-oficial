@@ -452,6 +452,395 @@ export async function GET(
             collectionClaimsData ??
             [];
 
+        /*
+* =====================================================
+* ESFERAS UTILIZADAS EN CADA RECLAMO
+* =====================================================
+*/
+
+        const collectionClaimIds =
+            collectionClaims
+                .map(
+                    (
+                        claim: any
+                    ) =>
+                        claim.id
+                )
+                .filter(
+                    Boolean
+                );
+
+
+        let claimSphereRows:
+            any[] =
+            [];
+
+
+        if (
+            collectionClaimIds.length >
+            0
+        ) {
+
+            const {
+                data:
+                claimSpheresData,
+
+                error:
+                claimSpheresError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "collection_reward_claim_spheres"
+                    )
+                    .select(`
+                claim_id,
+                sphere_instance_id,
+                sphere_id
+            `)
+                    .in(
+                        "claim_id",
+                        collectionClaimIds
+                    );
+
+
+            if (
+                claimSpheresError
+            ) {
+
+                console.error(
+                    "Error leyendo collection_reward_claim_spheres:",
+                    claimSpheresError
+                );
+
+            } else {
+
+                claimSphereRows =
+                    claimSpheresData ??
+                    [];
+            }
+        }
+
+
+        /*
+         * IDs de las F1 Spheres que participaron
+         * en algún reclamo.
+         */
+
+        const usedSphereIds =
+            [
+                ...new Set(
+                    claimSphereRows
+                        .map(
+                            (
+                                row: any
+                            ) =>
+                                row.sphere_id
+                        )
+                        .filter(
+                            Boolean
+                        )
+                ),
+            ];
+
+
+        let usedSphereCatalog:
+            any[] =
+            [];
+
+
+        if (
+            usedSphereIds.length >
+            0
+        ) {
+
+            const {
+                data:
+                spheresData,
+
+                error:
+                spheresError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "spheres"
+                    )
+                    .select(`
+                id,
+                numero,
+                nombre,
+                team_name,
+                team_slug,
+                collection_key,
+                season
+            `)
+                    .in(
+                        "id",
+                        usedSphereIds
+                    );
+
+
+            if (
+                spheresError
+            ) {
+
+                console.error(
+                    "Error leyendo catálogo de esferas reclamadas:",
+                    spheresError
+                );
+
+            } else {
+
+                usedSphereCatalog =
+                    spheresData ??
+                    [];
+            }
+        }
+
+
+        const usedSphereById =
+            new Map<
+                string,
+                any
+            >();
+
+
+        for (
+            const sphere
+            of usedSphereCatalog
+        ) {
+
+            usedSphereById.set(
+                sphere.id,
+                sphere
+            );
+        }
+
+
+        /*
+         * Agrupar las 11 utilizadas
+         * por claim_id.
+         */
+
+        const usedSpheresByClaim =
+            new Map<
+                string,
+                any[]
+            >();
+
+
+        for (
+            const row
+            of claimSphereRows
+        ) {
+
+            const sphere =
+                usedSphereById.get(
+                    row.sphere_id
+                ) ??
+                null;
+
+
+            const current =
+                usedSpheresByClaim.get(
+                    row.claim_id
+                ) ??
+                [];
+
+
+            current.push({
+
+                sphereInstanceId:
+                    row.sphere_instance_id,
+
+                sphereId:
+                    row.sphere_id,
+
+                number:
+                    sphere
+                        ? Number(
+                            sphere.numero
+                        )
+                        : null,
+
+                name:
+                    sphere?.nombre ??
+                    null,
+
+                teamName:
+                    sphere?.team_name ??
+                    null,
+
+                teamSlug:
+                    sphere?.team_slug ??
+                    null,
+
+                collectionKey:
+                    sphere?.collection_key ??
+                    null,
+
+                season:
+                    sphere?.season ??
+                    null,
+            });
+
+
+            usedSpheresByClaim.set(
+                row.claim_id,
+                current
+            );
+        }
+
+
+        /*
+         * Ordenar Audi → Ferrari.
+         */
+
+        for (
+            const [
+                claimId,
+                items,
+            ]
+            of usedSpheresByClaim
+        ) {
+
+            items.sort(
+                (
+                    a,
+                    b
+                ) =>
+                    Number(
+                        a.number ??
+                        999
+                    ) -
+                    Number(
+                        b.number ??
+                        999
+                    )
+            );
+
+
+            usedSpheresByClaim.set(
+                claimId,
+                items
+            );
+        }
+
+        /*
+ * =====================================================
+ * NÚMERO DE PREMIO POR USUARIO
+ * =====================================================
+ */
+
+        const claimsGroupedByUserReward =
+            new Map<
+                string,
+                any[]
+            >();
+
+
+        for (
+            const claim
+            of collectionClaims
+        ) {
+
+            const key =
+                `${claim.owner_user_id}:${claim.reward_id}`;
+
+
+            const current =
+                claimsGroupedByUserReward.get(
+                    key
+                ) ??
+                [];
+
+
+            current.push(
+                claim
+            );
+
+
+            claimsGroupedByUserReward.set(
+                key,
+                current
+            );
+        }
+
+
+        const claimNumberById =
+            new Map<
+                string,
+                number
+            >();
+
+
+        const totalClaimsByUserReward =
+            new Map<
+                string,
+                number
+            >();
+
+
+        for (
+            const [
+                key,
+                claims,
+            ]
+            of claimsGroupedByUserReward
+        ) {
+
+            const ordered =
+                [
+                    ...claims,
+                ].sort(
+                    (
+                        a,
+                        b
+                    ) => {
+
+                        const dateA =
+                            new Date(
+                                a.completed_at ??
+                                a.created_at ??
+                                0
+                            ).getTime();
+
+
+                        const dateB =
+                            new Date(
+                                b.completed_at ??
+                                b.created_at ??
+                                0
+                            ).getTime();
+
+
+                        return (
+                            dateA -
+                            dateB
+                        );
+                    }
+                );
+
+
+            totalClaimsByUserReward.set(
+                key,
+                ordered.length
+            );
+
+
+            ordered.forEach(
+                (
+                    claim,
+                    index
+                ) => {
+
+                    claimNumberById.set(
+                        claim.id,
+                        index + 1
+                    );
+                }
+            );
+        }
+
         const rewardIds =
             [
                 ...new Set(
@@ -538,6 +927,24 @@ export async function GET(
 
                         id:
                             claim.id,
+
+                        claimNumber:
+                            claimNumberById.get(
+                                claim.id
+                            ) ??
+                            1,
+
+                        totalUserClaims:
+                            totalClaimsByUserReward.get(
+                                `${claim.owner_user_id}:${claim.reward_id}`
+                            ) ??
+                            1,
+
+                        usedSpheres:
+                            usedSpheresByClaim.get(
+                                claim.id
+                            ) ??
+                            [],
 
                         ownerUserId:
                             claim.owner_user_id,

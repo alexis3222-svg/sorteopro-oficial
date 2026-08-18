@@ -8,18 +8,93 @@ import {
 
 import { supabaseBrowser } from "@/lib/supabaseClient";
 import BarukRevealCard from "@/components/baruk/BarukRevealCard";
+import F1Sphere3D from "@/components/baruk/F1Sphere3D";
 
 type AccountState = {
     email: string;
     totalCards: number;
 };
 
+type SphereRarity =
+    | "common"
+    | "rare"
+    | "epic"
+    | "legendary";
+
 type SphereCollectionItem = {
     id: string;
+
     number: number;
+
     name: string;
+
+    description:
+    | string
+    | null;
+
+    collectionKey:
+    | string
+    | null;
+
+    teamName:
+    | string
+    | null;
+
+    teamSlug:
+    | string
+    | null;
+
+    season:
+    | number
+    | null;
+
+    rarity:
+    | SphereRarity
+    | null;
+
+    primaryColor:
+    | string
+    | null;
+
+    secondaryColor:
+    | string
+    | null;
+
+    accentColor:
+    | string
+    | null;
+
+    imageUrl:
+    | string
+    | null;
+
+    carImageUrl:
+    | string
+    | null;
+
+    active: boolean;
+
+    marketplaceEnabled: boolean;
+
+    stockTotal:
+    | number
+    | null;
+
+    stockAssigned: number;
+
     obtained: boolean;
+
     ownedCount: number;
+
+    availableCount: number;
+    listedCount: number;
+};
+
+type CollectionInfo = {
+    key: string;
+    name: string;
+    season: number;
+    totalSpheres: number;
 };
 
 type CollectionSummary = {
@@ -28,12 +103,39 @@ type CollectionSummary = {
 
     uniqueSpheres: number;
     totalSphereCopies: number;
+
+    totalAvailableSphereCopies: number;
+    totalListedSphereCopies: number;
+
     sphereGoal: number;
 
     totalPrizes: number;
 
     collectionCompleted: boolean;
+    canClaimReward: boolean;
 };
+
+type CollectionRewardClaim = {
+    id: string;
+    status: string;
+
+    completedAt:
+    | string
+    | null;
+
+    verifiedAt:
+    | string
+    | null;
+
+    scheduledAt:
+    | string
+    | null;
+
+    deliveredAt:
+    | string
+    | null;
+};
+
 
 type CollectionReward = {
     id: string;
@@ -42,33 +144,24 @@ type CollectionReward = {
     type: string;
 
     requiredSpheres: number;
+
     completed: boolean;
 
+    canClaim: boolean;
+
+    totalClaims: number;
+
     claim:
-    | {
-        id: string;
-        status: string;
-
-        completedAt:
-        | string
-        | null;
-
-        verifiedAt:
-        | string
-        | null;
-
-        scheduledAt:
-        | string
-        | null;
-
-        deliveredAt:
-        | string
-        | null;
-    }
+    | CollectionRewardClaim
     | null;
+
+    claims:
+    CollectionRewardClaim[];
 };
 
 type CollectionState = {
+    info: CollectionInfo;
+
     summary: CollectionSummary;
 
     spheres:
@@ -201,6 +294,77 @@ type PurchasesSummary = {
     totalCardsPurchased: number;
 };
 
+type SphereInventoryItem = {
+    instanceId: string;
+
+    originCardId: string;
+
+    status:
+    | "available"
+    | "listed";
+
+    createdAt: string;
+
+    listedAt:
+    | string
+    | null;
+
+    canSell: boolean;
+
+    listing:
+    | {
+        id: string;
+        price: number;
+        currency: string;
+        createdAt: string;
+    }
+    | null;
+
+    sphere: {
+        id: string;
+
+        number: number;
+
+        name: string;
+
+        teamName:
+        | string
+        | null;
+
+        teamSlug:
+        | string
+        | null;
+
+        season:
+        | number
+        | null;
+
+        rarity:
+        | SphereRarity
+        | null;
+
+        primaryColor:
+        | string
+        | null;
+
+        secondaryColor:
+        | string
+        | null;
+
+        accentColor:
+        | string
+        | null;
+
+        imageUrl:
+        | string
+        | null;
+
+        carImageUrl:
+        | string
+        | null;
+    };
+};
+
 export default function MiCuentaPage() {
     const [email, setEmail] =
         useState("");
@@ -263,6 +427,18 @@ export default function MiCuentaPage() {
         useState(false);
 
     const [
+        showCards,
+        setShowCards,
+    ] =
+        useState(false);
+
+    const [
+        cardsLoaded,
+        setCardsLoaded,
+    ] =
+        useState(false);
+
+    const [
         prizes,
         setPrizes,
     ] =
@@ -317,6 +493,79 @@ export default function MiCuentaPage() {
         setLoadingCollection,
     ] =
         useState(false);
+
+    const [
+        sphereInventory,
+        setSphereInventory,
+    ] =
+        useState<SphereInventoryItem[]>(
+            []
+        );
+
+    const [
+        loadingSphereInventory,
+        setLoadingSphereInventory,
+    ] =
+        useState(false);
+
+    const [
+        sellingInstanceId,
+        setSellingInstanceId,
+    ] =
+        useState<string | null>(
+            null
+        );
+
+    const [
+        sellPrice,
+        setSellPrice,
+    ] =
+        useState("");
+
+    const [
+        marketplaceBusy,
+        setMarketplaceBusy,
+    ] =
+        useState<string | null>(
+            null
+        );
+
+    const [
+        claimingReward,
+        setClaimingReward,
+    ] =
+        useState(false);
+
+    const [
+        rewardMessage,
+        setRewardMessage,
+    ] =
+        useState<string | null>(
+            null
+        );
+
+    const [
+        claimRequestId,
+        setClaimRequestId,
+    ] =
+        useState<string | null>(
+            null
+        );
+
+    const [
+        activatingAll,
+        setActivatingAll,
+    ] =
+        useState(false);
+
+    const [
+        activatingProgress,
+        setActivatingProgress,
+    ] =
+        useState({
+            current: 0,
+            total: 0,
+        });
 
     /*
      * =========================================================
@@ -592,6 +841,21 @@ export default function MiCuentaPage() {
             }
 
             setCollection({
+                info:
+                    data.collection ?? {
+                        key:
+                            "f1-2026",
+
+                        name:
+                            "F1 Sphere Collection",
+
+                        season:
+                            2026,
+
+                        totalSpheres:
+                            11,
+                    },
+
                 summary:
                     data.summary,
 
@@ -692,6 +956,18 @@ export default function MiCuentaPage() {
                 ),
         });
 
+        setCardsSummary({
+            total:
+                Number(
+                    data.totalCards ??
+                    0
+                ),
+
+            revealed: 0,
+
+            pending: 0,
+        });
+
         setSent(false);
 
         /*
@@ -703,10 +979,6 @@ export default function MiCuentaPage() {
                 accessToken
             ),
 
-            loadCards(
-                accessToken
-            ),
-
             loadPrizes(
                 accessToken
             ),
@@ -714,7 +986,332 @@ export default function MiCuentaPage() {
             loadPurchases(
                 accessToken
             ),
+
+            loadSphereInventory(
+                accessToken
+            ),
         ]);
+    }
+
+    async function loadSphereInventory(
+        accessToken: string
+    ) {
+        setLoadingSphereInventory(
+            true
+        );
+
+        try {
+
+            const response =
+                await fetch(
+                    "/api/marketplace/spheres/my-inventory",
+                    {
+                        method:
+                            "GET",
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${accessToken}`,
+                        },
+
+                        cache:
+                            "no-store",
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data?.ok
+            ) {
+                throw new Error(
+                    data?.error ??
+                    "No se pudo cargar tu inventario de F1 Spheres"
+                );
+            }
+
+            setSphereInventory(
+                data.instances ??
+                []
+            );
+
+        } finally {
+
+            setLoadingSphereInventory(
+                false
+            );
+        }
+    }
+
+    async function handleClaimCollectionReward() {
+
+        if (
+            claimingReward ||
+            !collection?.summary
+                .canClaimReward
+        ) {
+            return;
+        }
+
+
+        setClaimingReward(
+            true
+        );
+
+        setError(
+            null
+        );
+
+        setRewardMessage(
+            null
+        );
+
+
+        /*
+         * Si estamos reintentando una solicitud
+         * cuyo resultado pudo haberse perdido,
+         * utilizamos el mismo UUID.
+         */
+        const requestId =
+            claimRequestId ??
+            crypto.randomUUID();
+
+
+        if (
+            !claimRequestId
+        ) {
+            setClaimRequestId(
+                requestId
+            );
+        }
+
+
+        try {
+
+            const {
+                data:
+                sessionData,
+
+                error:
+                sessionError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .getSession();
+
+
+            if (
+                sessionError
+            ) {
+                throw sessionError;
+            }
+
+
+            const session =
+                sessionData.session;
+
+
+            if (!session) {
+
+                throw new Error(
+                    "Tu sesión ha finalizado. Vuelve a iniciar sesión."
+                );
+            }
+
+
+            const response =
+                await fetch(
+                    "/api/mi-cuenta/coleccion/reclamar",
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+
+                            Authorization:
+                                `Bearer ${session.access_token}`,
+
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body:
+                            JSON.stringify({
+                                claimRequestId:
+                                    requestId,
+                            }),
+
+                        cache:
+                            "no-store",
+                    }
+                );
+
+
+            const data =
+                await response.json();
+
+
+            if (
+                !response.ok ||
+                !data?.ok
+            ) {
+
+                throw new Error(
+                    data?.error ??
+                    "No se pudo reclamar el premio."
+                );
+            }
+
+
+            /*
+             * El servidor confirmó que la operación
+             * fue procesada.
+             *
+             * Podemos liberar el UUID.
+             */
+            setClaimRequestId(
+                null
+            );
+
+
+            setRewardMessage(
+                data.alreadyProcessed
+                    ? "Este reclamo ya había sido procesado correctamente."
+                    : "¡Premio reclamado correctamente! Las 11 F1 Spheres utilizadas fueron registradas."
+            );
+
+
+            /*
+             * Las 11 utilizadas ahora están redeemed.
+             *
+             * Recargamos colección e inventario
+             * para reflejar inmediatamente el cambio.
+             */
+            await Promise.all([
+
+                loadCollection(
+                    session.access_token
+                ),
+
+                loadSphereInventory(
+                    session.access_token
+                ),
+            ]);
+
+
+        } catch (
+        err: unknown
+        ) {
+
+            /*
+             * NO limpiamos claimRequestId aquí.
+             *
+             * Si el servidor alcanzó a procesar el
+             * reclamo pero la respuesta se perdió,
+             * el siguiente intento reutilizará
+             * exactamente el mismo UUID.
+             */
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "No se pudo reclamar el premio."
+            );
+
+        } finally {
+
+            setClaimingReward(
+                false
+            );
+        }
+    }
+
+    async function handleToggleCards() {
+
+        /*
+         * Si ya están visibles,
+         * simplemente las ocultamos.
+         */
+        if (showCards) {
+            setShowCards(
+                false
+            );
+
+            return;
+        }
+
+        /*
+         * Si ya se cargaron anteriormente,
+         * no necesitamos volver a consultar
+         * el servidor.
+         */
+        if (cardsLoaded) {
+            setShowCards(
+                true
+            );
+
+            return;
+        }
+
+        setError(
+            null
+        );
+
+        try {
+
+            const {
+                data:
+                sessionData,
+
+                error:
+                sessionError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .getSession();
+
+            if (
+                sessionError
+            ) {
+                throw sessionError;
+            }
+
+            const session =
+                sessionData.session;
+
+            if (!session) {
+                throw new Error(
+                    "Tu sesión ha finalizado. Vuelve a iniciar sesión."
+                );
+            }
+
+            /*
+             * Las tarjetas solamente se cargan
+             * cuando el usuario decide verlas.
+             */
+            await loadCards(
+                session.access_token
+            );
+
+            setCardsLoaded(
+                true
+            );
+
+            setShowCards(
+                true
+            );
+
+        } catch (
+        err: unknown
+        ) {
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "No se pudieron cargar tus tarjetas."
+            );
+        }
     }
 
     /*
@@ -838,7 +1435,28 @@ export default function MiCuentaPage() {
 
                             setCollection(null);
 
+                            setSphereInventory([]);
+
+                            setSellingInstanceId(
+                                null
+                            );
+
+                            setSellPrice(
+                                ""
+                            );
+
+                            setClaimingReward(false);
+                            setRewardMessage(null);
+                            setClaimRequestId(null);
+
+                            setMarketplaceBusy(
+                                null
+                            );
+
                             setCards([]);
+
+                            setShowCards(false);
+                            setCardsLoaded(false);
 
                             setCardsSummary({
                                 total: 0,
@@ -967,10 +1585,10 @@ export default function MiCuentaPage() {
      */
 
     /*
- * =========================================================
- * ACTUALIZAR MI CUENTA DESPUÉS DE REVELAR UNA CARD
- * =========================================================
- */
+     * =========================================================
+     * ACTUALIZAR MI CUENTA DESPUÉS DE REVELAR UNA CARD
+     * =========================================================
+     */
 
     async function handleCardRevealed(
         cardId: string,
@@ -1051,6 +1669,10 @@ export default function MiCuentaPage() {
                     session.access_token
                 ),
 
+                loadCards(
+                    session.access_token
+                ),
+
                 loadPrizes(
                     session.access_token
                 ),
@@ -1058,11 +1680,547 @@ export default function MiCuentaPage() {
                 loadPurchases(
                     session.access_token
                 ),
+
+                loadSphereInventory(
+                    session.access_token
+                ),
             ]);
         } catch (err: unknown) {
             console.error(
                 "No se pudo actualizar la colección después del revelado:",
                 err
+            );
+        }
+    }
+
+    async function handleActivateAll() {
+        if (
+            activatingAll ||
+            cardsSummary.pending <= 0
+        ) {
+            return;
+        }
+
+        setActivatingAll(
+            true
+        );
+
+        setError(
+            null
+        );
+
+        try {
+            const {
+                data:
+                sessionData,
+
+                error:
+                sessionError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .getSession();
+
+            if (
+                sessionError
+            ) {
+                throw sessionError;
+            }
+
+            const session =
+                sessionData.session;
+
+            if (
+                !session
+            ) {
+                throw new Error(
+                    "Tu sesión ha finalizado. Vuelve a iniciar sesión."
+                );
+            }
+
+            const pendientes =
+                cards.filter(
+                    (
+                        card
+                    ) =>
+                        !card.revealed
+                );
+
+            if (
+                pendientes.length ===
+                0
+            ) {
+                return;
+            }
+
+            setActivatingProgress({
+                current: 0,
+                total:
+                    pendientes.length,
+            });
+
+            const activadas: {
+                id: string;
+                revealedAt: string | null;
+            }[] = [];
+
+            /*
+             * Activamos una por una para evitar
+             * lanzar 20, 30 o 50 solicitudes
+             * simultáneamente.
+             */
+            for (
+                let index = 0;
+                index <
+                pendientes.length;
+                index++
+            ) {
+                const card =
+                    pendientes[index];
+
+                const response =
+                    await fetch(
+                        "/api/cards/reveal",
+                        {
+                            method:
+                                "POST",
+
+                            headers: {
+                                Authorization:
+                                    `Bearer ${session.access_token}`,
+
+                                "Content-Type":
+                                    "application/json",
+                            },
+
+                            body:
+                                JSON.stringify({
+                                    cardId:
+                                        card.id,
+                                }),
+
+                            cache:
+                                "no-store",
+                        }
+                    );
+
+                const data =
+                    await response.json();
+
+                if (
+                    !response.ok ||
+                    !data?.ok
+                ) {
+                    throw new Error(
+                        data?.error ??
+                        "No se pudo activar una de tus tarjetas."
+                    );
+                }
+
+                activadas.push({
+                    id:
+                        data.card.id,
+
+                    revealedAt:
+                        data.card
+                            .revealedAt ??
+                        new Date()
+                            .toISOString(),
+                });
+
+                setActivatingProgress({
+                    current:
+                        index + 1,
+
+                    total:
+                        pendientes.length,
+                });
+            }
+
+            /*
+             * Actualizamos las tarjetas
+             * inmediatamente en pantalla.
+             */
+
+            const activadasMap =
+                new Map(
+                    activadas.map(
+                        (
+                            item
+                        ) => [
+                                item.id,
+                                item.revealedAt,
+                            ]
+                    )
+                );
+
+            setCards(
+                (
+                    currentCards
+                ) =>
+                    currentCards.map(
+                        (
+                            card
+                        ) => {
+                            if (
+                                !activadasMap.has(
+                                    card.id
+                                )
+                            ) {
+                                return card;
+                            }
+
+                            return {
+                                ...card,
+
+                                revealed:
+                                    true,
+
+                                revealed_at:
+                                    activadasMap.get(
+                                        card.id
+                                    ) ??
+                                    new Date()
+                                        .toISOString(),
+
+                                estado:
+                                    "revealed",
+                            };
+                        }
+                    )
+            );
+
+            /*
+             * Actualizamos resumen.
+             */
+
+            setCardsSummary(
+                (
+                    current
+                ) => ({
+                    ...current,
+
+                    revealed:
+                        current.revealed +
+                        activadas.length,
+
+                    pending:
+                        Math.max(
+                            0,
+                            current.pending -
+                            activadas.length
+                        ),
+                })
+            );
+
+            /*
+             * Después de activar todas,
+             * volvemos a consultar colección,
+             * premios y compras.
+             */
+
+            await Promise.all([
+                loadCollection(
+                    session.access_token
+                ),
+
+                loadPrizes(
+                    session.access_token
+                ),
+
+                loadPurchases(
+                    session.access_token
+                ),
+
+                loadSphereInventory(
+                    session.access_token
+                ),
+            ]);
+
+        } catch (
+        err: unknown
+        ) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "No se pudieron activar todas las tarjetas."
+            );
+
+            /*
+             * Volvemos a consultar las tarjetas,
+             * por si algunas sí alcanzaron a
+             * activarse antes del error.
+             */
+
+            try {
+                const {
+                    data:
+                    sessionData,
+                } =
+                    await supabaseBrowser
+                        .auth
+                        .getSession();
+
+                if (
+                    sessionData.session
+                ) {
+                    await loadCards(
+                        sessionData
+                            .session
+                            .access_token
+                    );
+                }
+            } catch {
+                // No hacemos nada adicional.
+            }
+
+        } finally {
+            setActivatingAll(
+                false
+            );
+
+            setActivatingProgress({
+                current: 0,
+                total: 0,
+            });
+        }
+    }
+
+    async function handleListSphere(
+        instanceId: string
+    ) {
+        const normalizedPrice =
+            Number(
+                sellPrice
+            );
+
+        if (
+            !Number.isFinite(
+                normalizedPrice
+            ) ||
+            normalizedPrice <= 0
+        ) {
+            setError(
+                "Ingresa un precio válido para la F1 Sphere."
+            );
+
+            return;
+        }
+
+        setMarketplaceBusy(
+            instanceId
+        );
+
+        setError(
+            null
+        );
+
+        try {
+
+            const {
+                data:
+                sessionData,
+
+                error:
+                sessionError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .getSession();
+
+            if (
+                sessionError
+            ) {
+                throw sessionError;
+            }
+
+            const session =
+                sessionData.session;
+
+            if (!session) {
+                throw new Error(
+                    "Tu sesión ha finalizado."
+                );
+            }
+
+            const response =
+                await fetch(
+                    "/api/marketplace/spheres/list",
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${session.access_token}`,
+
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body:
+                            JSON.stringify({
+                                sphereInstanceId:
+                                    instanceId,
+
+                                price:
+                                    normalizedPrice,
+                            }),
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data?.ok
+            ) {
+                throw new Error(
+                    data?.error ??
+                    "No se pudo publicar la F1 Sphere."
+                );
+            }
+
+            setSellingInstanceId(
+                null
+            );
+
+            setSellPrice(
+                ""
+            );
+
+            await Promise.all([
+                loadSphereInventory(
+                    session.access_token
+                ),
+
+                loadCollection(
+                    session.access_token
+                ),
+            ]);
+
+        } catch (
+        err:
+            unknown
+        ) {
+
+            setError(
+                err instanceof
+                    Error
+                    ? err.message
+                    : "No se pudo publicar la F1 Sphere."
+            );
+
+        } finally {
+
+            setMarketplaceBusy(
+                null
+            );
+        }
+    }
+
+    async function handleCancelSphereListing(
+        listingId: string,
+        instanceId: string
+    ) {
+        setMarketplaceBusy(
+            instanceId
+        );
+
+        setError(
+            null
+        );
+
+        try {
+
+            const {
+                data:
+                sessionData,
+
+                error:
+                sessionError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .getSession();
+
+            if (
+                sessionError
+            ) {
+                throw sessionError;
+            }
+
+            const session =
+                sessionData.session;
+
+            if (!session) {
+                throw new Error(
+                    "Tu sesión ha finalizado."
+                );
+            }
+
+            const response =
+                await fetch(
+                    "/api/marketplace/spheres/cancel",
+                    {
+                        method:
+                            "POST",
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${session.access_token}`,
+
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body:
+                            JSON.stringify({
+                                listingId,
+                            }),
+                    }
+                );
+
+            const data =
+                await response.json();
+
+            if (
+                !response.ok ||
+                !data?.ok
+            ) {
+                throw new Error(
+                    data?.error ??
+                    "No se pudo retirar la publicación."
+                );
+            }
+
+            await Promise.all([
+                loadSphereInventory(
+                    session.access_token
+                ),
+
+                loadCollection(
+                    session.access_token
+                ),
+            ]);
+
+        } catch (
+        err:
+            unknown
+        ) {
+
+            setError(
+                err instanceof
+                    Error
+                    ? err.message
+                    : "No se pudo retirar la F1 Sphere."
+            );
+
+        } finally {
+
+            setMarketplaceBusy(
+                null
             );
         }
     }
@@ -1091,8 +2249,19 @@ export default function MiCuentaPage() {
         setAccount(null);
 
         setCollection(null);
+        setSphereInventory([]);
+        setSellingInstanceId(null);
+        setSellPrice("");
+        setMarketplaceBusy(null);
+
+        setClaimingReward(false);
+        setRewardMessage(null);
+        setClaimRequestId(null);
 
         setCards([]);
+
+        setShowCards(false);
+        setCardsLoaded(false);
 
         setPrizes([]);
 
@@ -1158,935 +2327,1823 @@ export default function MiCuentaPage() {
             collection?.summary;
 
         return (
-            <main className="min-h-screen bg-[#f5f6f8] px-4 py-24">
-                <div className="mx-auto w-full max-w-6xl">
+            <main className="min-h-screen w-full bg-white px-4 pb-20 pt-24 sm:px-6 lg:px-8 xl:px-10">
+                <div className="w-full">
 
-                    {/* PANEL PRINCIPAL */}
+                    <div className="w-full">
 
-                    <div className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl">
+                        {/* ENCABEZADO */}
 
-                        <div className="h-2 bg-gradient-to-r from-[#ff6600] to-[#ff9a55]" />
+                        <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
 
-                        <div className="p-7 md:p-10">
+                            <div>
+                                <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff6600]">
+                                    BARUK593
+                                </p>
 
-                            {/* ENCABEZADO */}
+                                <h1 className="mt-2 text-3xl font-black text-gray-900">
+                                    Mi cuenta
+                                </h1>
 
-                            <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                                <p className="mt-2 text-sm text-gray-500">
+                                    {
+                                        account.email
+                                    }
+                                </p>
+                            </div>
 
-                                <div>
-                                    <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff6600]">
-                                        BARUK593
-                                    </p>
+                            <div className="flex flex-wrap items-center gap-3">
 
-                                    <h1 className="mt-2 text-3xl font-black text-gray-900">
-                                        Mi cuenta
-                                    </h1>
+                                <a
+                                    href="/mi-cuenta/compras"
+                                    className="
+        inline-flex
+        min-h-[46px]
+        items-center
+        justify-center
 
-                                    <p className="mt-2 text-sm text-gray-500">
-                                        {
-                                            account.email
-                                        }
-                                    </p>
-                                </div>
+        rounded-xl
+
+        border
+        border-[#C1317F]/20
+
+        bg-[#C1317F]/5
+
+        px-5
+
+        text-sm
+        font-black
+        text-[#C1317F]
+
+        transition-all
+
+        hover:border-[#C1317F]/40
+        hover:bg-[#C1317F]/10
+    "
+                                >
+                                    Mis compras
+
+                                    <span className="ml-2">
+                                        →
+                                    </span>
+                                </a>
+
+                                <a
+                                    href="/mi-cuenta/billetera"
+                                    className="
+        inline-flex
+        min-h-[46px]
+        items-center
+        justify-center
+
+        rounded-xl
+
+        border
+        border-[#C1317F]/20
+
+        bg-white
+
+        px-5
+
+        text-sm
+        font-black
+        text-[#C1317F]
+
+        transition-all
+
+        hover:border-[#C1317F]/40
+        hover:bg-[#C1317F]/5
+    "
+                                >
+                                    Mi billetera
+
+                                    <span className="ml-2">
+                                        →
+                                    </span>
+                                </a>
 
                                 <button
                                     type="button"
                                     onClick={
                                         handleLogout
                                     }
-                                    className="w-fit rounded-xl border border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-50"
+                                    className="
+        min-h-[46px]
+
+        rounded-xl
+
+        border
+        border-gray-200
+
+        bg-white
+
+        px-5
+
+        text-sm
+        font-bold
+        text-gray-600
+
+        transition
+
+        hover:bg-gray-50
+    "
                                 >
                                     Cerrar sesión
                                 </button>
+
+                            </div>
+                        </div>
+
+                        {/* ERROR */}
+
+                        {error && (
+                            <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">
+                                {
+                                    error
+                                }
+                            </div>
+                        )}
+
+                        {/* RESUMEN */}
+
+                        <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+
+                            {/* CARDS */}
+
+                            <div className="rounded-2xl bg-[#fff6ef] p-6">
+
+                                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                    Mis Tarjetas
+                                </p>
+
+                                <p className="mt-2 text-4xl font-black text-[#ff6600]">
+                                    {cardsSummary.total}
+                                </p>
+
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Tarjetas vinculadas a tu cuenta
+                                </p>
                             </div>
 
-                            {/* ERROR */}
+                            {/* ESFERAS */}
 
-                            {error && (
-                                <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm font-semibold text-red-600">
-                                    {
-                                        error
-                                    }
-                                </div>
-                            )}
+                            <div className="rounded-2xl bg-gray-50 p-6">
 
-                            {/* RESUMEN */}
+                                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                    Mi colección
+                                </p>
 
-                            <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+                                <div className="mt-2 flex items-end gap-1">
 
-                                {/* CARDS */}
-
-                                <div className="rounded-2xl bg-[#fff6ef] p-6">
-
-                                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                                        Mis Baruk Cards
+                                    <p className="text-4xl font-black text-gray-900">
+                                        {
+                                            summary
+                                                ?.uniqueSpheres ??
+                                            0
+                                        }
                                     </p>
 
-                                    <p className="mt-2 text-4xl font-black text-[#ff6600]">
-                                        {cardsSummary.total}
+                                    <p className="pb-1 text-lg font-bold text-gray-400">
+                                        /
+                                        {
+                                            summary
+                                                ?.sphereGoal ??
+                                            11
+                                        }
                                     </p>
 
-                                    <p className="mt-2 text-xs text-gray-500">
-                                        Tarjetas vinculadas a tu cuenta
-                                    </p>
                                 </div>
 
-                                {/* ESFERAS */}
-
-                                <div className="rounded-2xl bg-gray-50 p-6">
-
-                                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                                        Mi colección
-                                    </p>
-
-                                    <div className="mt-2 flex items-end gap-1">
-
-                                        <p className="text-4xl font-black text-gray-900">
-                                            {
-                                                summary
-                                                    ?.uniqueSpheres ??
-                                                0
-                                            }
-                                        </p>
-
-                                        <p className="pb-1 text-lg font-bold text-gray-400">
-                                            /7
-                                        </p>
-
-                                    </div>
-
-                                    <p className="mt-2 text-xs text-gray-500">
-                                        Esferas diferentes encontradas
-                                    </p>
-                                </div>
-
-                                {/* PREMIOS */}
-
-                                <div className="rounded-2xl bg-gray-50 p-6">
-
-                                    <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
-                                        Mis premios
-                                    </p>
-
-                                    <p className="mt-2 text-4xl font-black text-gray-900">
-                                        {prizesSummary.total}
-                                    </p>
-
-                                    <p className="mt-2 text-xs text-gray-500">
-                                        Premios instantáneos revelados
-                                    </p>
-                                </div>
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Esferas diferentes encontradas
+                                </p>
                             </div>
 
-                            {/* =====================================================
-    PREMIO POR COMPLETAR LAS 7 ESFERAS
+                            {/* PREMIOS */}
+
+                            <div className="rounded-2xl bg-gray-50 p-6">
+
+                                <p className="text-xs font-bold uppercase tracking-wider text-gray-500">
+                                    Mis premios
+                                </p>
+
+                                <p className="mt-2 text-4xl font-black text-gray-900">
+                                    {prizesSummary.total}
+                                </p>
+
+                                <p className="mt-2 text-xs text-gray-500">
+                                    Premios instantáneos revelados
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* =====================================================
+    PREMIO F1 SPHERE COLLECTION
 ===================================================== */}
 
-                            {summary?.collectionCompleted &&
-                                collection?.reward && (
+                        {collection?.reward &&
+                            (
+                                summary?.collectionCompleted ||
+                                collection.reward.totalClaims > 0
+                            ) && (
 
-                                    <div className="mt-8 overflow-hidden rounded-3xl border border-orange-200 bg-gradient-to-br from-orange-50 to-white shadow-md">
+                                <div
+                                    className="
+                mt-8
+                overflow-hidden
+                rounded-3xl
+                border
+                border-orange-200
+                bg-gradient-to-br
+                from-orange-50
+                to-white
+                shadow-md
+            "
+                                >
 
-                                        <div className="h-2 bg-gradient-to-r from-[#ff6600] to-[#ff9a55]" />
+                                    <div
+                                        className="
+                    h-2
+                    bg-gradient-to-r
+                    from-[#ff6600]
+                    to-[#ff9a55]
+                "
+                                    />
 
-                                        <div className="p-7 text-center md:p-9">
 
-                                            <div className="text-4xl">
-                                                🏆
-                                            </div>
+                                    <div
+                                        className="
+                    p-7
+                    text-center
 
-                                            <p className="mt-4 text-xs font-black uppercase tracking-[0.22em] text-[#ff6600]">
-                                                Colección completa
+                    md:p-9
+                "
+                                    >
+
+                                        <div className="text-4xl">
+                                            🏆
+                                        </div>
+
+
+                                        <p
+                                            className="
+                        mt-4
+                        text-xs
+                        font-black
+                        uppercase
+                        tracking-[0.22em]
+                        text-[#ff6600]
+                    "
+                                        >
+                                            F1 Sphere Collection
+                                        </p>
+
+
+                                        {summary?.collectionCompleted ? (
+
+                                            <>
+                                                <h2
+                                                    className="
+                                mt-2
+                                text-2xl
+                                font-black
+                                text-gray-900
+
+                                md:text-3xl
+                            "
+                                                >
+                                                    ¡Completaste las{" "}
+                                                    {summary.sphereGoal}{" "}
+                                                    F1 Spheres!
+                                                </h2>
+
+
+                                                <p
+                                                    className="
+                                mx-auto
+                                mt-3
+                                max-w-2xl
+                                text-sm
+                                leading-6
+                                text-gray-600
+                            "
+                                                >
+                                                    Completaste la parrilla de escuderías.
+                                                    Puedes utilizar una esfera de cada equipo
+                                                    para reclamar el premio especial.
+                                                </p>
+                                            </>
+
+                                        ) : (
+
+                                            <>
+                                                <h2
+                                                    className="
+                                mt-2
+                                text-2xl
+                                font-black
+                                text-gray-900
+
+                                md:text-3xl
+                            "
+                                                >
+                                                    Premio de colección
+                                                </h2>
+
+
+                                                <p
+                                                    className="
+                                mx-auto
+                                mt-3
+                                max-w-2xl
+                                text-sm
+                                leading-6
+                                text-gray-600
+                            "
+                                                >
+                                                    Ya reclamaste esta colección anteriormente.
+                                                    Sigue coleccionando para completar nuevamente
+                                                    las 11 F1 Spheres y volver a ganar.
+                                                </p>
+                                            </>
+
+                                        )}
+
+
+                                        {/* =================================================
+                    PREMIO
+                ================================================= */}
+
+                                        <div
+                                            className="
+                        mx-auto
+                        mt-6
+                        max-w-xl
+                        rounded-2xl
+                        border
+                        border-orange-100
+                        bg-white
+                        p-6
+                    "
+                                        >
+
+                                            <p
+                                                className="
+                            text-[10px]
+                            font-black
+                            uppercase
+                            tracking-[0.2em]
+                            text-gray-400
+                        "
+                                            >
+                                                Premio de colección
                                             </p>
 
-                                            <h2 className="mt-2 text-2xl font-black text-gray-900 md:text-3xl">
-                                                ¡Encontraste las 7 esferas!
-                                            </h2>
 
-                                            <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-600">
-                                                Completaste la colección Baruk593 y desbloqueaste
-                                                el premio especial.
-                                            </p>
+                                            <h3
+                                                className="
+                            mt-2
+                            text-xl
+                            font-black
+                            text-gray-900
+                        "
+                                            >
+                                                {
+                                                    collection.reward.name
+                                                }
+                                            </h3>
 
-                                            {/* PREMIO */}
 
-                                            <div className="mx-auto mt-6 max-w-xl rounded-2xl border border-orange-100 bg-white p-6">
+                                            {collection.reward.description && (
 
-                                                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-gray-400">
-                                                    Premio desbloqueado
+                                                <p
+                                                    className="
+                                mt-3
+                                text-sm
+                                leading-6
+                                text-gray-500
+                            "
+                                                >
+                                                    {
+                                                        collection.reward
+                                                            .description
+                                                    }
                                                 </p>
 
-                                                <h3 className="mt-2 text-xl font-black text-gray-900">
-                                                    {
-                                                        collection.reward.name
-                                                    }
-                                                </h3>
+                                            )}
 
-                                                {collection.reward.description && (
-                                                    <p className="mt-3 text-sm leading-6 text-gray-500">
-                                                        {
-                                                            collection.reward.description
-                                                        }
-                                                    </p>
-                                                )}
 
-                                                {/* ESTADO DEL RECLAMO */}
+                                            {/* TOTAL DE PREMIOS GANADOS */}
 
-                                                {collection.reward.claim && (
+                                            {collection.reward.totalClaims >
+                                                0 && (
 
-                                                    <div className="mt-5 border-t border-gray-100 pt-5">
+                                                    <div
+                                                        className="
+                                    mt-5
+                                    rounded-xl
+                                    bg-orange-50
+                                    px-4
+                                    py-3
+                                "
+                                                    >
 
-                                                        <p className="text-xs font-semibold text-gray-400">
-                                                            Estado del premio
+                                                        <p
+                                                            className="
+                                        text-[10px]
+                                        font-black
+                                        uppercase
+                                        tracking-wider
+                                        text-orange-400
+                                    "
+                                                        >
+                                                            Premios obtenidos
                                                         </p>
 
-                                                        <div className="mt-2">
 
-                                                            {collection.reward.claim.status ===
-                                                                "delivered" ? (
+                                                        <p
+                                                            className="
+                                        mt-1
+                                        text-2xl
+                                        font-black
+                                        text-[#ff6600]
+                                    "
+                                                        >
+                                                            {
+                                                                collection.reward
+                                                                    .totalClaims
+                                                            }
+                                                        </p>
 
-                                                                <span className="inline-flex rounded-full bg-emerald-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-emerald-700">
-                                                                    ✓ Entregado
-                                                                </span>
+                                                    </div>
 
-                                                            ) : collection.reward.claim.status ===
-                                                                "scheduled" ? (
+                                                )}
 
-                                                                <span className="inline-flex rounded-full bg-blue-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-blue-700">
-                                                                    Entrega programada
-                                                                </span>
 
-                                                            ) : collection.reward.claim.status ===
-                                                                "verified" ? (
+                                            {/* MENSAJE DE ÉXITO */}
 
-                                                                <span className="inline-flex rounded-full bg-violet-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-violet-700">
-                                                                    Premio verificado
-                                                                </span>
+                                            {rewardMessage && (
 
-                                                            ) : (
+                                                <div
+                                                    className="
+                                mt-5
+                                rounded-xl
+                                border
+                                border-emerald-100
+                                bg-emerald-50
+                                px-4
+                                py-3
+                                text-sm
+                                font-bold
+                                text-emerald-700
+                            "
+                                                >
+                                                    {rewardMessage}
+                                                </div>
 
-                                                                <span className="inline-flex rounded-full bg-orange-50 px-4 py-2 text-xs font-black uppercase tracking-wider text-[#ff6600]">
-                                                                    Pendiente de coordinación
-                                                                </span>
+                                            )}
 
-                                                            )}
 
-                                                        </div>
+                                            {/* =================================================
+                        BOTÓN RECLAMAR
+                    ================================================= */}
 
-                                                        {collection.reward.claim.completedAt && (
-                                                            <p className="mt-4 text-[11px] text-gray-400">
-                                                                Colección completada el{" "}
+                                            {summary?.canClaimReward && (
+
+                                                <button
+                                                    type="button"
+
+                                                    onClick={
+                                                        handleClaimCollectionReward
+                                                    }
+
+                                                    disabled={
+                                                        claimingReward
+                                                    }
+
+                                                    className="
+                                mt-6
+                                inline-flex
+                                min-h-[50px]
+                                w-full
+                                items-center
+                                justify-center
+                                rounded-xl
+                                bg-[#ff6600]
+                                px-6
+                                text-sm
+                                font-black
+                                uppercase
+                                tracking-[0.06em]
+                                text-white
+                                shadow-lg
+                                transition
+                                hover:bg-[#ff7a22]
+                                disabled:cursor-not-allowed
+                                disabled:opacity-60
+                            "
+                                                >
+
+                                                    {claimingReward
+                                                        ? "Reclamando premio..."
+                                                        : "🏆 Reclamar premio"
+                                                    }
+
+                                                </button>
+
+                                            )}
+
+
+                                            {/* =================================================
+                        ESFERAS PUBLICADAS
+                    ================================================= */}
+
+                                            {summary?.collectionCompleted &&
+                                                !summary.canClaimReward &&
+                                                summary.totalListedSphereCopies >
+                                                0 && (
+
+                                                    <div
+                                                        className="
+                                    mt-5
+                                    rounded-xl
+                                    border
+                                    border-amber-200
+                                    bg-amber-50
+                                    px-4
+                                    py-3
+                                    text-sm
+                                    font-semibold
+                                    leading-6
+                                    text-amber-700
+                                "
+                                                    >
+                                                        Tienes una o más F1 Spheres publicadas
+                                                        en Marketplace. Retira las necesarias
+                                                        para disponer de una esfera de cada
+                                                        escudería antes de reclamar.
+                                                    </div>
+
+                                                )}
+
+
+                                            {/* =================================================
+                        ÚLTIMO PREMIO
+                    ================================================= */}
+
+                                            {collection.reward.claim && (
+
+                                                <div
+                                                    className="
+                                mt-6
+                                border-t
+                                border-gray-100
+                                pt-5
+                            "
+                                                >
+
+                                                    <p
+                                                        className="
+                                    text-xs
+                                    font-semibold
+                                    text-gray-400
+                                "
+                                                    >
+                                                        Estado del último premio
+                                                    </p>
+
+
+                                                    <div className="mt-2">
+
+                                                        {collection.reward.claim.status ===
+                                                            "delivered" ? (
+
+                                                            <span
+                                                                className="
+                                            inline-flex
+                                            rounded-full
+                                            bg-emerald-50
+                                            px-4
+                                            py-2
+                                            text-xs
+                                            font-black
+                                            uppercase
+                                            tracking-wider
+                                            text-emerald-700
+                                        "
+                                                            >
+                                                                ✓ Entregado
+                                                            </span>
+
+                                                        ) : collection.reward.claim.status ===
+                                                            "scheduled" ? (
+
+                                                            <span
+                                                                className="
+                                            inline-flex
+                                            rounded-full
+                                            bg-blue-50
+                                            px-4
+                                            py-2
+                                            text-xs
+                                            font-black
+                                            uppercase
+                                            tracking-wider
+                                            text-blue-700
+                                        "
+                                                            >
+                                                                Entrega programada
+                                                            </span>
+
+                                                        ) : collection.reward.claim.status ===
+                                                            "verified" ? (
+
+                                                            <span
+                                                                className="
+                                            inline-flex
+                                            rounded-full
+                                            bg-violet-50
+                                            px-4
+                                            py-2
+                                            text-xs
+                                            font-black
+                                            uppercase
+                                            tracking-wider
+                                            text-violet-700
+                                        "
+                                                            >
+                                                                Premio verificado
+                                                            </span>
+
+                                                        ) : (
+
+                                                            <span
+                                                                className="
+                                            inline-flex
+                                            rounded-full
+                                            bg-orange-50
+                                            px-4
+                                            py-2
+                                            text-xs
+                                            font-black
+                                            uppercase
+                                            tracking-wider
+                                            text-[#ff6600]
+                                        "
+                                                            >
+                                                                Pendiente de coordinación
+                                                            </span>
+
+                                                        )}
+
+                                                    </div>
+
+
+                                                    {collection.reward.claim
+                                                        .completedAt && (
+
+                                                            <p
+                                                                className="
+                                            mt-4
+                                            text-[11px]
+                                            text-gray-400
+                                        "
+                                                            >
+                                                                Último premio reclamado el{" "}
                                                                 {
                                                                     new Date(
-                                                                        collection.reward.claim.completedAt
+                                                                        collection.reward
+                                                                            .claim
+                                                                            .completedAt
                                                                     ).toLocaleDateString(
                                                                         "es-EC"
                                                                     )
                                                                 }
                                                             </p>
+
                                                         )}
 
-                                                    </div>
-                                                )}
+                                                </div>
 
-                                            </div>
-
-                                            <p className="mx-auto mt-5 max-w-xl text-xs leading-5 text-gray-400">
-                                                El equipo de Baruk593 verificará y coordinará
-                                                la entrega de tu experiencia.
-                                            </p>
-
-                                        </div>
-
-                                    </div>
-                                )}
-
-                            {/* =====================================================
-    MIS COMPRAS
-===================================================== */}
-
-                            <section
-                                id="mis-compras"
-                                className="mt-12"
-                            >
-                                <div className="text-center">
-                                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ff6600]">
-                                        Historial Baruk593
-                                    </p>
-
-                                    <h2 className="mt-2 text-2xl font-black text-gray-900 md:text-3xl">
-                                        Mis compras
-                                    </h2>
-
-                                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-                                        Consulta las compras realizadas con tu cuenta
-                                        y las Baruk Cards correspondientes.
-                                    </p>
-                                </div>
-
-                                {/* RESUMEN */}
-
-                                <div className="mx-auto mt-7 grid max-w-4xl grid-cols-2 gap-3 md:grid-cols-4">
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-gray-900">
-                                            {purchasesSummary.totalPurchases}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Compras
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-emerald-600">
-                                            {purchasesSummary.paidPurchases}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Pagadas
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-[#ff6600]">
-                                            ${purchasesSummary.totalInvested.toFixed(2)}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Comprado
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-gray-900">
-                                            {purchasesSummary.totalCardsPurchased}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Cards compradas
-                                        </p>
-                                    </div>
-
-                                </div>
-
-                                {/* CARGANDO */}
-
-                                {loadingPurchases && (
-                                    <div className="mt-10 text-center">
-                                        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#ff6600]" />
-
-                                        <p className="mt-3 text-sm font-semibold text-gray-400">
-                                            Cargando tus compras...
-                                        </p>
-                                    </div>
-                                )}
-
-                                {/* SIN COMPRAS */}
-
-                                {!loadingPurchases &&
-                                    purchases.length === 0 && (
-
-                                        <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-gray-200 bg-gray-50 p-7 text-center">
-
-                                            <p className="font-black text-gray-800">
-                                                Todavía no tienes compras registradas.
-                                            </p>
-
-                                            <p className="mt-2 text-sm text-gray-500">
-                                                Cuando adquieras Baruk Cards,
-                                                tus compras aparecerán aquí.
-                                            </p>
-
-                                            <a
-                                                href="/"
-                                                className="mt-5 inline-flex rounded-xl bg-[#ff6600] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#ff7a22]"
-                                            >
-                                                Conseguir Baruk Cards
-                                            </a>
-
-                                        </div>
-                                    )}
-
-                                {/* LISTA DE COMPRAS */}
-
-                                {!loadingPurchases &&
-                                    purchases.length > 0 && (
-
-                                        <div className="mx-auto mt-10 max-w-4xl space-y-4">
-
-                                            {purchases.map(
-                                                (purchase) => {
-                                                    const status =
-                                                        String(
-                                                            purchase.status ??
-                                                            ""
-                                                        )
-                                                            .trim()
-                                                            .toLowerCase();
-
-                                                    const paid =
-                                                        status ===
-                                                        "pagado" ||
-                                                        status ===
-                                                        "confirmado";
-
-                                                    const isGift =
-                                                        purchase.purchaseType ===
-                                                        "gift";
-
-                                                    return (
-                                                        <article
-                                                            key={
-                                                                purchase.id
-                                                            }
-                                                            className="overflow-hidden rounded-2xl border border-gray-200 bg-white shadow-sm"
-                                                        >
-                                                            <div
-                                                                className={`h-1.5 ${paid
-                                                                    ? "bg-emerald-500"
-                                                                    : "bg-[#ff6600]"
-                                                                    }`}
-                                                            />
-
-                                                            <div className="p-5 md:p-6">
-
-                                                                {/* CABECERA */}
-
-                                                                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-
-                                                                    <div>
-                                                                        <div className="flex flex-wrap items-center gap-2">
-
-                                                                            <p className="text-lg font-black text-gray-900">
-                                                                                Pedido #{purchase.id}
-                                                                            </p>
-
-                                                                            {isGift && (
-                                                                                <span className="rounded-full bg-violet-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-violet-700">
-                                                                                    Regalo
-                                                                                </span>
-                                                                            )}
-
-                                                                        </div>
-
-                                                                        <p className="mt-1 text-xs text-gray-400">
-                                                                            {purchase.createdAt
-                                                                                ? new Date(
-                                                                                    purchase.createdAt
-                                                                                ).toLocaleString(
-                                                                                    "es-EC",
-                                                                                    {
-                                                                                        dateStyle:
-                                                                                            "medium",
-
-                                                                                        timeStyle:
-                                                                                            "short",
-                                                                                    }
-                                                                                )
-                                                                                : "Fecha no disponible"}
-                                                                        </p>
-                                                                    </div>
-
-                                                                    <span
-                                                                        className={`w-fit rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider ${paid
-                                                                            ? "bg-emerald-50 text-emerald-700"
-                                                                            : "bg-orange-50 text-[#ff6600]"
-                                                                            }`}
-                                                                    >
-                                                                        {paid
-                                                                            ? "Pago confirmado"
-                                                                            : status ||
-                                                                            "Pendiente"}
-                                                                    </span>
-
-                                                                </div>
-
-                                                                {/* DATOS */}
-
-                                                                <div className="mt-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
-
-                                                                    <div className="rounded-xl bg-gray-50 p-3">
-                                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                                                            Baruk Cards
-                                                                        </p>
-
-                                                                        <p className="mt-1 text-lg font-black text-gray-900">
-                                                                            {purchase.quantity}
-                                                                        </p>
-                                                                    </div>
-
-                                                                    <div className="rounded-xl bg-gray-50 p-3">
-                                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                                                            Unitario
-                                                                        </p>
-
-                                                                        <p className="mt-1 font-black text-gray-900">
-                                                                            $
-                                                                            {purchase.unitPrice.toFixed(
-                                                                                2
-                                                                            )}
-                                                                        </p>
-                                                                    </div>
-
-                                                                    <div className="rounded-xl bg-gray-50 p-3">
-                                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                                                            Total
-                                                                        </p>
-
-                                                                        <p className="mt-1 font-black text-[#ff6600]">
-                                                                            $
-                                                                            {purchase.total.toFixed(
-                                                                                2
-                                                                            )}
-                                                                        </p>
-                                                                    </div>
-
-                                                                    <div className="rounded-xl bg-gray-50 p-3">
-                                                                        <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                                                            Método
-                                                                        </p>
-
-                                                                        <p className="mt-1 text-sm font-black capitalize text-gray-900">
-                                                                            {purchase.paymentMethod ??
-                                                                                "—"}
-                                                                        </p>
-                                                                    </div>
-
-                                                                </div>
-
-                                                                {/* COMPRA PARA EL MISMO USUARIO */}
-
-                                                                {!isGift &&
-                                                                    paid && (
-
-                                                                        <div className="mt-5 flex flex-col gap-3 rounded-xl bg-[#fff6ef] p-4 sm:flex-row sm:items-center sm:justify-between">
-
-                                                                            <div>
-                                                                                <p className="text-sm font-black text-gray-900">
-                                                                                    Tus tarjetas
-                                                                                </p>
-
-                                                                                <p className="mt-1 text-xs text-gray-500">
-                                                                                    {purchase.cards.revealed ??
-                                                                                        0}{" "}
-                                                                                    revelada(s) ·{" "}
-                                                                                    {purchase.cards.pending ??
-                                                                                        0}{" "}
-                                                                                    por revelar
-                                                                                </p>
-                                                                            </div>
-
-                                                                            <a
-                                                                                href="#mis-baruk-cards"
-                                                                                className="inline-flex items-center justify-center rounded-xl bg-[#ff6600] px-5 py-2.5 text-xs font-bold text-white transition hover:bg-[#ff7a22]"
-                                                                            >
-                                                                                Ver mis tarjetas
-                                                                            </a>
-
-                                                                        </div>
-                                                                    )}
-
-                                                                {/* REGALO */}
-
-                                                                {isGift && (
-                                                                    <div className="mt-5 rounded-xl border border-violet-100 bg-violet-50 p-4">
-
-                                                                        <p className="text-sm font-black text-violet-900">
-                                                                            Compra realizada como regalo
-                                                                        </p>
-
-                                                                        <p className="mt-1 text-xs leading-5 text-violet-700">
-                                                                            Las Baruk Cards pertenecen al destinatario.
-                                                                            Por privacidad, el estado de revelado
-                                                                            de sus tarjetas no se muestra en tu cuenta.
-                                                                        </p>
-
-                                                                    </div>
-                                                                )}
-
-                                                                {/* PROCESAMIENTO */}
-
-                                                                {paid &&
-                                                                    purchase.cardsProcessingStatus &&
-                                                                    purchase.cardsProcessingStatus !==
-                                                                    "completed" && (
-
-                                                                        <p className="mt-4 text-xs font-semibold text-orange-600">
-                                                                            Estado de las tarjetas:{" "}
-                                                                            {
-                                                                                purchase.cardsProcessingStatus
-                                                                            }
-                                                                        </p>
-                                                                    )}
-
-                                                            </div>
-                                                        </article>
-                                                    );
-                                                }
                                             )}
 
+
+                                            {/* =================================================
+                        HISTORIAL
+                    ================================================= */}
+
+                                            {collection.reward.claims.length >
+                                                1 && (
+
+                                                    <div
+                                                        className="
+                                    mt-6
+                                    border-t
+                                    border-gray-100
+                                    pt-5
+                                    text-left
+                                "
+                                                    >
+
+                                                        <p
+                                                            className="
+                                        text-xs
+                                        font-black
+                                        uppercase
+                                        tracking-wider
+                                        text-gray-400
+                                    "
+                                                        >
+                                                            Historial de premios
+                                                        </p>
+
+
+                                                        <div
+                                                            className="
+                                        mt-3
+                                        space-y-2
+                                    "
+                                                        >
+
+                                                            {collection.reward.claims.map(
+                                                                (
+                                                                    claim,
+                                                                    index
+                                                                ) => (
+
+                                                                    <div
+                                                                        key={
+                                                                            claim.id
+                                                                        }
+
+                                                                        className="
+                                                    flex
+                                                    items-center
+                                                    justify-between
+                                                    gap-4
+                                                    rounded-xl
+                                                    bg-gray-50
+                                                    px-4
+                                                    py-3
+                                                "
+                                                                    >
+
+                                                                        <div>
+
+                                                                            <p
+                                                                                className="
+                                                            text-sm
+                                                            font-black
+                                                            text-gray-800
+                                                        "
+                                                                            >
+                                                                                Premio #
+                                                                                {
+                                                                                    collection.reward!
+                                                                                        .totalClaims -
+                                                                                    index
+                                                                                }
+                                                                            </p>
+
+
+                                                                            {claim.completedAt && (
+
+                                                                                <p
+                                                                                    className="
+                                                                mt-1
+                                                                text-[10px]
+                                                                text-gray-400
+                                                            "
+                                                                                >
+                                                                                    {
+                                                                                        new Date(
+                                                                                            claim.completedAt
+                                                                                        ).toLocaleDateString(
+                                                                                            "es-EC"
+                                                                                        )
+                                                                                    }
+                                                                                </p>
+
+                                                                            )}
+
+                                                                        </div>
+
+
+                                                                        <span
+                                                                            className="
+                                                        rounded-full
+                                                        bg-white
+                                                        px-3
+                                                        py-1.5
+                                                        text-[10px]
+                                                        font-black
+                                                        uppercase
+                                                        text-gray-500
+                                                    "
+                                                                        >
+                                                                            {claim.status ===
+                                                                                "delivered"
+                                                                                ? "Entregado"
+                                                                                : claim.status ===
+                                                                                    "scheduled"
+                                                                                    ? "Programado"
+                                                                                    : claim.status ===
+                                                                                        "verified"
+                                                                                        ? "Verificado"
+                                                                                        : "Pendiente"
+                                                                            }
+                                                                        </span>
+
+                                                                    </div>
+
+                                                                )
+                                                            )}
+
+                                                        </div>
+
+                                                    </div>
+
+                                                )}
+
                                         </div>
-                                    )}
-
-                            </section>
 
 
+                                        <p
+                                            className="
+                        mx-auto
+                        mt-5
+                        max-w-xl
+                        text-xs
+                        leading-5
+                        text-gray-400
+                    "
+                                        >
+                                            Cada reclamo utiliza una F1 Sphere de cada
+                                            escudería. Las esferas repetidas que no formen
+                                            parte del reclamo permanecen en tu colección.
+                                        </p>
 
-                            {/* =====================================================
-    MIS BARUK CARDS
+                                    </div>
+
+                                </div>
+
+                            )}
+
+                        {/* =====================================================
+    MIS TARJETAS EXPERENCE PASS
 ===================================================== */}
 
-                            <section
-                                id="mis-baruk-cards"
-                                className="mt-12"
+                        <section
+                            id="mis-baruk-cards"
+                            className="mt-12"
+                        >
+
+                            <div
+                                className="
+    flex
+    flex-col
+    gap-5
+
+    sm:flex-row
+    sm:items-end
+    sm:justify-between
+    "
                             >
+                                <div>
 
-                                <div className="text-center">
-
-                                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ff6600]">
-                                        Mis Baruk Cards
+                                    <p
+                                        className="
+            text-xs
+            font-black
+            uppercase
+            tracking-[0.22em]
+            text-[#C1317F]
+        "
+                                    >
+                                        Experience Pass
                                     </p>
 
-                                    <h2 className="mt-2 text-2xl font-black text-gray-900 md:text-3xl">
+                                    <h2
+                                        className="
+            mt-2
+
+            text-2xl
+            font-black
+            text-gray-900
+
+            md:text-3xl
+        "
+                                    >
                                         Tus tarjetas
                                     </h2>
 
-                                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-                                        Aquí puedes abrir las tarjetas que todavía
-                                        tienes pendientes y volver a consultar las
-                                        que ya revelaste.
+                                    <p
+                                        className="
+            mt-2
+            max-w-xl
+
+            text-sm
+            leading-6
+            text-gray-500
+        "
+                                    >
+                                        Activa tus tarjetas y descubre
+                                        tus números, esferas o premios.
                                     </p>
 
                                 </div>
 
-                                {/* RESUMEN DE TARJETAS */}
+                                <div className="flex flex-wrap items-center gap-3">
 
-                                <div className="mx-auto mt-7 grid max-w-2xl grid-cols-3 gap-3">
+                                    {/* VER / OCULTAR TARJETAS */}
 
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+                                    <button
+                                        type="button"
+                                        onClick={
+                                            handleToggleCards
+                                        }
+                                        disabled={
+                                            loadingCards
+                                        }
+                                        className="
+            inline-flex
+            min-h-[46px]
+            items-center
+            justify-center
 
-                                        <p className="text-2xl font-black text-gray-900">
-                                            {
-                                                cardsSummary.total
-                                            }
-                                        </p>
+            rounded-xl
 
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Total
-                                        </p>
+            border
+            border-slate-200
 
-                                    </div>
+            bg-white
 
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+            px-5
 
-                                        <p className="text-2xl font-black text-[#ff6600]">
-                                            {
-                                                cardsSummary.pending
-                                            }
-                                        </p>
+            text-xs
+            font-black
+            uppercase
+            tracking-[0.06em]
+            text-slate-700
 
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Por revelar
-                                        </p>
+            transition-all
+            duration-300
 
-                                    </div>
+            hover:border-[#C1317F]/30
+            hover:bg-[#C1317F]/5
+            hover:text-[#C1317F]
 
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+        "
+                                    >
+                                        {loadingCards
+                                            ? "Cargando..."
+                                            : showCards
+                                                ? "Ocultar tarjetas"
+                                                : `Ver mis tarjetas (${account.totalCards})`
+                                        }
 
-                                        <p className="text-2xl font-black text-emerald-600">
-                                            {
-                                                cardsSummary.revealed
-                                            }
-                                        </p>
+                                        {!loadingCards && (
+                                            <span className="ml-2">
+                                                {showCards
+                                                    ? "↑"
+                                                    : "↓"
+                                                }
+                                            </span>
+                                        )}
+                                    </button>
 
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Reveladas
-                                        </p>
 
-                                    </div>
+                                    {/* ACTIVAR TODAS */}
+
+                                    {showCards &&
+                                        cardsLoaded &&
+                                        cardsSummary.pending >
+                                        0 && (
+
+                                            <button
+                                                type="button"
+
+                                                onClick={
+                                                    handleActivateAll
+                                                }
+
+                                                disabled={
+                                                    activatingAll
+                                                }
+
+                                                className="
+                    inline-flex
+                    min-h-[46px]
+                    shrink-0
+                    items-center
+                    justify-center
+
+                    rounded-xl
+
+                    bg-[#C1317F]
+
+                    px-5
+
+                    text-xs
+                    font-black
+                    uppercase
+                    tracking-[0.06em]
+                    text-white
+
+                    shadow-[0_7px_20px_rgba(193,49,127,0.22)]
+
+                    transition-all
+                    duration-300
+
+                    hover:-translate-y-[1px]
+                    hover:bg-[#ad296f]
+
+                    disabled:cursor-not-allowed
+                    disabled:opacity-60
+                "
+                                            >
+                                                {activatingAll
+                                                    ? `Activando ${activatingProgress.current}/${activatingProgress.total}`
+                                                    : `Activar todas (${cardsSummary.pending})`
+                                                }
+
+                                                {!activatingAll && (
+                                                    <span className="ml-2">
+                                                        →
+                                                    </span>
+                                                )}
+                                            </button>
+                                        )}
 
                                 </div>
+                            </div>
 
-                                {/* CARGANDO */}
+                            {/* RESUMEN DE TARJETAS */}
 
-                                {loadingCards && (
-                                    <div className="mt-10 text-center">
+                            {showCards && (
+                                <>
 
-                                        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#ff6600]" />
+                                    <div className="mx-auto mt-7 grid max-w-2xl grid-cols-3 gap-3">
 
-                                        <p className="mt-3 text-sm font-semibold text-gray-400">
-                                            Cargando tus Baruk Cards...
-                                        </p>
+                                        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+
+                                            <p className="text-2xl font-black text-gray-900">
+                                                {
+                                                    cardsSummary.total
+                                                }
+                                            </p>
+
+                                            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                Total
+                                            </p>
+
+                                        </div>
+
+                                        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+
+                                            <p className="text-2xl font-black text-[#ff6600]">
+                                                {
+                                                    cardsSummary.pending
+                                                }
+                                            </p>
+
+                                            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                Por revelar
+                                            </p>
+
+                                        </div>
+
+                                        <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+
+                                            <p className="text-2xl font-black text-emerald-600">
+                                                {
+                                                    cardsSummary.revealed
+                                                }
+                                            </p>
+
+                                            <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                                Reveladas
+                                            </p>
+
+                                        </div>
 
                                     </div>
-                                )}
 
-                                {/* SIN TARJETAS */}
+                                    {/* CARGANDO */}
 
-                                {!loadingCards &&
-                                    cards.length === 0 && (
+                                    {loadingCards && (
+                                        <div className="mt-10 text-center">
 
-                                        <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-gray-200 bg-gray-50 p-7 text-center">
+                                            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#ff6600]" />
 
-                                            <p className="font-black text-gray-800">
-                                                Todavía no tienes Baruk Cards.
+                                            <p className="mt-3 text-sm font-semibold text-gray-400">
+                                                Cargando tus Baruk Cards...
                                             </p>
-
-                                            <p className="mt-2 text-sm text-gray-500">
-                                                Cuando compres o recibas una tarjeta,
-                                                aparecerá automáticamente aquí.
-                                            </p>
-
-                                            <a
-                                                href="/"
-                                                className="mt-5 inline-flex items-center justify-center rounded-xl bg-[#ff6600] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#ff7a22]"
-                                            >
-                                                Conseguir Baruk Cards
-                                            </a>
 
                                         </div>
                                     )}
 
-                                {/* GRID DE TARJETAS */}
+                                    {/* SIN TARJETAS */}
 
-                                {!loadingCards &&
-                                    cards.length > 0 && (
+                                    {!loadingCards &&
+                                        cards.length === 0 && (
 
-                                        <div className="mt-10 grid grid-cols-1 gap-x-8 gap-y-14 md:grid-cols-2 xl:grid-cols-3">
+                                            <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-gray-200 bg-gray-50 p-7 text-center">
 
-                                            {cards.map(
-                                                (
-                                                    card,
-                                                    index
-                                                ) => (
+                                                <p className="font-black text-gray-800">
+                                                    Todavía no tienes Baruk Cards.
+                                                </p>
 
-                                                    <div
-                                                        key={
-                                                            card.id
-                                                        }
-                                                        className="flex flex-col items-center"
-                                                    >
+                                                <p className="mt-2 text-sm text-gray-500">
+                                                    Cuando compres o recibas una tarjeta,
+                                                    aparecerá automáticamente aquí.
+                                                </p>
 
-                                                        {/* CABECERA DE CADA CARD */}
+                                                <a
+                                                    href="/"
+                                                    className="mt-5 inline-flex items-center justify-center rounded-xl bg-[#ff6600] px-6 py-3 text-sm font-bold text-white transition hover:bg-[#ff7a22]"
+                                                >
+                                                    Conseguir Tarjetas de la suerte
+                                                </a>
 
-                                                        <div className="mb-3 flex flex-wrap items-center justify-center gap-2">
+                                            </div>
+                                        )}
 
-                                                            <div className="rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-500 shadow-sm">
-                                                                Baruk Card{" "}
-                                                                {
-                                                                    index +
-                                                                    1
-                                                                }
-                                                            </div>
+                                    {/* GRID DE TARJETAS */}
 
-                                                            <div
-                                                                className={`rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider ${card.revealed
-                                                                    ? "bg-emerald-50 text-emerald-700"
-                                                                    : "bg-orange-50 text-[#ff6600]"
-                                                                    }`}
-                                                            >
-                                                                {
-                                                                    card.revealed
-                                                                        ? "Revelada"
-                                                                        : "Por revelar"
-                                                                }
-                                                            </div>
+                                    {!loadingCards &&
+                                        cards.length > 0 && (
 
-                                                        </div>
+                                            <div
+                                                className="
+    mt-10
+    grid
+    grid-cols-[repeat(auto-fit,minmax(280px,1fr))]
+    gap-x-6
+    gap-y-14
+    "
+                                            >
+                                                {cards.map(
+                                                    (
+                                                        card
+                                                    ) => (
 
-                                                        {/* TARJETA */}
-
-                                                        <BarukRevealCard
-                                                            cardId={
+                                                        <div
+                                                            key={
                                                                 card.id
                                                             }
-                                                            email={
-                                                                account.email
-                                                            }
-                                                            initialRevealed={
-                                                                card.revealed
-                                                            }
-                                                            onRevealed={(
-                                                                result
-                                                            ) => {
-                                                                handleCardRevealed(
-                                                                    result.id,
-                                                                    result.revealedAt
-                                                                );
-                                                            }}
-                                                        />
+                                                            className="flex flex-col items-center"
+                                                        >
 
-                                                        {/* INFORMACIÓN INFERIOR */}
+                                                            {/* TARJETA */}
 
-                                                        <div className="mt-3 text-center">
-
-                                                            <p className="text-[11px] text-gray-400">
-                                                                {
-                                                                    card.origin ===
-                                                                        "instant_prize"
-                                                                        ? "Tarjeta obtenida como premio"
-                                                                        : card.origin ===
-                                                                            "gift"
-                                                                            ? "Tarjeta recibida como regalo"
-                                                                            : "Baruk Card"
+                                                            <BarukRevealCard
+                                                                cardId={
+                                                                    card.id
                                                                 }
-                                                            </p>
-
-                                                            {card.revealed &&
-                                                                card.revealed_at && (
-
-                                                                    <p className="mt-1 text-[10px] text-gray-400">
-                                                                        Revelada el{" "}
-                                                                        {
-                                                                            new Date(
-                                                                                card.revealed_at
-                                                                            ).toLocaleDateString(
-                                                                                "es-EC"
-                                                                            )
-                                                                        }
-                                                                    </p>
-                                                                )}
+                                                                email={
+                                                                    account.email
+                                                                }
+                                                                initialRevealed={
+                                                                    card.revealed
+                                                                }
+                                                                onRevealed={(
+                                                                    result
+                                                                ) => {
+                                                                    handleCardRevealed(
+                                                                        result.id,
+                                                                        result.revealedAt
+                                                                    );
+                                                                }}
+                                                            />
 
                                                         </div>
+                                                    )
+                                                )}
 
-                                                    </div>
-                                                )
-                                            )}
+                                            </div>
+                                        )}
+                                </>
+                            )}
 
-                                        </div>
-                                    )}
+                        </section>
 
-                            </section>
+                        {/* =====================================================
+    F1 SPHERE COLLECTION
+===================================================== */}
 
-                            {/* COLECCIÓN DE ESFERAS */}
+                        <section className="mt-14">
 
-                            <section className="mt-10">
+                            {/* CABECERA */}
 
-                                <div className="text-center">
+                            <div
+                                className="
+        flex
+        flex-col
+        gap-5
 
-                                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ff6600]">
-                                        Colección Baruk593
-                                    </p>
+        lg:flex-row
+        lg:items-end
+        lg:justify-between
+    "
+                            >
+                                <div>
 
-                                    <h2 className="mt-2 text-2xl font-black text-gray-900 md:text-3xl">
-                                        Las 7 esferas
+                                    <div className="flex items-center gap-3">
+
+                                        <span
+                                            className="
+                    h-[2px]
+                    w-7
+                    bg-[#C1317F]
+                "
+                                        />
+
+                                        <p
+                                            className="
+                    text-[10px]
+                    font-black
+                    uppercase
+                    tracking-[0.22em]
+                    text-[#C1317F]
+                "
+                                        >
+                                            F1 Sphere Collection · 2026
+                                        </p>
+
+                                    </div>
+
+                                    <h2
+                                        className="
+                mt-3
+
+                text-2xl
+                font-black
+                tracking-[-0.035em]
+                text-[#171717]
+
+                md:text-3xl
+            "
+                                    >
+                                        Completa la parrilla
                                     </h2>
 
-                                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-                                        Revela tus Baruk Cards y reúne las siete esferas.
-                                        Las esferas repetidas también permanecen en tu cuenta.
+                                    <p
+                                        className="
+                mt-2
+                max-w-2xl
+
+                text-sm
+                leading-6
+                text-slate-500
+            "
+                                    >
+                                        Colecciona las 11 esferas de las escuderías
+                                        de la temporada 2026. Las repetidas permanecen
+                                        en tu inventario para el futuro marketplace.
                                     </p>
 
                                 </div>
 
-                                {loadingCollection && (
-                                    <div className="mt-10 text-center text-sm font-semibold text-gray-400">
-                                        Cargando colección...
+                                {/* PROGRESO COMPACTO */}
+
+                                <div
+                                    className="
+            flex
+            items-center
+            gap-3
+
+            rounded-2xl
+
+            border
+            border-slate-200
+
+            bg-white
+
+            px-5
+            py-3
+        "
+                                >
+
+                                    <div>
+
+                                        <p
+                                            className="
+                    text-[8px]
+                    font-black
+                    uppercase
+                    tracking-[0.14em]
+                    text-slate-400
+                "
+                                        >
+                                            Colección
+                                        </p>
+
+                                        <p
+                                            className="
+                    mt-0.5
+
+                    text-xl
+                    font-black
+                    text-[#171717]
+                "
+                                        >
+                                            {summary?.uniqueSpheres ?? 0}
+                                            <span className="text-slate-300">
+                                                /
+                                                {summary?.sphereGoal ?? 11}
+                                            </span>
+                                        </p>
+
                                     </div>
-                                )}
 
-                                {!loadingCollection &&
-                                    collection && (
-                                        <div className="mt-10 grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+                                    <div
+                                        className="
+                h-9
+                w-px
+                bg-slate-200
+            "
+                                    />
 
-                                            {collection.spheres.map(
-                                                (
-                                                    sphere
-                                                ) => (
+                                    <div>
+
+                                        <p
+                                            className="
+                    text-[8px]
+                    font-black
+                    uppercase
+                    tracking-[0.14em]
+                    text-slate-400
+                "
+                                        >
+                                            Progreso
+                                        </p>
+
+                                        <p
+                                            className="
+                    mt-0.5
+
+                    text-xl
+                    font-black
+                    text-[#C1317F]
+                "
+                                        >
+                                            {summary
+                                                ? Math.round(
+                                                    (
+                                                        summary.uniqueSpheres /
+                                                        Math.max(
+                                                            summary.sphereGoal,
+                                                            1
+                                                        )
+                                                    ) *
+                                                    100
+                                                )
+                                                : 0}
+                                            %
+                                        </p>
+
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+                            {/* CARGANDO */}
+
+                            {loadingCollection && (
+
+                                <div className="mt-10 text-center">
+
+                                    <div
+                                        className="
+                mx-auto
+
+                h-8
+                w-8
+
+                animate-spin
+
+                rounded-full
+
+                border-4
+                border-slate-200
+
+                border-t-[#C1317F]
+            "
+                                    />
+
+                                    <p
+                                        className="
+                mt-3
+                text-sm
+                font-semibold
+                text-slate-400
+            "
+                                    >
+                                        Cargando F1 Sphere Collection...
+                                    </p>
+
+                                </div>
+
+                            )}
+
+                            {/* =====================================================
+    GRID DE LAS 11 ESCUDERÍAS
+===================================================== */}
+
+                            {!loadingCollection &&
+                                collection && (
+
+                                    <div
+                                        className="
+        mt-9
+
+        grid
+
+        grid-cols-[repeat(auto-fit,minmax(190px,1fr))]
+
+        gap-5
+    "
+                                    >
+
+                                        {collection.spheres.map(
+                                            (
+                                                sphere
+                                            ) => {
+
+                                                const instances =
+                                                    sphereInventory.filter(
+                                                        (
+                                                            item
+                                                        ) =>
+                                                            item.sphere.id ===
+                                                            sphere.id
+                                                    );
+
+                                                const availableInstance =
+                                                    instances.find(
+                                                        (
+                                                            item
+                                                        ) =>
+                                                            item.status ===
+                                                            "available"
+                                                    );
+
+                                                const listedInstances =
+                                                    instances.filter(
+                                                        (
+                                                            item
+                                                        ) =>
+                                                            item.status ===
+                                                            "listed" &&
+                                                            item.listing
+                                                    );
+
+                                                return (
+
                                                     <div
                                                         key={
                                                             sphere.id
                                                         }
-                                                        className={`relative rounded-3xl border p-4 text-center transition ${sphere.obtained
-                                                            ? "border-orange-200 bg-orange-50 shadow-md"
-                                                            : "border-gray-200 bg-gray-50"
-                                                            }`}
+                                                        className="flex flex-col"
                                                     >
 
-                                                        {/* DUPLICADOS */}
+                                                        {/* TARJETA F1 */}
 
-                                                        {sphere.ownedCount >
-                                                            1 && (
-                                                                <div className="absolute right-2 top-2 rounded-full bg-[#ff6600] px-2 py-1 text-[10px] font-black text-white">
-                                                                    x
-                                                                    {
-                                                                        sphere.ownedCount
-                                                                    }
-                                                                </div>
-                                                            )}
+                                                        <F1Sphere3D
 
-                                                        {/* ESFERA */}
-
-                                                        <div
-                                                            className={`mx-auto flex aspect-square w-full max-w-[110px] items-center justify-center rounded-full border-4 ${sphere.obtained
-                                                                ? "border-orange-200 bg-gradient-to-br from-[#ff6600] via-[#ff8533] to-[#ffb067] shadow-lg"
-                                                                : "border-gray-200 bg-gradient-to-br from-gray-100 to-gray-200"
-                                                                }`}
-                                                        >
-
-                                                            {sphere.obtained ? (
-                                                                <div className="text-center text-white">
-
-                                                                    <p className="text-[10px] font-black uppercase tracking-wider opacity-80">
-                                                                        Esfera
-                                                                    </p>
-
-                                                                    <p className="text-3xl font-black">
-                                                                        {
-                                                                            sphere.number
-                                                                        }
-                                                                    </p>
-
-                                                                </div>
-                                                            ) : (
-                                                                <div className="text-center text-gray-400">
-
-                                                                    <p className="text-2xl">
-                                                                        ?
-                                                                    </p>
-
-                                                                </div>
-                                                            )}
-
-                                                        </div>
-
-                                                        {/* NOMBRE */}
-
-                                                        <p
-                                                            className={`mt-4 min-h-[40px] text-xs font-black ${sphere.obtained
-                                                                ? "text-gray-900"
-                                                                : "text-gray-400"
-                                                                }`}
-                                                        >
-                                                            {
-                                                                sphere.obtained
-                                                                    ? sphere.name
-                                                                    : `Esfera ${sphere.number}`
+                                                            number={
+                                                                sphere.number
                                                             }
-                                                        </p>
 
-                                                        <p
-                                                            className={`mt-2 text-[10px] font-bold uppercase tracking-wider ${sphere.obtained
-                                                                ? "text-[#ff6600]"
-                                                                : "text-gray-300"
-                                                                }`}
-                                                        >
-                                                            {
-                                                                sphere.obtained
-                                                                    ? "Encontrada"
-                                                                    : "Por descubrir"
+                                                            teamName={
+                                                                sphere.teamName ??
+                                                                sphere.name
                                                             }
-                                                        </p>
+
+                                                            teamSlug={
+                                                                sphere.teamSlug
+                                                            }
+
+                                                            season={
+                                                                sphere.season
+                                                            }
+
+                                                            rarity={
+                                                                sphere.rarity
+                                                            }
+
+                                                            primaryColor={
+                                                                sphere.primaryColor
+                                                            }
+
+                                                            secondaryColor={
+                                                                sphere.secondaryColor
+                                                            }
+
+                                                            accentColor={
+                                                                sphere.accentColor
+                                                            }
+
+                                                            carImageUrl={
+                                                                sphere.carImageUrl
+                                                            }
+
+                                                            obtained={
+                                                                sphere.obtained
+                                                            }
+
+                                                            ownedCount={
+                                                                sphere.ownedCount
+                                                            }
+                                                        />
+
+
+                                                        {/* CONTROLES MARKETPLACE */}
+
+                                                        {sphere.obtained && (
+
+                                                            <div className="mt-3">
+
+                                                                {/* COPIAS */}
+
+                                                                {sphere.ownedCount > 1 && (
+
+                                                                    <p className="mb-2 text-center text-[11px] font-bold text-slate-400">
+
+                                                                        Tienes{" "}
+                                                                        {sphere.ownedCount}{" "}
+                                                                        copias
+
+                                                                    </p>
+                                                                )}
+
+
+                                                                {/* DISPONIBLE PARA VENDER */}
+
+                                                                {availableInstance &&
+                                                                    sellingInstanceId !==
+                                                                    availableInstance.instanceId && (
+
+                                                                        <button
+                                                                            type="button"
+
+                                                                            onClick={() => {
+
+                                                                                setSellingInstanceId(
+                                                                                    availableInstance.instanceId
+                                                                                );
+
+                                                                                setSellPrice(
+                                                                                    ""
+                                                                                );
+
+                                                                                setError(
+                                                                                    null
+                                                                                );
+                                                                            }}
+
+                                                                            className="
+                                    w-full
+                                    rounded-xl
+                                    border
+                                    border-[#C1317F]/20
+                                    bg-[#C1317F]/5
+                                    px-4
+                                    py-2.5
+                                    text-xs
+                                    font-black
+                                    text-[#C1317F]
+                                    transition
+                                    hover:bg-[#C1317F]/10
+                                "
+                                                                        >
+                                                                            Vender en Marketplace
+                                                                        </button>
+                                                                    )}
+
+
+                                                                {/* FORMULARIO PRECIO */}
+
+                                                                {availableInstance &&
+                                                                    sellingInstanceId ===
+                                                                    availableInstance.instanceId && (
+
+                                                                        <div
+                                                                            className="
+                                    rounded-xl
+                                    border
+                                    border-slate-200
+                                    bg-white
+                                    p-3
+                                "
+                                                                        >
+
+                                                                            <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                                                                                Precio de venta
+                                                                            </p>
+
+                                                                            <div className="mt-2 flex gap-2">
+
+                                                                                <div className="flex min-w-0 flex-1 items-center rounded-lg border border-slate-200 bg-white px-3">
+
+                                                                                    <span className="mr-1 text-sm font-bold text-slate-400">
+                                                                                        $
+                                                                                    </span>
+
+                                                                                    <input
+                                                                                        type="number"
+
+                                                                                        min="0.01"
+
+                                                                                        step="0.01"
+
+                                                                                        value={
+                                                                                            sellPrice
+                                                                                        }
+
+                                                                                        onChange={(
+                                                                                            event
+                                                                                        ) =>
+                                                                                            setSellPrice(
+                                                                                                event.target.value
+                                                                                            )
+                                                                                        }
+
+                                                                                        placeholder="0.00"
+
+                                                                                        className="
+                                                min-w-0
+                                                flex-1
+                                                bg-transparent
+                                                py-2
+                                                text-sm
+                                                font-bold
+                                                text-slate-900
+                                                outline-none
+                                            "
+                                                                                    />
+
+                                                                                </div>
+
+                                                                                <button
+                                                                                    type="button"
+
+                                                                                    disabled={
+                                                                                        marketplaceBusy ===
+                                                                                        availableInstance.instanceId
+                                                                                    }
+
+                                                                                    onClick={() =>
+                                                                                        handleListSphere(
+                                                                                            availableInstance.instanceId
+                                                                                        )
+                                                                                    }
+
+                                                                                    className="
+                                            rounded-lg
+                                            bg-[#C1317F]
+                                            px-4
+                                            py-2
+                                            text-xs
+                                            font-black
+                                            text-white
+                                            disabled:opacity-50
+                                        "
+                                                                                >
+                                                                                    {marketplaceBusy ===
+                                                                                        availableInstance.instanceId
+                                                                                        ? "..."
+                                                                                        : "Publicar"
+                                                                                    }
+                                                                                </button>
+
+                                                                            </div>
+
+                                                                            <button
+                                                                                type="button"
+
+                                                                                onClick={() => {
+
+                                                                                    setSellingInstanceId(
+                                                                                        null
+                                                                                    );
+
+                                                                                    setSellPrice(
+                                                                                        ""
+                                                                                    );
+                                                                                }}
+
+                                                                                className="mt-2 w-full text-[11px] font-bold text-slate-400"
+                                                                            >
+                                                                                Cancelar
+                                                                            </button>
+
+                                                                        </div>
+                                                                    )}
+
+
+                                                                {/* PUBLICACIONES ACTIVAS */}
+
+                                                                {listedInstances.map(
+                                                                    (
+                                                                        item
+                                                                    ) => (
+
+                                                                        <div
+                                                                            key={
+                                                                                item.instanceId
+                                                                            }
+
+                                                                            className="
+                                    mt-2
+                                    rounded-xl
+                                    border
+                                    border-emerald-200
+                                    bg-emerald-50
+                                    p-3
+                                "
+                                                                        >
+
+                                                                            <div className="flex items-center justify-between gap-2">
+
+                                                                                <div>
+
+                                                                                    <p className="text-[9px] font-black uppercase tracking-wider text-emerald-600">
+                                                                                        En Marketplace
+                                                                                    </p>
+
+                                                                                    <p className="mt-1 text-sm font-black text-emerald-800">
+                                                                                        $
+                                                                                        {Number(
+                                                                                            item.listing
+                                                                                                ?.price ??
+                                                                                            0
+                                                                                        ).toFixed(
+                                                                                            2
+                                                                                        )}
+                                                                                    </p>
+
+                                                                                </div>
+
+                                                                                {item.listing && (
+
+                                                                                    <button
+                                                                                        type="button"
+
+                                                                                        disabled={
+                                                                                            marketplaceBusy ===
+                                                                                            item.instanceId
+                                                                                        }
+
+                                                                                        onClick={() =>
+                                                                                            handleCancelSphereListing(
+                                                                                                item.listing!.id,
+                                                                                                item.instanceId
+                                                                                            )
+                                                                                        }
+
+                                                                                        className="
+                                                rounded-lg
+                                                border
+                                                border-emerald-300
+                                                bg-white
+                                                px-3
+                                                py-2
+                                                text-[10px]
+                                                font-black
+                                                text-emerald-700
+                                                disabled:opacity-50
+                                            "
+                                                                                    >
+                                                                                        {marketplaceBusy ===
+                                                                                            item.instanceId
+                                                                                            ? "..."
+                                                                                            : "Retirar"
+                                                                                        }
+                                                                                    </button>
+                                                                                )}
+
+                                                                            </div>
+
+                                                                        </div>
+                                                                    )
+                                                                )}
+
+                                                            </div>
+                                                        )}
 
                                                     </div>
-                                                )
-                                            )}
+                                                );
+                                            }
+                                        )}
 
-                                        </div>
-                                    )}
+                                    </div>
 
-                            </section>
+                                )}
 
                             {/* PROGRESO */}
 
@@ -2101,39 +4158,42 @@ export default function MiCuentaPage() {
                                             </p>
 
                                             <p className="mt-1 text-xs text-gray-500">
-                                                {
-                                                    summary.uniqueSpheres
-                                                }{" "}
+                                                {summary.uniqueSpheres}{" "}
                                                 de{" "}
-                                                {
-                                                    summary.sphereGoal
-                                                }{" "}
+                                                {summary.sphereGoal}{" "}
                                                 esferas diferentes
                                             </p>
                                         </div>
 
-                                        <p className="text-lg font-black text-[#ff6600]">
+                                        <p className="text-lg font-black text-[#C1317F]">
                                             {Math.round(
                                                 (
                                                     summary.uniqueSpheres /
-                                                    summary.sphereGoal
+                                                    Math.max(
+                                                        summary.sphereGoal,
+                                                        1
+                                                    )
                                                 ) *
                                                 100
                                             )}
                                             %
                                         </p>
+
                                     </div>
 
                                     <div className="mt-4 h-3 overflow-hidden rounded-full bg-gray-200">
 
                                         <div
-                                            className="h-full rounded-full bg-[#ff6600] transition-all duration-500"
+                                            className="h-full rounded-full bg-[#C1317F] transition-all duration-500"
                                             style={{
                                                 width: `${Math.min(
                                                     100,
                                                     (
                                                         summary.uniqueSpheres /
-                                                        summary.sphereGoal
+                                                        Math.max(
+                                                            summary.sphereGoal,
+                                                            1
+                                                        )
                                                     ) *
                                                     100
                                                 )}%`,
@@ -2144,6 +4204,7 @@ export default function MiCuentaPage() {
 
                                     {summary.totalSphereCopies >
                                         summary.uniqueSpheres && (
+
                                             <p className="mt-4 text-xs text-gray-500">
                                                 También tienes{" "}
                                                 <strong>
@@ -2159,323 +4220,321 @@ export default function MiCuentaPage() {
                                 </div>
                             )}
 
-                            {/* =====================================================
+                        </section>
+
+                        {/* =====================================================
     MIS PREMIOS
 ===================================================== */}
 
-                            <section className="mt-12">
+                        <section className="mt-12">
 
-                                <div className="text-center">
+                            <div className="text-center">
 
-                                    <p className="text-xs font-black uppercase tracking-[0.22em] text-[#ff6600]">
-                                        Premios Baruk593
+                                <h2 className="mt-2 text-2xl font-black text-gray-900 md:text-3xl">
+                                    Mis premios
+                                </h2>
+
+                                <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
+                                    Aquí aparecen los premios que ya descubriste
+                                    al revelar tus tarjetas.
+                                </p>
+
+                            </div>
+
+                            {/* RESUMEN */}
+
+                            <div className="mx-auto mt-7 grid max-w-3xl grid-cols-2 gap-3 md:grid-cols-4">
+
+                                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+                                    <p className="text-2xl font-black text-gray-900">
+                                        {prizesSummary.total}
                                     </p>
 
-                                    <h2 className="mt-2 text-2xl font-black text-gray-900 md:text-3xl">
-                                        Mis premios
-                                    </h2>
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                        Total
+                                    </p>
+                                </div>
 
-                                    <p className="mx-auto mt-3 max-w-2xl text-sm leading-6 text-gray-500">
-                                        Aquí aparecen los premios que ya descubriste
-                                        al revelar tus Baruk Cards.
+                                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+                                    <p className="text-2xl font-black text-[#ff6600]">
+                                        {prizesSummary.pending}
+                                    </p>
+
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                        Pendientes
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+                                    <p className="text-2xl font-black text-blue-600">
+                                        {prizesSummary.scheduled}
+                                    </p>
+
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                        Programados
+                                    </p>
+                                </div>
+
+                                <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
+                                    <p className="text-2xl font-black text-emerald-600">
+                                        {prizesSummary.delivered}
+                                    </p>
+
+                                    <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
+                                        Entregados
+                                    </p>
+                                </div>
+
+                            </div>
+
+                            {/* CARGANDO */}
+
+                            {loadingPrizes && (
+                                <div className="mt-10 text-center">
+
+                                    <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#ff6600]" />
+
+                                    <p className="mt-3 text-sm font-semibold text-gray-400">
+                                        Cargando tus premios...
                                     </p>
 
                                 </div>
+                            )}
 
-                                {/* RESUMEN */}
+                            {/* SIN PREMIOS */}
 
-                                <div className="mx-auto mt-7 grid max-w-3xl grid-cols-2 gap-3 md:grid-cols-4">
+                            {!loadingPrizes &&
+                                prizes.length === 0 && (
 
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-gray-900">
-                                            {prizesSummary.total}
+                                    <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-gray-200 bg-gray-50 p-7 text-center">
+
+                                        <div className="text-3xl">
+                                            🎁
+                                        </div>
+
+                                        <p className="mt-3 font-black text-gray-800">
+                                            Todavía no tienes premios revelados.
                                         </p>
 
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Total
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-[#ff6600]">
-                                            {prizesSummary.pending}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Pendientes
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-blue-600">
-                                            {prizesSummary.scheduled}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Programados
-                                        </p>
-                                    </div>
-
-                                    <div className="rounded-2xl border border-gray-200 bg-white p-4 text-center">
-                                        <p className="text-2xl font-black text-emerald-600">
-                                            {prizesSummary.delivered}
-                                        </p>
-
-                                        <p className="mt-1 text-[10px] font-bold uppercase tracking-wider text-gray-400">
-                                            Entregados
-                                        </p>
-                                    </div>
-
-                                </div>
-
-                                {/* CARGANDO */}
-
-                                {loadingPrizes && (
-                                    <div className="mt-10 text-center">
-
-                                        <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#ff6600]" />
-
-                                        <p className="mt-3 text-sm font-semibold text-gray-400">
-                                            Cargando tus premios...
+                                        <p className="mt-2 text-sm leading-6 text-gray-500">
+                                            Sigue revelando tus Baruk Cards.
+                                            Cuando descubras un premio aparecerá aquí.
                                         </p>
 
                                     </div>
                                 )}
 
-                                {/* SIN PREMIOS */}
+                            {/* PREMIOS */}
 
-                                {!loadingPrizes &&
-                                    prizes.length === 0 && (
+                            {!loadingPrizes &&
+                                prizes.length > 0 && (
 
-                                        <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-gray-200 bg-gray-50 p-7 text-center">
+                                    <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2">
 
-                                            <div className="text-3xl">
-                                                🎁
-                                            </div>
+                                        {prizes.map(
+                                            (
+                                                item
+                                            ) => {
 
-                                            <p className="mt-3 font-black text-gray-800">
-                                                Todavía no tienes premios revelados.
-                                            </p>
-
-                                            <p className="mt-2 text-sm leading-6 text-gray-500">
-                                                Sigue revelando tus Baruk Cards.
-                                                Cuando descubras un premio aparecerá aquí.
-                                            </p>
-
-                                        </div>
-                                    )}
-
-                                {/* PREMIOS */}
-
-                                {!loadingPrizes &&
-                                    prizes.length > 0 && (
-
-                                        <div className="mt-10 grid grid-cols-1 gap-5 md:grid-cols-2">
-
-                                            {prizes.map(
-                                                (
-                                                    item
-                                                ) => {
-
-                                                    const statusLabel =
-                                                        item.status ===
-                                                            "delivered"
-                                                            ? "Entregado"
+                                                const statusLabel =
+                                                    item.status ===
+                                                        "delivered"
+                                                        ? "Entregado"
+                                                        : item.status ===
+                                                            "scheduled"
+                                                            ? "Entrega programada"
                                                             : item.status ===
-                                                                "scheduled"
-                                                                ? "Entrega programada"
+                                                                "verified"
+                                                                ? "Verificado"
                                                                 : item.status ===
-                                                                    "verified"
-                                                                    ? "Verificado"
-                                                                    : item.status ===
-                                                                        "cancelled"
-                                                                        ? "Cancelado"
-                                                                        : "Pendiente de reclamar";
+                                                                    "cancelled"
+                                                                    ? "Cancelado"
+                                                                    : "Pendiente de reclamar";
 
-                                                    const statusClass =
-                                                        item.status ===
-                                                            "delivered"
-                                                            ? "bg-emerald-50 text-emerald-700"
+                                                const statusClass =
+                                                    item.status ===
+                                                        "delivered"
+                                                        ? "bg-emerald-50 text-emerald-700"
+                                                        : item.status ===
+                                                            "scheduled"
+                                                            ? "bg-blue-50 text-blue-700"
                                                             : item.status ===
-                                                                "scheduled"
-                                                                ? "bg-blue-50 text-blue-700"
+                                                                "verified"
+                                                                ? "bg-violet-50 text-violet-700"
                                                                 : item.status ===
-                                                                    "verified"
-                                                                    ? "bg-violet-50 text-violet-700"
-                                                                    : item.status ===
-                                                                        "cancelled"
-                                                                        ? "bg-red-50 text-red-600"
-                                                                        : "bg-orange-50 text-[#ff6600]";
+                                                                    "cancelled"
+                                                                    ? "bg-red-50 text-red-600"
+                                                                    : "bg-orange-50 text-[#ff6600]";
 
-                                                    const typeLabel =
-                                                        item.prize
+                                                const typeLabel =
+                                                    item.prize
+                                                        ?.type ===
+                                                        "digital_cards"
+                                                        ? "Baruk Cards"
+                                                        : item.prize
                                                             ?.type ===
-                                                            "digital_cards"
-                                                            ? "Baruk Cards"
+                                                            "cash"
+                                                            ? "Premio en efectivo"
                                                             : item.prize
                                                                 ?.type ===
-                                                                "cash"
-                                                                ? "Premio en efectivo"
+                                                                "physical"
+                                                                ? "Premio físico"
                                                                 : item.prize
                                                                     ?.type ===
-                                                                    "physical"
-                                                                    ? "Premio físico"
+                                                                    "experience"
+                                                                    ? "Experiencia"
                                                                     : item.prize
                                                                         ?.type ===
-                                                                        "experience"
-                                                                        ? "Experiencia"
-                                                                        : item.prize
-                                                                            ?.type ===
-                                                                            "discount"
-                                                                            ? "Beneficio"
-                                                                            : "Premio";
+                                                                        "discount"
+                                                                        ? "Beneficio"
+                                                                        : "Premio";
 
-                                                    return (
-                                                        <article
-                                                            key={
-                                                                item.cardId
-                                                            }
-                                                            className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm"
-                                                        >
+                                                return (
+                                                    <article
+                                                        key={
+                                                            item.cardId
+                                                        }
+                                                        className="overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-sm"
+                                                    >
 
-                                                            <div className="h-1.5 bg-gradient-to-r from-[#ff6600] to-[#ff9a55]" />
+                                                        <div className="h-1.5 bg-gradient-to-r from-[#ff6600] to-[#ff9a55]" />
 
-                                                            <div className="p-6">
+                                                        <div className="p-6">
 
-                                                                <div className="flex items-start justify-between gap-4">
+                                                            <div className="flex items-start justify-between gap-4">
 
-                                                                    <div>
+                                                                <div>
 
-                                                                        <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff6600]">
-                                                                            {
-                                                                                typeLabel
-                                                                            }
-                                                                        </p>
-
-                                                                        <h3 className="mt-2 text-xl font-black text-gray-900">
-                                                                            {
-                                                                                item.prize
-                                                                                    ?.name ??
-                                                                                "Premio Baruk593"
-                                                                            }
-                                                                        </h3>
-
-                                                                    </div>
-
-                                                                    <div
-                                                                        className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider ${statusClass}`}
-                                                                    >
+                                                                    <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[#ff6600]">
                                                                         {
-                                                                            statusLabel
+                                                                            typeLabel
                                                                         }
-                                                                    </div>
+                                                                    </p>
+
+                                                                    <h3 className="mt-2 text-xl font-black text-gray-900">
+                                                                        {
+                                                                            item.prize
+                                                                                ?.name ??
+                                                                            "Premio Baruk593"
+                                                                        }
+                                                                    </h3>
 
                                                                 </div>
 
-                                                                {item.prize
-                                                                    ?.description && (
+                                                                <div
+                                                                    className={`shrink-0 rounded-full px-3 py-2 text-[10px] font-black uppercase tracking-wider ${statusClass}`}
+                                                                >
+                                                                    {
+                                                                        statusLabel
+                                                                    }
+                                                                </div>
 
-                                                                        <p className="mt-4 text-sm leading-6 text-gray-500">
-                                                                            {
-                                                                                item.prize
-                                                                                    .description
-                                                                            }
-                                                                        </p>
-                                                                    )}
+                                                            </div>
 
-                                                                {item.prize
-                                                                    ?.type ===
-                                                                    "digital_cards" &&
-                                                                    item.prize
-                                                                        .cardQuantity && (
+                                                            {item.prize
+                                                                ?.description && (
 
-                                                                        <div className="mt-5 rounded-2xl bg-orange-50 p-4">
-
-                                                                            <p className="text-xs font-bold text-gray-500">
-                                                                                Tarjetas obtenidas
-                                                                            </p>
-
-                                                                            <p className="mt-1 text-2xl font-black text-[#ff6600]">
-                                                                                +
-                                                                                {
-                                                                                    item.prize
-                                                                                        .cardQuantity
-                                                                                }{" "}
-                                                                                Baruk Cards
-                                                                            </p>
-
-                                                                        </div>
-                                                                    )}
-
-                                                                {item.prize
-                                                                    ?.referenceValue !==
-                                                                    null &&
-                                                                    item.prize
-                                                                        ?.referenceValue !==
-                                                                    undefined && (
-
-                                                                        <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
-
-                                                                            <span className="text-xs font-semibold text-gray-400">
-                                                                                Valor referencial
-                                                                            </span>
-
-                                                                            <span className="font-black text-gray-800">
-                                                                                $
-                                                                                {Number(
-                                                                                    item.prize
-                                                                                        .referenceValue
-                                                                                ).toFixed(
-                                                                                    2
-                                                                                )}
-                                                                            </span>
-
-                                                                        </div>
-                                                                    )}
-
-                                                                {item.revealedAt && (
-
-                                                                    <p className="mt-4 text-[10px] text-gray-400">
-                                                                        Premio descubierto el{" "}
+                                                                    <p className="mt-4 text-sm leading-6 text-gray-500">
                                                                         {
-                                                                            new Date(
-                                                                                item.revealedAt
-                                                                            ).toLocaleDateString(
-                                                                                "es-EC"
-                                                                            )
+                                                                            item.prize
+                                                                                .description
                                                                         }
                                                                     </p>
                                                                 )}
 
-                                                            </div>
+                                                            {item.prize
+                                                                ?.type ===
+                                                                "digital_cards" &&
+                                                                item.prize
+                                                                    .cardQuantity && (
 
-                                                        </article>
-                                                    );
-                                                }
-                                            )}
+                                                                    <div className="mt-5 rounded-2xl bg-orange-50 p-4">
 
-                                        </div>
-                                    )}
+                                                                        <p className="text-xs font-bold text-gray-500">
+                                                                            Tarjetas obtenidas
+                                                                        </p>
 
-                            </section>
+                                                                        <p className="mt-1 text-2xl font-black text-[#ff6600]">
+                                                                            +
+                                                                            {
+                                                                                item.prize
+                                                                                    .cardQuantity
+                                                                            }{" "}
+                                                                            Baruk Cards
+                                                                        </p>
 
-                            {/* ACCIONES */}
+                                                                    </div>
+                                                                )}
 
-                            <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+                                                            {item.prize
+                                                                ?.referenceValue !==
+                                                                null &&
+                                                                item.prize
+                                                                    ?.referenceValue !==
+                                                                undefined && (
 
-                                <a
-                                    href="/"
-                                    className="inline-flex items-center justify-center rounded-xl bg-[#ff6600] px-6 py-3 font-bold text-white shadow-md transition hover:bg-[#ff7a22]"
-                                >
-                                    Conseguir más Baruk Cards
-                                </a>
+                                                                    <div className="mt-4 flex items-center justify-between border-t border-gray-100 pt-4">
 
-                            </div>
+                                                                        <span className="text-xs font-semibold text-gray-400">
+                                                                            Valor referencial
+                                                                        </span>
+
+                                                                        <span className="font-black text-gray-800">
+                                                                            $
+                                                                            {Number(
+                                                                                item.prize
+                                                                                    .referenceValue
+                                                                            ).toFixed(
+                                                                                2
+                                                                            )}
+                                                                        </span>
+
+                                                                    </div>
+                                                                )}
+
+                                                            {item.revealedAt && (
+
+                                                                <p className="mt-4 text-[10px] text-gray-400">
+                                                                    Premio descubierto el{" "}
+                                                                    {
+                                                                        new Date(
+                                                                            item.revealedAt
+                                                                        ).toLocaleDateString(
+                                                                            "es-EC"
+                                                                        )
+                                                                    }
+                                                                </p>
+                                                            )}
+
+                                                        </div>
+
+                                                    </article>
+                                                );
+                                            }
+                                        )}
+
+                                    </div>
+                                )}
+
+                        </section>
+
+                        {/* ACCIONES */}
+
+                        <div className="mt-10 flex flex-col gap-3 sm:flex-row">
+
+                            <a
+                                href="/"
+                                className="inline-flex items-center justify-center rounded-xl bg-[#ff6600] px-6 py-3 font-bold text-white shadow-md transition hover:bg-[#ff7a22]"
+                            >
+                                Conseguir tarjetas
+                            </a>
 
                         </div>
+
                     </div>
                 </div>
-            </main>
+
+            </main >
         );
     }
 

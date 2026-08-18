@@ -2,7 +2,6 @@
 
 import {
     useEffect,
-    useMemo,
     useState,
 } from "react";
 
@@ -22,53 +21,30 @@ type Premio = {
     cantidadCards: number | null;
     valorReferencial: number | null;
     instrucciones: string | null;
+
     agotado: boolean;
     revelados: number;
-};
 
-type Ganador = {
-    premioId: string;
-    premioNombre: string;
-    premioTipo: TipoPremio;
-    imagenUrl: string | null;
-    ganador: string;
-    reveladoAt: string;
-    entregado: boolean;
+    stockTotal: number;
+    stockAsignado: number;
 };
 
 type ApiResponse = {
     ok: boolean;
     premios: Premio[];
-    ganadores: Ganador[];
     error?: string;
 };
 
-function iconoPremio(tipo: TipoPremio) {
+/* ============================================================
+   TIPO DE PREMIO
+============================================================ */
+
+function textoTipo(
+    tipo: TipoPremio
+) {
     switch (tipo) {
         case "digital_cards":
-            return "🎴";
-
-        case "cash":
-            return "💵";
-
-        case "physical":
-            return "🎁";
-
-        case "experience":
-            return "🌋";
-
-        case "discount":
-            return "🏷️";
-
-        default:
-            return "🎁";
-    }
-}
-
-function textoTipo(tipo: TipoPremio) {
-    switch (tipo) {
-        case "digital_cards":
-            return "Baruk Cards";
+            return "Tarjetas";
 
         case "cash":
             return "Efectivo";
@@ -87,164 +63,265 @@ function textoTipo(tipo: TipoPremio) {
     }
 }
 
-function tiempoRelativo(fecha: string) {
-    const ahora = Date.now();
+/* ============================================================
+   ICONOS
+============================================================ */
 
-    const fechaMs =
-        new Date(fecha).getTime();
+function PremioIcon({
+    tipo,
+}: {
+    tipo: TipoPremio;
+}) {
+    if (tipo === "cash") {
+        return (
+            <svg
+                viewBox="0 0 48 48"
+                fill="none"
+                className="h-8 w-8"
+            >
+                <rect
+                    x="7"
+                    y="12"
+                    width="34"
+                    height="24"
+                    rx="4"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
 
-    const diferencia =
-        Math.max(
-            0,
-            ahora - fechaMs
+                <circle
+                    cx="24"
+                    cy="24"
+                    r="5"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
+
+                <path
+                    d="M12 18h3M33 30h3"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                />
+            </svg>
         );
+    }
 
-    const minutos =
-        Math.floor(
-            diferencia / 60000
+    if (tipo === "digital_cards") {
+        return (
+            <svg
+                viewBox="0 0 48 48"
+                fill="none"
+                className="h-8 w-8"
+            >
+                <rect
+                    x="9"
+                    y="10"
+                    width="30"
+                    height="28"
+                    rx="4"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
+
+                <path
+                    d="M15 18h18M15 24h12"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                />
+            </svg>
         );
-
-    if (minutos < 1) {
-        return "Ahora";
     }
 
-    if (minutos < 60) {
-        return `Hace ${minutos} min`;
-    }
+    if (tipo === "physical") {
+        return (
+            <svg
+                viewBox="0 0 48 48"
+                fill="none"
+                className="h-8 w-8"
+            >
+                <path
+                    d="M10 18h28v21H10V18Z"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
 
-    const horas =
-        Math.floor(
-            minutos / 60
+                <path
+                    d="M24 18v21M8 18h32v-7H8v7Z"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
+
+                <path
+                    d="M24 11c-1-5-8-6-8-2 0 3 4 4 8 2Zm0 0c1-5 8-6 8-2 0 3-4 4-8 2Z"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
+            </svg>
         );
-
-    if (horas < 24) {
-        return `Hace ${horas} ${horas === 1
-            ? "hora"
-            : "horas"
-            }`;
     }
 
-    const dias =
-        Math.floor(
-            horas / 24
+    if (tipo === "experience") {
+        return (
+            <svg
+                viewBox="0 0 48 48"
+                fill="none"
+                className="h-8 w-8"
+            >
+                <path
+                    d="M24 41s12-12 12-22a12 12 0 1 0-24 0c0 10 12 22 12 22Z"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
+
+                <circle
+                    cx="24"
+                    cy="19"
+                    r="4"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                />
+            </svg>
         );
-
-    if (dias === 1) {
-        return "Ayer";
     }
 
-    if (dias < 7) {
-        return `Hace ${dias} días`;
-    }
+    return (
+        <svg
+            viewBox="0 0 48 48"
+            fill="none"
+            className="h-8 w-8"
+        >
+            <path
+                d="M10 15h16l12 12-12 12L10 23v-8Z"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinejoin="round"
+            />
 
-    return new Intl.DateTimeFormat(
-        "es-EC",
-        {
-            day: "2-digit",
-            month: "short",
-        }
-    ).format(
-        new Date(fecha)
+            <circle
+                cx="17"
+                cy="21"
+                r="2"
+                fill="currentColor"
+            />
+        </svg>
     );
 }
+
+/* ============================================================
+   COMPONENTE
+============================================================ */
 
 export function PremiosInstantaneos() {
     const [
         premios,
         setPremios,
-    ] = useState<Premio[]>([]);
-
-    const [
-        ganadores,
-        setGanadores,
-    ] = useState<Ganador[]>([]);
+    ] =
+        useState<Premio[]>(
+            []
+        );
 
     const [
         loading,
         setLoading,
-    ] = useState(true);
+    ] =
+        useState(true);
 
     const [
         error,
         setError,
-    ] = useState<string | null>(
-        null
-    );
+    ] =
+        useState<
+            string | null
+        >(null);
 
     const [
         premioSeleccionado,
         setPremioSeleccionado,
-    ] = useState<Premio | null>(
-        null
-    );
+    ] =
+        useState<
+            Premio | null
+        >(null);
 
-
-    // =====================================================
-    // CARGAR PREMIOS
-    // =====================================================
+    /* ============================================================
+       CARGAR PREMIOS
+    ============================================================ */
 
     useEffect(() => {
-        const cargar = async () => {
-            try {
-                setLoading(true);
-                setError(null);
-
-                const response =
-                    await fetch(
-                        "/api/public/premios-instantaneos",
-                        {
-                            cache: "no-store",
-                        }
+        const cargar =
+            async () => {
+                try {
+                    setLoading(
+                        true
                     );
 
-                const data: ApiResponse =
-                    await response.json();
+                    setError(
+                        null
+                    );
 
-                if (
-                    !response.ok ||
-                    !data.ok
-                ) {
-                    throw new Error(
-                        data.error ??
-                        "No se pudieron cargar los premios."
+                    const response =
+                        await fetch(
+                            "/api/public/premios-instantaneos",
+                            {
+                                cache:
+                                    "no-store",
+                            }
+                        );
+
+                    const data:
+                        ApiResponse =
+                        await response.json();
+
+                    if (
+                        !response.ok ||
+                        !data.ok
+                    ) {
+                        throw new Error(
+                            data.error ??
+                            "No se pudieron cargar los premios."
+                        );
+                    }
+
+                    setPremios(
+                        data.premios ??
+                        []
+                    );
+                } catch (err) {
+                    console.error(
+                        err
+                    );
+
+                    setError(
+                        "No pudimos cargar los premios en este momento."
+                    );
+                } finally {
+                    setLoading(
+                        false
                     );
                 }
+            };
 
-                setPremios(
-                    data.premios ?? []
-                );
-
-                setGanadores(
-                    data.ganadores ?? []
-                );
-            } catch (err) {
-                console.error(err);
-
-                setError(
-                    "No pudimos cargar los premios en este momento."
-                );
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        cargar();
+        void cargar();
     }, []);
 
-    // =====================================================
-    // CERRAR MODAL CON ESC
-    // =====================================================
+    /* ============================================================
+       CERRAR MODAL CON ESC
+    ============================================================ */
 
     useEffect(() => {
-        if (!premioSeleccionado) {
+        if (
+            !premioSeleccionado
+        ) {
             return;
         }
 
-        const cerrarConEscape = (
+        const cerrar = (
             event: KeyboardEvent
         ) => {
             if (
-                event.key === "Escape"
+                event.key ===
+                "Escape"
             ) {
                 setPremioSeleccionado(
                     null
@@ -254,38 +331,22 @@ export function PremiosInstantaneos() {
 
         window.addEventListener(
             "keydown",
-            cerrarConEscape
+            cerrar
         );
 
         return () => {
             window.removeEventListener(
                 "keydown",
-                cerrarConEscape
+                cerrar
             );
         };
-    }, [premioSeleccionado]);
+    }, [
+        premioSeleccionado,
+    ]);
 
-    // =====================================================
-    // GANADORES DEL PREMIO SELECCIONADO
-    // =====================================================
-
-    const ganadoresPremio =
-        useMemo(() => {
-            if (
-                !premioSeleccionado
-            ) {
-                return [];
-            }
-
-            return ganadores.filter(
-                (ganador) =>
-                    ganador.premioId ===
-                    premioSeleccionado.id
-            );
-        }, [
-            ganadores,
-            premioSeleccionado,
-        ]);
+    /* ============================================================
+       IR A COMPRAR
+    ============================================================ */
 
     function irAComprar() {
         setPremioSeleccionado(
@@ -300,485 +361,559 @@ export function PremiosInstantaneos() {
                 ?.scrollIntoView({
                     behavior:
                         "smooth",
-                    block: "start",
+
+                    block:
+                        "start",
                 });
         }, 100);
     }
 
     return (
+        <>
+            {/* =====================================================
+                SECCIÓN
+            ===================================================== */}
 
-        <section
-            className="
+            <section
+                id="premios-instantaneos"
+                className="
+                    scroll-mt-24
                     w-full
+                    bg-white
                     py-12
-                    md:py-16
+
+                    md:py-14
                 "
-        >
-            {/* =========================================
-                    ENCABEZADO
-                ========================================== */}
-
-            <div className="mb-8">
-
-                <p
-                    className="
-                            text-[10px]
-                            font-black
-                            uppercase
-                            tracking-[0.22em]
-                            text-[#ff6600]
-                        "
-                >
-                    Descubre al instante
-                </p>
-
-                <h2
-                    className="
-                            mt-2
-                            text-2xl
-                            font-black
-                            tracking-[-0.035em]
-                            text-[#171717]
-
-                            md:text-3xl
-                        "
-                >
-                    Premios instantáneos
-                </h2>
-
-                <p
-                    className="
-                            mt-3
-                            max-w-3xl
-                            text-sm
-                            leading-6
-                            text-slate-500
-                        "
-                >
-                    Tu Baruk Card siempre incluye
-                    un número de participación,
-                    pero algunas esconden algo más.
-                    Revela la tuya y descubre si
-                    contiene un premio instantáneo.
-                </p>
-
-            </div>
-
-            {/* =========================================
-                    LOADING
-                ========================================== */}
-
-            {loading && (
+            >
                 <div
                     className="
-                            rounded-[24px]
-                            border
-                            border-slate-200
-                            bg-[#fafafa]
-                            px-6
-                            py-12
-                            text-center
-                            text-sm
-                            text-slate-400
-                        "
+                        mx-auto
+                        w-full
+                        max-w-6xl
+
+                        px-5
+
+                        sm:px-6
+                    "
                 >
-                    Cargando premios...
-                </div>
-            )}
+                    {/* =================================================
+                        HEADER
+                    ================================================= */}
 
-            {/* ERROR */}
-            {!loading &&
-                error && (
                     <div
                         className="
-                                rounded-2xl
-                                border
-                                border-red-100
-                                bg-red-50
-                                px-5
-                                py-4
-                                text-sm
-                                text-red-600
-                            "
+                            flex
+                            flex-col
+                            gap-4
+
+                            md:flex-row
+                            md:items-end
+                            md:justify-between
+                        "
                     >
-                        {error}
+                        <div>
+                            <p
+                                className="
+                                    text-[9px]
+                                    font-black
+                                    uppercase
+                                    tracking-[0.22em]
+                                    text-[#C1317F]
+                                "
+                            >
+                                Descubre al instante
+                            </p>
+
+                            <h2
+                                className="
+                                    mt-2
+
+                                    text-2xl
+                                    font-black
+                                    tracking-[-0.04em]
+                                    text-[#171717]
+
+                                    md:text-[30px]
+                                "
+                            >
+                                Premios instantáneos
+                            </h2>
+
+                            <p
+                                className="
+                                    mt-2
+                                    max-w-2xl
+
+                                    text-[13px]
+                                    leading-6
+                                    text-slate-500
+                                "
+                            >
+                                Algunas Tarjetas de la
+                                Suerte Baruk593 pueden
+                                revelar premios además
+                                de tu número de
+                                participación.
+                            </p>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={
+                                irAComprar
+                            }
+                            className="
+                                hidden
+
+                                text-xs
+                                font-black
+                                text-[#171717]
+
+                                transition-colors
+
+                                hover:text-[#C1317F]
+
+                                md:inline-flex
+                            "
+                        >
+                            Comprar Tarjetas
+
+                            <span className="ml-2">
+                                →
+                            </span>
+                        </button>
                     </div>
-                )}
 
-            {/* =========================================
-                    CARDS DE PREMIOS
-                ========================================== */}
+                    {/* =================================================
+                        LOADING
+                    ================================================= */}
 
-            {!loading &&
-                !error &&
-                premios.length > 0 && (
-                    <div
-                        className="
-                                grid
-                                grid-cols-2
-                                gap-3
+                    {loading && (
+                        <div
+                            className="
+                                mt-7
 
-                                md:gap-5
+                                rounded-[20px]
 
-                                lg:grid-cols-4
+                                border
+                                border-slate-200
+
+                                bg-[#fafafa]
+
+                                px-6
+                                py-10
+
+                                text-center
+                                text-sm
+                                text-slate-400
                             "
-                    >
-                        {premios.map(
-                            (premio) => {
+                        >
+                            Cargando premios...
+                        </div>
+                    )}
 
-                                const tieneGanador =
-                                    premio.revelados > 0;
+                    {/* =================================================
+                        ERROR
+                    ================================================= */}
 
-                                const ultimoGanador =
-                                    ganadores.find(
-                                        (ganador) =>
-                                            ganador.premioId === premio.id
-                                    );
+                    {!loading &&
+                        error && (
+                            <div
+                                className="
+                                    mt-7
 
-                                return (
-                                    <button
-                                        key={
-                                            premio.id
-                                        }
-                                        type="button"
-                                        onClick={() =>
-                                            setPremioSeleccionado(
-                                                premio
-                                            )
-                                        }
-                                        className="
+                                    rounded-2xl
+
+                                    border
+                                    border-red-100
+
+                                    bg-red-50
+
+                                    px-5
+                                    py-4
+
+                                    text-sm
+                                    text-red-600
+                                "
+                            >
+                                {error}
+                            </div>
+                        )}
+
+                    {/* =================================================
+                        PREMIOS
+                    ================================================= */}
+
+                    {!loading &&
+                        !error &&
+                        premios.length >
+                        0 && (
+                            <div
+                                className="
+                                    mt-8
+
+                                    grid
+                                    grid-cols-2
+                                    gap-3
+
+                                    md:gap-4
+
+                                    lg:grid-cols-4
+                                "
+                            >
+                                {premios.map(
+                                    (
+                                        premio
+                                    ) => (
+                                        <button
+                                            key={
+                                                premio.id
+                                            }
+                                            type="button"
+                                            onClick={() =>
+                                                setPremioSeleccionado(
+                                                    premio
+                                                )
+                                            }
+                                            className="
                                                 group
                                                 relative
                                                 overflow-hidden
-                                                rounded-[24px]
+
+                                                rounded-[20px]
+
                                                 border
                                                 border-slate-200
+
                                                 bg-white
+
                                                 text-left
+
+                                                shadow-[0_5px_16px_rgba(0,0,0,0.08)]
 
                                                 transition-all
                                                 duration-300
 
-                                                hover:-translate-y-1
-                                                hover:border-orange-300
-                                                hover:shadow-[0_18px_42px_rgba(255,102,0,0.10)]
+                                                hover:-translate-y-[3px]
+
+                                                hover:border-[#C1317F]/35
+
+                                                hover:shadow-[0_12px_32px_rgba(193,49,127,0.28)]
 
                                                 focus:outline-none
+
                                                 focus:ring-2
-                                                focus:ring-orange-200
+                                                focus:ring-[#C1317F]/20
                                             "
-                                    >
-                                        {/* IMAGEN */}
-                                        <div
-                                            className="
+                                        >
+                                            {/* =====================================
+                                                VISUAL
+                                            ===================================== */}
+
+                                            <div
+                                                className="
                                                     relative
+                                                    z-10
+
                                                     flex
                                                     aspect-[4/3]
                                                     items-center
                                                     justify-center
+
                                                     overflow-hidden
-                                                    bg-[#f7f7f7]
+
+                                                    bg-[#f8f8f8]
                                                 "
-                                        >
-                                            {/* ESTADO */}
-                                            <div
-                                                className="
+                                            >
+                                                {/* =================================
+                                                    CANTIDAD GANADA
+                                                ================================= */}
+
+                                                <div
+                                                    className="
                                                         absolute
                                                         left-3
                                                         top-3
-                                                        z-10
+                                                        z-20
                                                     "
-                                            >
-                                                {premio.agotado ? (
-                                                    <span
+                                                >
+                                                    <div
                                                         className="
-                                                                inline-flex
-                                                                rounded-full
-                                                                bg-[#171717]
-                                                                px-3
-                                                                py-1.5
-                                                                text-[9px]
-                                                                font-black
-                                                                uppercase
-                                                                tracking-[0.12em]
-                                                                text-white
-                                                                shadow-sm
-                                                            "
+                                                            inline-flex
+                                                            h-[30px]
+                                                            items-center
+                                                            gap-2
+
+                                                            rounded-full
+
+                                                            border
+                                                            border-white/80
+
+                                                            bg-white/95
+
+                                                            px-3
+
+                                                            shadow-[0_4px_14px_rgba(0,0,0,0.08)]
+
+                                                            backdrop-blur-sm
+                                                        "
                                                     >
-                                                        Agotado
-                                                    </span>
-                                                ) : tieneGanador ? (
-                                                    <span
-                                                        className="
-                                                                inline-flex
-                                                                items-center
-                                                                gap-1.5
+                                                        <span
+                                                            className={`
+                                                                h-1.5
+                                                                w-1.5
+                                                                shrink-0
+
                                                                 rounded-full
-                                                                bg-white
-                                                                px-3
-                                                                py-1.5
-                                                                text-[9px]
+
+                                                                ${premio.agotado
+                                                                    ? "bg-slate-400"
+                                                                    : "bg-[#C1317F]"
+                                                                }
+                                                            `}
+                                                        />
+
+                                                        <span
+                                                            className="
+                                                                whitespace-nowrap
+
+                                                                text-[8px]
                                                                 font-black
                                                                 uppercase
                                                                 tracking-[0.10em]
-                                                                text-[#ff6600]
-                                                                shadow-sm
-                                                            "
-                                                    >
-                                                        <span
-                                                            className="
-                                                                    h-1.5
-                                                                    w-1.5
-                                                                    rounded-full
-                                                                    bg-[#ff6600]
-                                                                "
-                                                        />
 
-                                                        Premio revelado
-                                                    </span>
-                                                ) : (
-                                                    <span
+                                                                text-[#171717]
+                                                            "
+                                                        >
+                                                            {
+                                                                premio.stockAsignado
+                                                            }{" "}
+                                                            de{" "}
+                                                            {
+                                                                premio.stockTotal
+                                                            }{" "}
+                                                            ganados
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                {/* =================================
+                                                    IMAGEN / ICONO
+                                                ================================= */}
+
+                                                {premio.imagenUrl ? (
+                                                    <img
+                                                        src={
+                                                            premio.imagenUrl
+                                                        }
+                                                        alt={
+                                                            premio.nombre
+                                                        }
                                                         className="
-                                                                inline-flex
-                                                                rounded-full
-                                                                bg-white
-                                                                px-3
-                                                                py-1.5
-                                                                text-[9px]
-                                                                font-black
-                                                                uppercase
-                                                                tracking-[0.12em]
-                                                                text-[#ff6600]
-                                                                shadow-sm
-                                                            "
-                                                    >
-                                                        Disponible
-                                                    </span>
-                                                )}
-                                            </div>
-
-                                            {premio.imagenUrl ? (
-                                                <img
-                                                    src={
-                                                        premio.imagenUrl
-                                                    }
-                                                    alt={
-                                                        premio.nombre
-                                                    }
-                                                    className="
                                                             h-full
                                                             w-full
+
                                                             object-contain
-                                                            p-6
-                                                            transition
+
+                                                            p-5
+
+                                                            transition-transform
                                                             duration-500
 
-                                                            group-hover:scale-[1.05]
+                                                            group-hover:scale-[1.06]
                                                         "
-                                                />
-                                            ) : (
-                                                <div
-                                                    className="
+                                                    />
+                                                ) : (
+                                                    <div
+                                                        className="
                                                             flex
-                                                            h-20
-                                                            w-20
+                                                            h-16
+                                                            w-16
                                                             items-center
                                                             justify-center
-                                                            rounded-full
-                                                            border
-                                                            border-orange-100
-                                                            bg-white
-                                                            text-4xl
-                                                            shadow-sm
-                                                        "
-                                                >
-                                                    {iconoPremio(
-                                                        premio.tipo
-                                                    )}
-                                                </div>
-                                            )}
 
-                                            {/* VER DETALLES */}
-                                            <div
-                                                className="
+                                                            rounded-2xl
+
+                                                            border
+                                                            border-slate-200
+
+                                                            bg-white
+
+                                                            text-[#555]
+
+                                                            shadow-sm
+
+                                                            transition-all
+                                                            duration-300
+
+                                                            group-hover:border-[#C1317F]/30
+                                                            group-hover:text-[#C1317F]
+                                                        "
+                                                    >
+                                                        <PremioIcon
+                                                            tipo={
+                                                                premio.tipo
+                                                            }
+                                                        />
+                                                    </div>
+                                                )}
+
+                                                {/* =================================
+                                                    FLECHA
+                                                ================================= */}
+
+                                                <div
+                                                    className="
                                                         absolute
                                                         bottom-3
                                                         right-3
+                                                        z-20
 
                                                         flex
-                                                        h-9
-                                                        w-9
-                                                        translate-y-2
+                                                        h-8
+                                                        w-8
+                                                        translate-y-1
                                                         items-center
                                                         justify-center
 
                                                         rounded-full
+
                                                         bg-white
+
+                                                        text-xs
+                                                        font-black
                                                         text-[#171717]
 
                                                         opacity-0
-                                                        shadow-lg
+
+                                                        shadow-md
 
                                                         transition-all
                                                         duration-300
 
                                                         group-hover:translate-y-0
                                                         group-hover:opacity-100
+                                                        group-hover:text-[#C1317F]
                                                     "
-                                            >
-                                                →
+                                                >
+                                                    →
+                                                </div>
                                             </div>
-                                        </div>
 
-                                        {/* INFORMACIÓN */}
-                                        <div
-                                            className="
-                                                    p-4
-                                                    md:p-5
-                                                "
-                                        >
-                                            <p
+                                            {/* =====================================
+                                                INFORMACIÓN
+                                            ===================================== */}
+
+                                            <div
                                                 className="
-                                                        text-[9px]
+                                                    relative
+                                                    z-10
+
+                                                    bg-white
+
+                                                    p-4
+                                                "
+                                            >
+                                                <p
+                                                    className="
+                                                        text-[8px]
                                                         font-black
                                                         uppercase
                                                         tracking-[0.18em]
-                                                        text-[#ff6600]
+                                                        text-[#C1317F]
                                                     "
-                                            >
-                                                {textoTipo(
-                                                    premio.tipo
-                                                )}
-                                            </p>
+                                                >
+                                                    {textoTipo(
+                                                        premio.tipo
+                                                    )}
+                                                </p>
 
-                                            <h3
-                                                className="
-                                                        mt-2
-                                                        text-sm
+                                                <h3
+                                                    className="
+                                                        mt-1.5
+
+                                                        text-[13px]
                                                         font-black
                                                         leading-5
                                                         text-[#171717]
 
-                                                        md:text-base
+                                                        md:text-sm
                                                     "
-                                            >
-                                                {
-                                                    premio.nombre
-                                                }
-                                            </h3>
-
-                                            {premio.descripcion && (
-                                                <p
-                                                    className="
-                                                            mt-2
-                                                            line-clamp-2
-                                                            text-[11px]
-                                                            leading-5
-                                                            text-slate-400
-                                                        "
                                                 >
                                                     {
-                                                        premio.descripcion
+                                                        premio.nombre
                                                     }
-                                                </p>
-                                            )}
+                                                </h3>
 
+                                                {premio.descripcion && (
+                                                    <p
+                                                        className="
+                                                            mt-1.5
 
-                                            {tieneGanador && ultimoGanador && (
-                                                <div
-                                                    className="
-            mt-4
-            border-t
-            border-slate-100
-            pt-3
-        "
-                                                >
-                                                    <div className="flex items-center gap-3">
+                                                            line-clamp-2
 
-                                                        <div
-                                                            className="
-                    flex
-                    h-8
-                    w-8
-                    shrink-0
-                    items-center
-                    justify-center
-                    rounded-full
-                    bg-[#fff5ee]
-                    text-sm
-                "
-                                                        >
-                                                            🎉
-                                                        </div>
+                                                            text-[10px]
+                                                            leading-[18px]
+                                                            text-slate-400
 
-                                                        <div className="min-w-0 flex-1">
-
-                                                            <p
-                                                                className="
-                        text-[9px]
-                        font-black
-                        uppercase
-                        tracking-[0.13em]
-                        text-slate-400
-                    "
-                                                            >
-                                                                Último ganador
-                                                            </p>
-
-                                                            <div
-                                                                className="
-                        mt-0.5
-                        flex
-                        items-center
-                        justify-between
-                        gap-2
-                    "
-                                                            >
-                                                                <p
-                                                                    className="
-                            truncate
-                            text-[11px]
-                            font-black
-                            text-[#171717]
-                        "
-                                                                >
-                                                                    {ultimoGanador.ganador}
-                                                                </p>
-
-                                                                <p
-                                                                    className="
-                            shrink-0
-                            text-[9px]
-                            font-semibold
-                            text-slate-400
-                        "
-                                                                >
-                                                                    {tiempoRelativo(
-                                                                        ultimoGanador.reveladoAt
-                                                                    )}
-                                                                </p>
-                                                            </div>
-
-                                                        </div>
-
-                                                    </div>
-                                                </div>
-                                            )}
-
-                                        </div>
-                                    </button>
-                                );
-                            }
+                                                            md:text-[11px]
+                                                        "
+                                                    >
+                                                        {
+                                                            premio.descripcion
+                                                        }
+                                                    </p>
+                                                )}
+                                            </div>
+                                        </button>
+                                    )
+                                )}
+                            </div>
                         )}
-                    </div>
-                )}
 
-            {/* 
-                   </section>
+                    {/* =================================================
+                        CTA MÓVIL
+                    ================================================= */}
 
-        {/* =============================================
-            MODAL DEL PREMIO
-        ============================================== */}
+                    <button
+                        type="button"
+                        onClick={
+                            irAComprar
+                        }
+                        className="
+                            mt-6
+
+                            flex
+                            min-h-[46px]
+                            w-full
+                            items-center
+                            justify-center
+
+                            rounded-xl
+
+                            bg-[#171717]
+
+                            px-5
+
+                            text-xs
+                            font-black
+                            text-white
+
+                            transition-colors
+
+                            hover:bg-[#C1317F]
+
+                            md:hidden
+                        "
+                    >
+                        Comprar Tarjetas
+                    </button>
+                </div>
+            </section>
+
+            {/* =====================================================
+                MODAL
+            ===================================================== */}
 
             {premioSeleccionado && (
                 <div
@@ -786,11 +921,15 @@ export function PremiosInstantaneos() {
                         fixed
                         inset-0
                         z-[100]
+
                         flex
                         items-center
                         justify-center
+
                         bg-black/45
+
                         p-4
+
                         backdrop-blur-[2px]
                     "
                     onClick={() =>
@@ -802,12 +941,17 @@ export function PremiosInstantaneos() {
                     <div
                         className="
                             relative
+
                             max-h-[90vh]
                             w-full
                             max-w-lg
+
                             overflow-y-auto
-                            rounded-[28px]
+
+                            rounded-[24px]
+
                             bg-white
+
                             shadow-[0_30px_90px_rgba(0,0,0,0.25)]
                         "
                         onClick={(
@@ -816,7 +960,10 @@ export function PremiosInstantaneos() {
                             event.stopPropagation()
                         }
                     >
-                        {/* CERRAR */}
+                        {/* =================================================
+                            CERRAR
+                        ================================================= */}
+
                         <button
                             type="button"
                             onClick={() =>
@@ -824,6 +971,7 @@ export function PremiosInstantaneos() {
                                     null
                                 )
                             }
+                            aria-label="Cerrar"
                             className="
                                 absolute
                                 right-4
@@ -837,6 +985,7 @@ export function PremiosInstantaneos() {
                                 justify-center
 
                                 rounded-full
+
                                 bg-white
 
                                 text-lg
@@ -845,7 +994,7 @@ export function PremiosInstantaneos() {
 
                                 shadow-md
 
-                                transition
+                                transition-colors
 
                                 hover:bg-slate-100
                             "
@@ -853,15 +1002,21 @@ export function PremiosInstantaneos() {
                             ×
                         </button>
 
-                        {/* IMAGEN */}
+                        {/* =================================================
+                            IMAGEN
+                        ================================================= */}
+
                         <div
                             className="
                                 flex
-                                aspect-[16/9]
+                                aspect-[16/8]
                                 items-center
                                 justify-center
+
                                 overflow-hidden
-                                rounded-t-[28px]
+
+                                rounded-t-[24px]
+
                                 bg-[#f7f7f7]
                             "
                         >
@@ -876,32 +1031,45 @@ export function PremiosInstantaneos() {
                                     className="
                                         h-full
                                         w-full
+
                                         object-contain
-                                        p-8
+
+                                        p-7
                                     "
                                 />
                             ) : (
                                 <div
                                     className="
                                         flex
-                                        h-24
-                                        w-24
+                                        h-20
+                                        w-20
                                         items-center
                                         justify-center
-                                        rounded-full
+
+                                        rounded-2xl
+
                                         border
-                                        border-orange-100
+                                        border-slate-200
+
                                         bg-white
-                                        text-5xl
+
+                                        text-[#C1317F]
+
                                         shadow-sm
                                     "
                                 >
-                                    {iconoPremio(
-                                        premioSeleccionado.tipo
-                                    )}
+                                    <PremioIcon
+                                        tipo={
+                                            premioSeleccionado.tipo
+                                        }
+                                    />
                                 </div>
                             )}
                         </div>
+
+                        {/* =================================================
+                            INFORMACIÓN MODAL
+                        ================================================= */}
 
                         <div className="p-6">
 
@@ -919,37 +1087,48 @@ export function PremiosInstantaneos() {
                                         font-black
                                         uppercase
                                         tracking-[0.18em]
-                                        text-[#ff6600]
+                                        text-[#C1317F]
                                     "
                                 >
                                     Premio instantáneo
                                 </p>
 
+                                {/* CANTIDAD GANADA */}
+
                                 <span
-                                    className={`
+                                    className="
+                                        shrink-0
+
                                         rounded-full
+
+                                        bg-[#C1317F]/10
+
                                         px-3
-                                        py-1
-                                        text-[9px]
+                                        py-1.5
+
+                                        text-[8px]
                                         font-black
                                         uppercase
-                                        tracking-[0.10em]
+                                        tracking-[0.08em]
 
-                                        ${premioSeleccionado.agotado
-                                            ? "bg-slate-900 text-white"
-                                            : "bg-orange-50 text-[#ff6600]"
-                                        }
-                                    `}
+                                        text-[#C1317F]
+                                    "
                                 >
-                                    {premioSeleccionado.agotado
-                                        ? "Agotado"
-                                        : "Disponible"}
+                                    {
+                                        premioSeleccionado.stockAsignado
+                                    }{" "}
+                                    de{" "}
+                                    {
+                                        premioSeleccionado.stockTotal
+                                    }{" "}
+                                    ganados
                                 </span>
                             </div>
 
                             <h3
                                 className="
                                     mt-3
+
                                     text-2xl
                                     font-black
                                     tracking-[-0.03em]
@@ -965,6 +1144,7 @@ export function PremiosInstantaneos() {
                                 <p
                                     className="
                                         mt-3
+
                                         text-sm
                                         leading-6
                                         text-slate-500
@@ -976,106 +1156,9 @@ export function PremiosInstantaneos() {
                                 </p>
                             )}
 
-                            {/* GANADORES DEL PREMIO */}
-                            <div
-                                className="
-                                    mt-6
-                                    border-t
-                                    border-slate-100
-                                    pt-5
-                                "
-                            >
-                                <p
-                                    className="
-                                        text-[10px]
-                                        font-black
-                                        uppercase
-                                        tracking-[0.18em]
-                                        text-slate-400
-                                    "
-                                >
-                                    Ganadores recientes
-                                </p>
-
-                                {ganadoresPremio.length >
-                                    0 ? (
-                                    <div className="mt-3 space-y-2">
-
-                                        {ganadoresPremio
-                                            .slice(
-                                                0,
-                                                5
-                                            )
-                                            .map(
-                                                (
-                                                    ganador,
-                                                    index
-                                                ) => (
-                                                    <div
-                                                        key={`${ganador.reveladoAt}-${index}`}
-                                                        className="
-                                                            flex
-                                                            items-center
-                                                            justify-between
-                                                            gap-3
-                                                            rounded-xl
-                                                            bg-[#fafafa]
-                                                            px-4
-                                                            py-3
-                                                        "
-                                                    >
-                                                        <div
-                                                            className="
-                                                                flex
-                                                                items-center
-                                                                gap-2
-                                                            "
-                                                        >
-                                                            <span>
-                                                                🎉
-                                                            </span>
-
-                                                            <p
-                                                                className="
-                                                                    text-xs
-                                                                    font-bold
-                                                                    text-[#171717]
-                                                                "
-                                                            >
-                                                                {
-                                                                    ganador.ganador
-                                                                }
-                                                            </p>
-                                                        </div>
-
-                                                        <p
-                                                            className="
-                                                                text-[10px]
-                                                                font-semibold
-                                                                text-slate-400
-                                                            "
-                                                        >
-                                                            {tiempoRelativo(
-                                                                ganador.reveladoAt
-                                                            )}
-                                                        </p>
-                                                    </div>
-                                                )
-                                            )}
-                                    </div>
-                                ) : (
-                                    <p
-                                        className="
-                                            mt-3
-                                            text-xs
-                                            leading-5
-                                            text-slate-400
-                                        "
-                                    >
-                                        Este premio todavía no ha sido revelado públicamente.
-                                    </p>
-                                )}
-                            </div>
+                            {/* =================================================
+                                CTA
+                            ================================================= */}
 
                             <button
                                 type="button"
@@ -1084,28 +1167,33 @@ export function PremiosInstantaneos() {
                                 }
                                 className="
                                     mt-6
+
                                     min-h-[50px]
                                     w-full
+
                                     rounded-xl
-                                    bg-[#ff6600]
+
+                                    bg-[#171717]
+
                                     px-5
+
                                     text-sm
                                     font-black
                                     text-white
-                                    shadow-[0_8px_20px_rgba(255,102,0,0.18)]
-                                    transition
 
-                                    hover:-translate-y-0.5
-                                    hover:bg-[#f15f00]
+                                    transition-all
+
+                                    hover:bg-[#C1317F]
+
+                                    hover:shadow-[0_8px_24px_rgba(193,49,127,0.25)]
                                 "
                             >
-                                Quiero una Baruk Card
+                                Quiero una Tarjeta de la Suerte
                             </button>
-
                         </div>
                     </div>
                 </div>
             )}
-        </section>
+        </>
     );
 }

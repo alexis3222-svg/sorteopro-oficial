@@ -4,37 +4,11 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function nombrePublico(nombre: string | null | undefined) {
-    if (!nombre) {
-        return "Ganador Baruk593";
-    }
-
-    const partes = nombre
-        .trim()
-        .split(/\s+/)
-        .filter(Boolean);
-
-    if (partes.length === 0) {
-        return "Ganador Baruk593";
-    }
-
-    const primerNombre = partes[0];
-
-    if (partes.length === 1) {
-        return primerNombre;
-    }
-
-    const inicialApellido =
-        partes[1]?.charAt(0).toUpperCase();
-
-    return `${primerNombre} ${inicialApellido}.`;
-}
-
 export async function GET() {
     try {
-        // =====================================================
-        // 1. SORTEO ACTIVO
-        // =====================================================
+        /* =====================================================
+           1. SORTEO ACTIVO
+        ===================================================== */
 
         const {
             data: sorteo,
@@ -58,23 +32,43 @@ export async function GET() {
             return NextResponse.json(
                 {
                     ok: false,
-                    error: "No se pudo obtener la actividad.",
+                    error:
+                        "No se pudo obtener la actividad.",
                 },
-                { status: 500 }
+                {
+                    status: 500,
+                }
             );
         }
 
         if (!sorteo) {
-            return NextResponse.json({
-                ok: true,
-                premios: [],
-                ganadores: [],
-            });
+            return NextResponse.json(
+                {
+                    ok: true,
+                    premios: [],
+
+                    /*
+                     * Se conserva temporalmente
+                     * por compatibilidad con
+                     * el componente actual.
+                     *
+                     * Ya no enviamos datos
+                     * personales de ganadores.
+                     */
+                    ganadores: [],
+                },
+                {
+                    headers: {
+                        "Cache-Control":
+                            "no-store, max-age=0",
+                    },
+                }
+            );
         }
 
-        // =====================================================
-        // 2. PREMIOS DE LA ACTIVIDAD
-        // =====================================================
+        /* =====================================================
+           2. PREMIOS
+        ===================================================== */
 
         const {
             data: premios,
@@ -94,11 +88,20 @@ export async function GET() {
                 instrucciones_reclamo,
                 activo
             `)
-            .eq("sorteo_id", sorteo.id)
-            .eq("activo", true)
-            .order("peso_asignacion", {
-                ascending: false,
-            });
+            .eq(
+                "sorteo_id",
+                sorteo.id
+            )
+            .eq(
+                "activo",
+                true
+            )
+            .order(
+                "peso_asignacion",
+                {
+                    ascending: false,
+                }
+            );
 
         if (premiosError) {
             console.error(
@@ -109,21 +112,22 @@ export async function GET() {
             return NextResponse.json(
                 {
                     ok: false,
-                    error: "No se pudieron obtener los premios.",
+                    error:
+                        "No se pudieron obtener los premios.",
                 },
-                { status: 500 }
+                {
+                    status: 500,
+                }
             );
         }
 
-        // =====================================================
-        // 3. CARDS CON PREMIO QUE YA FUERON REVELADAS
-        //
-        // IMPORTANTE:
-        // No publicamos un ganador solo porque el premio
-        // haya sido asignado internamente.
-        //
-        // Tiene que haber revelado realmente la Baruk Card.
-        // =====================================================
+        /* =====================================================
+           3. CARDS CON PREMIO YA REVELADAS
+
+           Solo contamos cantidades.
+           No consultamos nombres, correos,
+           teléfonos ni datos de propietarios.
+        ===================================================== */
 
         const {
             data: cardsReveladas,
@@ -132,18 +136,25 @@ export async function GET() {
             .from("baruk_cards")
             .select(`
                 id,
-                prize_id,
-                revealed_at
+                prize_id
             `)
-            .eq("sorteo_id", sorteo.id)
-            .eq("extra_type", "prize")
-            .eq("revealed", true)
-            .not("prize_id", "is", null)
-            .not("revealed_at", "is", null)
-            .order("revealed_at", {
-                ascending: false,
-            })
-            .limit(30);
+            .eq(
+                "sorteo_id",
+                sorteo.id
+            )
+            .eq(
+                "extra_type",
+                "prize"
+            )
+            .eq(
+                "revealed",
+                true
+            )
+            .not(
+                "prize_id",
+                "is",
+                null
+            );
 
         if (cardsError) {
             console.error(
@@ -154,205 +165,146 @@ export async function GET() {
             return NextResponse.json(
                 {
                     ok: false,
-                    error: "No se pudo obtener la actividad reciente.",
+                    error:
+                        "No se pudo obtener la actividad reciente.",
                 },
-                { status: 500 }
+                {
+                    status: 500,
+                }
             );
         }
 
-        const cards = cardsReveladas ?? [];
-
-        // =====================================================
-        // 4. BUSCAR LOS RECLAMOS DE ESAS CARDS
-        // =====================================================
-
-        let reclamos: Array<{
-            card_id: string;
-            prize_id: string;
-            owner_name: string | null;
-            estado: string;
-            delivered_at: string | null;
-            created_at: string;
-        }> = [];
-
-        if (cards.length > 0) {
-            const cardIds =
-                cards.map((card) => card.id);
-
-            const {
-                data: claimsData,
-                error: claimsError,
-            } = await supabaseAdmin
-                .from("prize_claims")
-                .select(`
-                    card_id,
-                    prize_id,
-                    owner_name,
-                    estado,
-                    delivered_at,
-                    created_at
-                `)
-                .in("card_id", cardIds);
-
-            if (claimsError) {
-                console.error(
-                    "Error obteniendo reclamos:",
-                    claimsError
-                );
-            } else {
-                reclamos =
-                    (claimsData ?? []) as typeof reclamos;
-            }
-        }
-
-        // =====================================================
-        // 5. ÍNDICES PARA RELACIONAR INFORMACIÓN
-        // =====================================================
-
-        const premioMap = new Map(
-            (premios ?? []).map((premio) => [
-                premio.id,
-                premio,
-            ])
-        );
-
-        const reclamoPorCard = new Map(
-            reclamos.map((reclamo) => [
-                reclamo.card_id,
-                reclamo,
-            ])
-        );
-
-        // =====================================================
-        // 6. GANADORES PÚBLICOS
-        //
-        // NUNCA enviamos:
-        // - email
-        // - teléfono
-        // - user id
-        // =====================================================
-
-        const ganadores = cards
-            .map((card) => {
-                if (!card.prize_id) {
-                    return null;
-                }
-
-                const premio =
-                    premioMap.get(card.prize_id);
-
-                if (!premio) {
-                    return null;
-                }
-
-                const reclamo =
-                    reclamoPorCard.get(card.id);
-
-                return {
-                    premioId: premio.id,
-
-                    premioNombre:
-                        premio.nombre,
-
-                    premioTipo:
-                        premio.tipo,
-
-                    imagenUrl:
-                        premio.imagen_url,
-
-                    ganador:
-                        nombrePublico(
-                            reclamo?.owner_name
-                        ),
-
-                    reveladoAt:
-                        card.revealed_at,
-
-                    entregado:
-                        reclamo?.estado ===
-                        "delivered",
-                };
-            })
-            .filter(Boolean);
-
-        // =====================================================
-        // 7. CONTAR CUÁNTAS VECES SE HA REVELADO
-        // CADA PREMIO
-        // =====================================================
+        /* =====================================================
+           4. CONTAR REVELADOS POR PREMIO
+        ===================================================== */
 
         const reveladosPorPremio =
             new Map<string, number>();
 
-        for (const ganador of ganadores) {
-            if (!ganador) continue;
+        for (
+            const card of
+            cardsReveladas ?? []
+        ) {
+            if (!card.prize_id) {
+                continue;
+            }
 
             const actual =
                 reveladosPorPremio.get(
-                    ganador.premioId
+                    card.prize_id
                 ) ?? 0;
 
             reveladosPorPremio.set(
-                ganador.premioId,
+                card.prize_id,
                 actual + 1
             );
         }
 
-        // =====================================================
-        // 8. DATOS PÚBLICOS DEL CATÁLOGO
-        //
-        // No enviamos cantidades de stock.
-        // =====================================================
+        /* =====================================================
+           5. DATOS PÚBLICOS
+        ===================================================== */
 
         const premiosPublicos =
-            (premios ?? []).map((premio) => {
-                const agotado =
-                    Number(
-                        premio.stock_asignado
-                    ) >=
-                    Number(
-                        premio.stock_total
-                    );
+            (premios ?? []).map(
+                (premio) => {
+                    const stockTotal =
+                        Math.max(
+                            0,
+                            Number(
+                                premio.stock_total ??
+                                0
+                            )
+                        );
 
-                const revelados =
-                    reveladosPorPremio.get(
-                        premio.id
-                    ) ?? 0;
+                    const stockAsignado =
+                        Math.max(
+                            0,
+                            Number(
+                                premio.stock_asignado ??
+                                0
+                            )
+                        );
 
-                return {
-                    id: premio.id,
+                    const revelados =
+                        reveladosPorPremio.get(
+                            premio.id
+                        ) ?? 0;
 
-                    nombre:
-                        premio.nombre,
+                    const agotado =
+                        stockTotal > 0 &&
+                        stockAsignado >=
+                        stockTotal;
 
-                    descripcion:
-                        premio.descripcion,
+                    return {
+                        id:
+                            premio.id,
 
-                    tipo:
-                        premio.tipo,
+                        nombre:
+                            premio.nombre,
 
-                    imagenUrl:
-                        premio.imagen_url,
+                        descripcion:
+                            premio.descripcion,
 
-                    cantidadCards:
-                        premio.cantidad_cards,
+                        tipo:
+                            premio.tipo,
 
-                    valorReferencial:
-                        premio.valor_referencial,
+                        imagenUrl:
+                            premio.imagen_url,
 
-                    instrucciones:
-                        premio.instrucciones_reclamo,
+                        cantidadCards:
+                            premio.cantidad_cards,
 
-                    agotado,
+                        valorReferencial:
+                            premio.valor_referencial,
 
-                    revelados,
-                };
-            });
+                        instrucciones:
+                            premio.instrucciones_reclamo,
+
+                        /*
+                         * NUEVOS DATOS PÚBLICOS
+                         *
+                         * Ejemplo:
+                         * stockTotal = 10
+                         * stockAsignado = 3
+                         *
+                         * Home:
+                         * "3 de 10 ganados"
+                         */
+                        stockTotal,
+
+                        stockAsignado,
+
+                        /*
+                         * Se mantiene por
+                         * compatibilidad.
+                         */
+                        revelados,
+
+                        agotado,
+                    };
+                }
+            );
+
+        /* =====================================================
+           RESPUESTA
+        ===================================================== */
 
         return NextResponse.json(
             {
                 ok: true,
-                premios: premiosPublicos,
-                ganadores,
+
+                premios:
+                    premiosPublicos,
+
+                /*
+                 * Ya no publicamos
+                 * identidades de ganadores.
+                 *
+                 * Se conserva [] para no
+                 * romper inmediatamente
+                 * componentes antiguos.
+                 */
+                ganadores: [],
             },
             {
                 headers: {
@@ -370,9 +322,12 @@ export async function GET() {
         return NextResponse.json(
             {
                 ok: false,
-                error: "Error interno.",
+                error:
+                    "Error interno.",
             },
-            { status: 500 }
+            {
+                status: 500,
+            }
         );
     }
 }

@@ -1,72 +1,70 @@
 // components/baruk/BarukHowItWorks.tsx
 
+"use client";
+
+const HOVER_COLOR = "#C1317F";
+
 const pasos = [
     {
         numero: "01",
-        titulo: "Elige tus Baruk Cards",
+        titulo: "Elige tus Tarjetas",
         descripcion:
-            "Selecciona la cantidad de Baruk Cards que deseas para ti o para regalar.",
+            "Selecciona la cantidad de Tarjetas de la Suerte Baruk593 que deseas para ti o para regalar.",
         icono: "card",
     },
     {
         numero: "02",
         titulo: "Compra de forma segura",
         descripcion:
-            "Completa tus datos, elige tu método de pago y confirma tu compra.",
+            "Completa tus datos, elige tu método de pago y confirma tu compra de forma rápida y segura.",
         icono: "payment",
     },
     {
         numero: "03",
         titulo: "Revela y descubre",
         descripcion:
-            "Abre tu Baruk Card y descubre tu número, una esfera o un premio instantáneo.",
-        icono: "reveal",
+            "Abre tu Tarjeta de la Suerte y descubre tu número, una esfera coleccionable o un premio instantáneo.",
+        icono: "spark",
     },
-];
+] as const;
 
-function IconoPaso({
+function Icono({
     tipo,
 }: {
-    tipo: string;
+    tipo:
+    | "card"
+    | "payment"
+    | "spark";
 }) {
     if (tipo === "card") {
         return (
             <svg
-                viewBox="0 0 24 24"
+                viewBox="0 0 48 48"
                 fill="none"
-                className="h-7 w-7"
-                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-11 w-11"
             >
                 <rect
-                    x="3"
-                    y="5"
-                    width="18"
-                    height="14"
-                    rx="3"
+                    x="8"
+                    y="11"
+                    width="32"
+                    height="24"
+                    rx="4"
                     stroke="currentColor"
-                    strokeWidth="1.8"
+                    strokeWidth="3"
                 />
 
                 <path
-                    d="M7 9h6"
+                    d="M8 18H40"
                     stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
+                    strokeWidth="3"
                 />
 
                 <path
-                    d="M7 13h3"
+                    d="M14 27H22"
                     stroke="currentColor"
-                    strokeWidth="1.8"
+                    strokeWidth="3"
                     strokeLinecap="round"
-                />
-
-                <circle
-                    cx="17"
-                    cy="13"
-                    r="1.5"
-                    stroke="currentColor"
-                    strokeWidth="1.6"
                 />
             </svg>
         );
@@ -75,40 +73,62 @@ function IconoPaso({
     if (tipo === "payment") {
         return (
             <svg
-                viewBox="0 0 24 24"
+                viewBox="0 0 48 48"
                 fill="none"
-                className="h-7 w-7"
-                aria-hidden="true"
+                xmlns="http://www.w3.org/2000/svg"
+                className="h-11 w-11"
             >
-                <rect
-                    x="3"
-                    y="6"
-                    width="18"
-                    height="12"
-                    rx="3"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                />
+                {/* TECHO / TOLDO */}
 
                 <path
-                    d="M3 10h18"
+                    d="M9 18L12 9H36L39 18"
                     stroke="currentColor"
-                    strokeWidth="1.8"
-                />
-
-                <path
-                    d="M7 15h4"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
-                    strokeLinecap="round"
-                />
-
-                <path
-                    d="m16 14 1.2 1.2L19.5 13"
-                    stroke="currentColor"
-                    strokeWidth="1.8"
+                    strokeWidth="2.8"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                />
+
+                {/* TOLDO */}
+
+                <path
+                    d="M8 18H40"
+                    stroke="currentColor"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                />
+
+                {/* BASE DE LA TIENDA */}
+
+                <path
+                    d="M11 20V39H37V20"
+                    stroke="currentColor"
+                    strokeWidth="2.8"
+                    strokeLinejoin="round"
+                />
+
+                {/* PUERTA */}
+
+                <path
+                    d="M20 39V28H28V39"
+                    stroke="currentColor"
+                    strokeWidth="2.8"
+                    strokeLinejoin="round"
+                />
+
+                {/* VENTANA */}
+
+                <path
+                    d="M14 25H18"
+                    stroke="currentColor"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
+                />
+
+                <path
+                    d="M30 25H34"
+                    stroke="currentColor"
+                    strokeWidth="2.8"
+                    strokeLinecap="round"
                 />
             </svg>
         );
@@ -116,22 +136,22 @@ function IconoPaso({
 
     return (
         <svg
-            viewBox="0 0 24 24"
+            viewBox="0 0 48 48"
             fill="none"
-            className="h-7 w-7"
-            aria-hidden="true"
+            xmlns="http://www.w3.org/2000/svg"
+            className="h-11 w-11"
         >
             <path
-                d="M12 3 13.7 8.3 19 10l-5.3 1.7L12 17l-1.7-5.3L5 10l5.3-1.7L12 3Z"
+                d="M24 6L27 17L38 20L27 23L24 34L21 23L10 20L21 17L24 6Z"
                 stroke="currentColor"
-                strokeWidth="1.7"
+                strokeWidth="2.8"
                 strokeLinejoin="round"
             />
 
             <path
-                d="m18.5 15 .7 2.3 2.3.7-2.3.7-.7 2.3-.7-2.3-2.3-.7 2.3-.7.7-2.3Z"
+                d="M37 29L39 35L45 37L39 39L37 45L35 39L29 37L35 35L37 29Z"
                 stroke="currentColor"
-                strokeWidth="1.5"
+                strokeWidth="2.5"
                 strokeLinejoin="round"
             />
         </svg>
@@ -143,264 +163,305 @@ export default function BarukHowItWorks() {
         <section
             id="como-funciona"
             className="
+                scroll-mt-24
                 w-full
-                scroll-mt-[140px]
-                py-12
-                md:py-16
+                bg-white
+                py-20
+
+                md:py-24
             "
         >
-            {/* ================================================
-                ENCABEZADO
-            ================================================= */}
-
-            <div className="mb-8 md:mb-10">
-
-                <div
-                    className="
-                        mt-2
-                        flex
-                        flex-col
-                        gap-3
-
-                        md:flex-row
-                        md:items-end
-                        md:justify-between
-                    "
-                >
-                    <div>
-
-                        <h2
-                            className="
-                                text-2xl
-                                font-black
-                                tracking-[-0.035em]
-                                text-[#171717]
-
-                                md:text-3xl
-                            "
-                        >
-                            ¿Cómo funciona?
-                        </h2>
-
-                        <p
-                            className="
-                                mt-3
-                                max-w-2xl
-                                text-sm
-                                leading-6
-                                text-slate-500
-                            "
-                        >
-                            Elige, compra y revela tu Baruk Card.
-                            Todo sucede en pocos pasos.
-                        </p>
-
-                    </div>
-
-
-                </div>
-
-            </div>
-
-            {/* ================================================
-                PASOS
-            ================================================= */}
-
             <div
                 className="
-                    relative
-                    grid
-                    grid-cols-1
-                    gap-4
+                    mx-auto
+                    w-full
+                    max-w-7xl
+                    px-5
 
-                    md:grid-cols-3
-                    md:gap-5
+                    sm:px-6
                 "
             >
+                {/* =====================================================
+                    TITULO
+                ===================================================== */}
 
-                {/* Línea horizontal para escritorio */}
+                <div className="text-center">
+                    <p
+                        className="
+                            text-[11px]
+                            font-black
+                            uppercase
+                            tracking-[0.22em]
+                            text-[#C1317F]
+                        "
+                    >
+                        Fácil, rápido y seguro
+                    </p>
+
+                    <h2
+                        className="
+                            mt-2
+                            text-3xl
+                            font-black
+                            tracking-[-0.045em]
+                            text-[#171717]
+
+                            md:text-4xl
+                        "
+                    >
+                        ¿Cómo funciona?
+                    </h2>
+
+                    <p
+                        className="
+                            mx-auto
+                            mt-3
+                            max-w-2xl
+                            text-sm
+                            leading-6
+                            text-slate-500
+
+                            md:text-base
+                        "
+                    >
+                        Elige, compra y revela tu
+                        Tarjeta de la Suerte.
+                        Todo sucede en pocos pasos.
+                    </p>
+                </div>
+
+                {/* =====================================================
+                    TARJETAS
+                ===================================================== */}
+
                 <div
                     className="
-                        pointer-events-none
-                        absolute
-                        left-[16.66%]
-                        right-[16.66%]
-                        top-[42px]
-                        hidden
-                        h-px
-                        bg-slate-200
+                        mt-12
+                        grid
+                        gap-8
 
-                        md:block
+                        md:grid-cols-3
                     "
-                />
-
-                {pasos.map((paso) => (
-                    <article
-                        key={paso.numero}
-                        className="
-        group
-        relative
-        overflow-hidden
-
-        rounded-[24px]
-
-        border
-        border-[#FFB27D]
-
-        bg-white
-
-        px-5
-        py-5
-
-        shadow-[0_4px_16px_rgba(0,0,0,0.025)]
-
-        transition-all
-        duration-300
-        ease-out
-
-        hover:-translate-y-1.5
-        hover:border-[#ff6600]
-
-        hover:shadow-[0_14px_32px_rgba(255,102,0,0.14)]
-
-        md:px-6
-        md:py-6
-    "
-                    >
-                        {/* =================================================
-        SOMBRA / SILUETA NARANJA AL HACER HOVER
-    ================================================= */}
-
-                        <div
-                            className="
-            pointer-events-none
-            absolute
-
-            -bottom-8
-            left-[12%]
-            right-[12%]
-
-            h-12
-
-            rounded-full
-            bg-[#ff6600]/0
-            blur-2xl
-
-            transition-all
-            duration-300
-
-            group-hover:bg-[#ff6600]/10
-        "
-                        />
-
-                        {/* =================================================
-        NÚMERO DEL PASO
-    ================================================= */}
-
-                        <div
-                            className="
-            absolute
-            right-5
-            top-4
-
-            text-[11px]
-            font-black
-            tracking-[0.18em]
-
-            text-slate-300
-
-            transition-colors
-            duration-300
-
-            group-hover:text-[#ff6600]/50
-        "
-                        >
-                            {paso.numero}
-                        </div>
-
-                        {/* =================================================
-        ICONO
-    ================================================= */}
-
-                        <div
-                            className="
-            relative
-            z-10
-
-            flex
-            h-[54px]
-            w-[54px]
-            items-center
-            justify-center
-
-            rounded-2xl
-
-            border
-            border-[#FFDCC4]
-
-            bg-[#FFF8F3]
-
-            text-[#ff6600]
-
-            transition-all
-            duration-300
-
-            group-hover:border-[#ff6600]
-            group-hover:bg-[#ff6600]
-            group-hover:text-white
-
-            group-hover:shadow-[0_7px_18px_rgba(255,102,0,0.16)]
-        "
-                        >
-                            <IconoPaso tipo={paso.icono} />
-                        </div>
-
-                        {/* =================================================
-        TEXTO
-    ================================================= */}
-
-                        <div className="relative z-10 mt-5">
-
-                            <h3
+                >
+                    {pasos.map(
+                        (paso) => (
+                            <article
+                                key={
+                                    paso.numero
+                                }
                                 className="
-                text-base
-                font-black
-                tracking-[-0.02em]
-                text-[#171717]
+                                    group
+                                    relative
+                                    min-h-[400px]
+                                    overflow-hidden
 
-                md:text-lg
-            "
+                                    rounded-[20px]
+
+                                    border
+                                    border-slate-100
+
+                                    bg-white
+
+                                    px-8
+                                    py-10
+
+                                    shadow-[0_8px_22px_rgba(0,0,0,0.22)]
+
+                                    transition-all
+                                    duration-300
+                                    ease-out
+
+                                    hover:-translate-y-[3px]
+                                    hover:border-[#C1317F]/40
+                                    hover:shadow-[0_8px_28px_rgba(193,49,127,0.48)]
+
+                                    md:min-h-[430px]
+                                "
                             >
-                                {paso.titulo}
-                            </h3>
+                                {/* =====================================
+                                    CUADRICULA HOVER
+                                ===================================== */}
 
-                            <p
-                                className="
-                mt-2
-                max-w-sm
+                                <div
+                                    className="
+                                        pointer-events-none
+                                        absolute
+                                        inset-0
+                                        z-0
 
-                text-xs
-                leading-5
-                text-slate-500
+                                        opacity-0
 
-                md:text-[13px]
-                md:leading-6
-            "
-                            >
-                                {paso.descripcion}
-                            </p>
+                                        transition-opacity
+                                        duration-300
 
-                        </div>
-                    </article>
-                ))}
+                                        group-hover:opacity-100
+                                    "
+                                    style={{
+                                        backgroundImage: `
+                                            linear-gradient(
+                                                to right,
+                                                rgba(193,49,127,0.75) 1px,
+                                                transparent 1px
+                                            ),
+                                            linear-gradient(
+                                                to bottom,
+                                                rgba(193,49,127,0.75) 1px,
+                                                transparent 1px
+                                            )
+                                        `,
 
+                                        backgroundSize:
+                                            "110px 100px",
+                                    }}
+                                />
+
+                                {/* =====================================
+                                    SUAVE VELO BLANCO
+                                ===================================== */}
+
+                                <div
+                                    className="
+                                        pointer-events-none
+                                        absolute
+                                        inset-0
+                                        z-[1]
+
+                                        bg-white/10
+
+                                        opacity-0
+
+                                        transition-opacity
+                                        duration-300
+
+                                        group-hover:opacity-100
+                                    "
+                                />
+
+                                {/* =====================================
+                                    NUMERO
+                                ===================================== */}
+
+                                <span
+                                    className="
+                                        absolute
+                                        right-7
+                                        top-7
+                                        z-10
+
+                                        text-[11px]
+                                        font-black
+                                        tracking-[0.18em]
+                                        text-slate-300
+
+                                        transition-colors
+                                        duration-300
+
+                                        group-hover:text-[#C1317F]
+                                    "
+                                >
+                                    {
+                                        paso.numero
+                                    }
+                                </span>
+
+                                {/* =====================================
+                                    CONTENIDO
+                                ===================================== */}
+
+                                <div
+                                    className="
+                                        relative
+                                        z-10
+                                        flex
+                                        h-full
+                                        flex-col
+                                    "
+                                >
+                                    {/* ICONO */}
+
+                                    <div
+                                        className="
+                                            mt-8
+                                            text-[#555555]
+
+                                            transition-all
+                                            duration-300
+
+                                            group-hover:text-[#C1317F]
+                                        "
+                                    >
+                                        <Icono
+                                            tipo={
+                                                paso.icono
+                                            }
+                                        />
+                                    </div>
+
+                                    {/* TEXTO */}
+
+                                    <div className="mt-8">
+                                        <h3
+                                            className="
+                                                text-[18px]
+                                                font-black
+                                                leading-tight
+                                                tracking-[-0.025em]
+                                                text-[#4a4a4a]
+
+                                                transition-colors
+                                                duration-300
+
+                                                group-hover:text-[#3f3f3f]
+                                            "
+                                        >
+                                            {
+                                                paso.titulo
+                                            }
+                                        </h3>
+
+                                        <p
+                                            className="
+                                                mt-4
+                                                text-[15px]
+                                                leading-7
+                                                text-[#8b8b8b]
+                                            "
+                                        >
+                                            {
+                                                paso.descripcion
+                                            }
+                                        </p>
+                                    </div>
+                                </div>
+
+                                {/* =====================================
+                                    BORDE DE LUZ
+                                ===================================== */}
+
+                                <div
+                                    className="
+                                        pointer-events-none
+                                        absolute
+                                        inset-0
+                                        z-20
+
+                                        rounded-[20px]
+
+                                        ring-1
+                                        ring-inset
+                                        ring-transparent
+
+                                        transition-all
+                                        duration-300
+
+                                        group-hover:ring-[#C1317F]/30
+                                    "
+                                />
+                            </article>
+                        )
+                    )}
+                </div>
             </div>
-
-            {/* ================================================
-                MENSAJE INFERIOR
-            ================================================= */}
-
-
         </section>
     );
 }

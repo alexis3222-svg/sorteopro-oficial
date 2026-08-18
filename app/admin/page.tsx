@@ -307,6 +307,13 @@ export default function AdminHomePage() {
                                 </Link>
 
                                 <Link
+                                    href="/admin/marketplace/retiros"
+                                    className="inline-flex items-center rounded-full border border-[#C1317F]/60 bg-[#C1317F]/10 px-4 py-2 text-xs font-semibold text-[#e7a3c8] hover:bg-[#C1317F]/20"
+                                >
+                                    Retiros Marketplace
+                                </Link>
+
+                                <Link
                                     href="/admin/shop"
                                     className="inline-flex items-center rounded-full border border-slate-700 bg-slate-900 px-4 py-2 text-xs font-semibold text-slate-100 hover:border-orange-500 hover:text-orange-200"
                                 >

@@ -2,6 +2,9 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
 import { entregarPremioTarjetasDigitales } from "@/lib/entregarPremioTarjetasDigitales";
 import { registrarReclamoPremio } from "@/lib/registrarReclamoPremio";
+import {
+    notificarRegaloPagado,
+} from "@/lib/notificarRegaloPagado";
 
 type ProcesarPedidoPagadoResultado =
     | {
@@ -741,22 +744,75 @@ export async function procesarPedidoPagado(
         }
 
         /*
-         * 10. Marcar regalo como pagado.
-         */
+  * 10. MARCAR REGALO COMO PAGADO
+  *     Y NOTIFICAR AL DESTINATARIO
+  */
 
         if (giftId) {
-            const { error: giftUpdateError } = await supabaseAdmin
-                .from("baruk_gifts")
-                .update({
-                    estado: "paid",
-                })
-                .eq("id", giftId);
 
-            if (giftUpdateError) {
+            const {
+                error:
+                giftUpdateError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "baruk_gifts"
+                    )
+                    .update({
+                        estado:
+                            "paid",
+                    })
+                    .eq(
+                        "id",
+                        giftId
+                    );
+
+
+            if (
+                giftUpdateError
+            ) {
+
                 console.error(
                     "No se pudo actualizar el regalo:",
-                    giftUpdateError,
+                    giftUpdateError
                 );
+
+            } else {
+
+                /*
+                 * El regalo y sus Experience Pass
+                 * ya existen correctamente.
+                 *
+                 * Intentamos enviar el acceso.
+                 *
+                 * IMPORTANTE:
+                 * un fallo de correo NO invalida
+                 * el pedido ni elimina las tarjetas.
+                 */
+
+                const notification =
+                    await notificarRegaloPagado(
+                        giftId
+                    );
+
+
+                if (
+                    !notification.ok
+                ) {
+
+                    console.error(
+                        `Regalo ${giftId} pagado pero no notificado:`,
+                        notification.error
+                    );
+
+                } else {
+
+                    console.log(
+                        notification.alreadySent
+                            ? `Regalo ${giftId}: correo ya enviado anteriormente.`
+                            : `Regalo ${giftId}: correo enviado correctamente.`
+                    );
+                }
             }
         }
 

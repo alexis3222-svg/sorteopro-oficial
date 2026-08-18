@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { supabase } from "@/lib/supabaseClient";
+import { getBarukShopImageUrl } from "@/lib/barukShopImage";
 
 type Categoria = {
     id: string;
@@ -147,6 +148,21 @@ function ProductImage({
     const [errorImagen, setErrorImagen] =
         useState(false);
 
+    /*
+     * Convierte:
+     *
+     * productos/casco-adventure/principal.webp
+     *
+     * en la URL pública real del bucket baruk-shop.
+     *
+     * Si src ya fuera una URL https:// completa,
+     * el helper también la conserva correctamente.
+     */
+    const imagenUrl =
+        getBarukShopImageUrl(
+            src
+        );
+
     useEffect(() => {
         setErrorImagen(false);
     }, [src]);
@@ -155,26 +171,38 @@ function ProductImage({
         <>
             <ProductPlaceholder />
 
-            {src && !errorImagen && (
-                <img
-                    src={src}
-                    alt={alt}
-                    onError={() =>
-                        setErrorImagen(true)
-                    }
-                    className="
-                        relative
-                        z-10
-                        h-full
-                        w-full
-                        object-contain
-                        p-5
-                        transition-transform
-                        duration-500
-                        group-hover:scale-[1.06]
-                    "
-                />
-            )}
+            {imagenUrl &&
+                !errorImagen && (
+                    <img
+                        src={
+                            imagenUrl
+                        }
+                        alt={
+                            alt
+                        }
+                        onError={() =>
+                            setErrorImagen(
+                                true
+                            )
+                        }
+                        className="
+                            relative
+                            z-10
+
+                            h-full
+                            w-full
+
+                            object-contain
+
+                            p-5
+
+                            transition-transform
+                            duration-500
+
+                            group-hover:scale-[1.06]
+                        "
+                    />
+                )}
         </>
     );
 }

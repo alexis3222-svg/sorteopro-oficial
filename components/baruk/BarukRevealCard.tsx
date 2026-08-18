@@ -7,9 +7,17 @@ import {
     useState,
 } from "react";
 
+import type {
+    PointerEvent as ReactPointerEvent,
+} from "react";
+
 import { supabaseBrowser } from "@/lib/supabaseClient";
 
 import "./BarukRevealCard.css";
+
+/* ============================================================
+   TIPOS
+============================================================ */
 
 interface SphereResult {
     id: string;
@@ -47,45 +55,33 @@ interface RevealResult {
 interface BarukRevealCardProps {
     cardId: string;
 
-    /*
-     * Se conserva para compatibilidad temporal
-     * con /mi-compra.
-     *
-     * Si existe una sesión Supabase autenticada,
-     * la API utilizará el access token y no
-     * dependerá de este correo.
-     */
     email?: string;
 
+    /*
+     * Se conservan por compatibilidad.
+     * El nuevo diseño ya no depende de imágenes.
+     */
     frontImage?: string;
     backImage?: string;
 
     initialRevealed?: boolean;
 
-    /*
-     * Más adelante nos permitirá actualizar
-     * automáticamente "Mi colección" y
-     * los contadores después de revelar.
-     */
     onRevealed?: (
         result: RevealResult
     ) => void;
 }
 
+/* ============================================================
+   COMPONENTE
+============================================================ */
+
 export default function BarukRevealCard({
     cardId,
     email = "",
-
-    frontImage =
-    "/assets/baruk-card-front-white-completa.png",
-
-    backImage =
-    "/assets/baruk-card-back-white-completa.png",
-
     initialRevealed = false,
-
     onRevealed,
 }: BarukRevealCardProps) {
+
     const [
         revealed,
         setRevealed,
@@ -114,81 +110,61 @@ export default function BarukRevealCard({
             null
         );
 
-    const [
-        soundEnabled,
-        setSoundEnabled,
-    ] =
-        useState(true);
+    const soundEnabled = true;
 
+    /*
+     * Audio real opcional.
+     */
+    const motorAudioRef =
+        useRef<HTMLAudioElement | null>(
+            null
+        );
+
+    /*
+     * Audio sintético de respaldo.
+     */
     const audioContextRef =
         useRef<AudioContext | null>(
             null
         );
 
-    /*
-     * =========================================================
-     * SONIDO
-     * =========================================================
-     */
+    /* ============================================================
+       PREPARAR AUDIO DE MOTO
+    ============================================================ */
 
-    const playTone = (
-        context: AudioContext,
-        frequency: number,
-        startTime: number,
-        duration: number,
-        volume: number
-    ) => {
-        const oscillator =
-            context.createOscillator();
+    useEffect(() => {
+        const audio =
+            new Audio(
+                "/sounds/moto-start.mp3"
+            );
 
-        const gain =
-            context.createGain();
+        audio.preload =
+            "auto";
 
-        oscillator.type =
-            "sine";
+        audio.volume =
+            0.82;
 
-        oscillator.frequency.setValueAtTime(
-            frequency,
-            startTime
-        );
+        motorAudioRef.current =
+            audio;
 
-        gain.gain.setValueAtTime(
-            0.0001,
-            startTime
-        );
+        return () => {
+            audio.pause();
 
-        gain.gain.exponentialRampToValueAtTime(
-            volume,
-            startTime + 0.02
-        );
+            motorAudioRef.current =
+                null;
+        };
+    }, []);
 
-        gain.gain.exponentialRampToValueAtTime(
-            0.0001,
-            startTime + duration
-        );
+    /* ============================================================
+       SONIDO DE RESPALDO
+    ============================================================ */
 
-        oscillator.connect(
-            gain
-        );
-
-        gain.connect(
-            context.destination
-        );
-
-        oscillator.start(
-            startTime
-        );
-
-        oscillator.stop(
-            startTime +
-            duration
-        );
-    };
-
-    const playRevealSound =
+    const playSyntheticEngine =
         async () => {
+
             if (
-                !soundEnabled
+                typeof window ===
+                "undefined"
             ) {
                 return;
             }
@@ -213,107 +189,204 @@ export default function BarukRevealCard({
             const now =
                 context.currentTime;
 
-            const sweep =
+            /*
+             * Motor grave.
+             */
+
+            const engine =
                 context.createOscillator();
 
-            const sweepGain =
+            const engineGain =
                 context.createGain();
 
-            sweep.type =
-                "sine";
+            const filter =
+                context.createBiquadFilter();
 
-            sweep.frequency.setValueAtTime(
-                180,
+            engine.type =
+                "sawtooth";
+
+            engine.frequency.setValueAtTime(
+                48,
                 now
             );
 
-            sweep.frequency.exponentialRampToValueAtTime(
-                900,
-                now + 0.65
+            engine.frequency.exponentialRampToValueAtTime(
+                115,
+                now + 0.22
             );
 
-            sweepGain.gain.setValueAtTime(
+            engine.frequency.exponentialRampToValueAtTime(
+                72,
+                now + 0.82
+            );
+
+            filter.type =
+                "lowpass";
+
+            filter.frequency.setValueAtTime(
+                650,
+                now
+            );
+
+            engineGain.gain.setValueAtTime(
                 0.0001,
                 now
             );
 
-            sweepGain.gain.exponentialRampToValueAtTime(
-                0.07,
-                now + 0.12
+            engineGain.gain.exponentialRampToValueAtTime(
+                0.14,
+                now + 0.06
             );
 
-            sweepGain.gain.exponentialRampToValueAtTime(
+            engineGain.gain.exponentialRampToValueAtTime(
+                0.055,
+                now + 0.52
+            );
+
+            engineGain.gain.exponentialRampToValueAtTime(
                 0.0001,
-                now + 0.72
+                now + 1.05
             );
 
-            sweep.connect(
-                sweepGain
+            engine.connect(
+                filter
             );
 
-            sweepGain.connect(
+            filter.connect(
+                engineGain
+            );
+
+            engineGain.connect(
                 context.destination
             );
 
-            sweep.start(
+            engine.start(
                 now
             );
 
-            sweep.stop(
-                now + 0.75
+            engine.stop(
+                now + 1.1
             );
 
-            [
-                392,
-                523.25,
-                659.25,
-                783.99,
-            ].forEach(
-                (
-                    frequency,
-                    index
-                ) => {
-                    playTone(
-                        context,
-                        frequency,
-                        now +
-                        0.48 +
-                        index *
-                        0.09,
-                        0.4,
-                        0.075
-                    );
-                }
+            /*
+             * Segundo tono:
+             * sensación de arranque / aceleración.
+             */
+
+            const rev =
+                context.createOscillator();
+
+            const revGain =
+                context.createGain();
+
+            rev.type =
+                "triangle";
+
+            rev.frequency.setValueAtTime(
+                110,
+                now + 0.12
+            );
+
+            rev.frequency.exponentialRampToValueAtTime(
+                360,
+                now + 0.48
+            );
+
+            rev.frequency.exponentialRampToValueAtTime(
+                165,
+                now + 0.92
+            );
+
+            revGain.gain.setValueAtTime(
+                0.0001,
+                now
+            );
+
+            revGain.gain.exponentialRampToValueAtTime(
+                0.065,
+                now + 0.18
+            );
+
+            revGain.gain.exponentialRampToValueAtTime(
+                0.0001,
+                now + 0.98
+            );
+
+            rev.connect(
+                revGain
+            );
+
+            revGain.connect(
+                context.destination
+            );
+
+            rev.start(
+                now
+            );
+
+            rev.stop(
+                now + 1
             );
         };
 
-    /*
-     * =========================================================
-     * SOLICITAR RESULTADO
-     * =========================================================
-     *
-     * PRIORIDAD:
-     *
-     * 1. Si existe sesión Supabase:
-     *
-     *    Authorization: Bearer access_token
-     *
-     *    La API comprobará owner_user_id.
-     *
-     * 2. Si no existe sesión:
-     *
-     *    enviamos email temporalmente para
-     *    mantener funcionando /mi-compra.
-     * =========================================================
-     */
+    /* ============================================================
+       REPRODUCIR ENCENDIDO
+    ============================================================ */
+
+    const playMotorStart =
+        async () => {
+
+            if (
+                !soundEnabled
+            ) {
+                return;
+            }
+
+            /*
+             * Primero intentamos reproducir
+             * el MP3 real.
+             */
+
+            const audio =
+                motorAudioRef.current;
+
+            if (audio) {
+                try {
+                    audio.currentTime =
+                        0;
+
+                    await audio.play();
+
+                    return;
+                } catch {
+                    /*
+                     * Si el archivo todavía no existe
+                     * o el navegador no puede reproducirlo,
+                     * usamos el sonido generado.
+                     */
+                }
+            }
+
+            try {
+                await playSyntheticEngine();
+            } catch (
+            audioError
+            ) {
+                console.warn(
+                    "No se pudo reproducir el sonido de activación:",
+                    audioError
+                );
+            }
+        };
+
+    /* ============================================================
+       CONSULTAR RESULTADO
+    ============================================================ */
 
     const requestRevealResult =
         useCallback(
             async () => {
-                /*
-                 * Consultar sesión actual
-                 * de Supabase.
-                 */
+
                 const {
                     data:
                     sessionData,
@@ -325,11 +398,6 @@ export default function BarukRevealCard({
                         .auth
                         .getSession();
 
-                /*
-                 * Un error al leer la sesión no debe
-                 * impedir el flujo temporal de
-                 * /mi-compra.
-                 */
                 if (
                     sessionError
                 ) {
@@ -353,10 +421,6 @@ export default function BarukRevealCard({
                         "application/json",
                 };
 
-                /*
-                 * Si existe sesión, enviamos
-                 * el token al servidor.
-                 */
                 if (
                     session
                         ?.access_token
@@ -365,14 +429,6 @@ export default function BarukRevealCard({
                         `Bearer ${session.access_token}`;
                 }
 
-                /*
-                 * Si estamos autenticados,
-                 * no necesitamos depender del
-                 * correo para autorizar.
-                 *
-                 * Si NO estamos autenticados,
-                 * conservamos email para /mi-compra.
-                 */
                 const requestBody =
                     session
                         ?.access_token
@@ -412,7 +468,7 @@ export default function BarukRevealCard({
                 ) {
                     throw new Error(
                         data?.error ??
-                        "No se pudo cargar el resultado de la tarjeta"
+                        "No se pudo activar la tarjeta"
                     );
                 }
 
@@ -424,18 +480,12 @@ export default function BarukRevealCard({
             ]
         );
 
-    /*
-     * =========================================================
-     * CARGAR UNA TARJETA QUE YA ESTABA REVELADA
-     * =========================================================
-     *
-     * No reproduce sonido.
-     * No vuelve a sortear.
-     *
-     * Simplemente recupera el resultado almacenado.
-     */
+    /* ============================================================
+       TARJETA YA REVELADA
+    ============================================================ */
 
     useEffect(() => {
+
         if (
             !initialRevealed
         ) {
@@ -446,6 +496,7 @@ export default function BarukRevealCard({
             false;
 
         async function loadExistingResult() {
+
             try {
                 setLoading(
                     true
@@ -471,9 +522,11 @@ export default function BarukRevealCard({
                 setRevealed(
                     true
                 );
+
             } catch (
             err: unknown
             ) {
+
                 if (
                     cancelled
                 ) {
@@ -481,12 +534,13 @@ export default function BarukRevealCard({
                 }
 
                 setError(
-                    err instanceof
-                        Error
+                    err instanceof Error
                         ? err.message
-                        : "No se pudo cargar la tarjeta revelada"
+                        : "No se pudo cargar la tarjeta"
                 );
+
             } finally {
+
                 if (
                     !cancelled
                 ) {
@@ -497,32 +551,25 @@ export default function BarukRevealCard({
             }
         }
 
-        loadExistingResult();
+        void loadExistingResult();
 
         return () => {
             cancelled =
                 true;
         };
+
     }, [
         initialRevealed,
         requestRevealResult,
     ]);
 
-    /*
-     * =========================================================
-     * REVELAR TARJETA
-     * =========================================================
-     */
+    /* ============================================================
+       ACTIVAR
+    ============================================================ */
 
-    const revealCard =
+    const activateCard =
         async () => {
-            /*
-             * Evitamos:
-             *
-             * - doble clic
-             * - múltiples peticiones
-             * - volver a revelar
-             */
+
             if (
                 revealed ||
                 loading
@@ -539,34 +586,52 @@ export default function BarukRevealCard({
             );
 
             try {
+
+                /*
+                 * Primero obtenemos el resultado real.
+                 */
+
                 const cardResult =
                     await requestRevealResult();
 
-                /*
-                 * Primero almacenamos
-                 * el resultado.
-                 */
                 setResult(
                     cardResult
                 );
 
                 /*
-                 * Reproducimos sonido únicamente
-                 * cuando el usuario hace clic.
+                 * Ahora encendemos el motor.
                  */
-                await playRevealSound();
+
+                void playMotorStart();
 
                 /*
-                 * Activamos la animación flip.
+                 * Pequeña espera para que
+                 * la animación de energía tenga sentido.
                  */
+
+                await new Promise<void>(
+                    (
+                        resolve
+                    ) => {
+                        window.setTimeout(
+                            resolve,
+                            850
+                        );
+                    }
+                );
+
+                /*
+                 * Flip.
+                 */
+
                 setRevealed(
                     true
                 );
 
                 /*
-                 * Vibración ligera en dispositivos
-                 * compatibles.
+                 * Vibración.
                  */
+
                 if (
                     typeof navigator !==
                     "undefined" &&
@@ -577,66 +642,208 @@ export default function BarukRevealCard({
                         [
                             40,
                             30,
-                            80,
+                            90,
                         ]
                     );
                 }
 
-                /*
-                 * Avisamos al componente padre.
-                 *
-                 * Lo utilizaremos para refrescar
-                 * colección, premios y contadores
-                 * inmediatamente.
-                 */
                 onRevealed?.(
                     cardResult
                 );
+
             } catch (
             err: unknown
             ) {
+
                 setError(
-                    err instanceof
-                        Error
+                    err instanceof Error
                         ? err.message
-                        : "No se pudo revelar la tarjeta"
+                        : "No se pudo activar la tarjeta"
                 );
+
             } finally {
+
                 setLoading(
                     false
                 );
             }
         };
 
+    /* ============================================================
+       EFECTO 3D CON CURSOR
+    ============================================================ */
+
+    function handlePointerMove(
+        event:
+            ReactPointerEvent<HTMLButtonElement>
+    ) {
+
+        if (
+            event.pointerType ===
+            "touch"
+        ) {
+            return;
+        }
+
+        const element =
+            event.currentTarget;
+
+        const rect =
+            element.getBoundingClientRect();
+
+        const x =
+            (
+                event.clientX -
+                rect.left
+            ) /
+            rect.width;
+
+        const y =
+            (
+                event.clientY -
+                rect.top
+            ) /
+            rect.height;
+
+        const rotateY =
+            (
+                x -
+                0.5
+            ) *
+            10;
+
+        const rotateX =
+            (
+                0.5 -
+                y
+            ) *
+            8;
+
+        element.style.setProperty(
+            "--tilt-x",
+            `${rotateX}deg`
+        );
+
+        element.style.setProperty(
+            "--tilt-y",
+            `${rotateY}deg`
+        );
+
+        element.style.setProperty(
+            "--light-x",
+            `${x * 100}%`
+        );
+
+        element.style.setProperty(
+            "--light-y",
+            `${y * 100}%`
+        );
+    }
+
+    function resetTilt(
+        event:
+            ReactPointerEvent<HTMLButtonElement>
+    ) {
+
+        const element =
+            event.currentTarget;
+
+        element.style.setProperty(
+            "--tilt-x",
+            "0deg"
+        );
+
+        element.style.setProperty(
+            "--tilt-y",
+            "0deg"
+        );
+
+        element.style.setProperty(
+            "--light-x",
+            "50%"
+        );
+
+        element.style.setProperty(
+            "--light-y",
+            "35%"
+        );
+    }
+
+    /* ============================================================
+       TEXTOS DEL RESULTADO
+    ============================================================ */
+
+    const numeroFormateado =
+        result
+            ? String(
+                result.numero
+            ).padStart(
+                5,
+                "0"
+            )
+            : "-----";
+
+    const resultKind =
+        result?.extraType ===
+            "prize"
+            ? "REWARD UNLOCKED"
+            : result?.extraType ===
+                "sphere"
+                ? "SPHERE UNLOCKED"
+                : "ACCESS ACTIVE";
+
+    const resultTitle =
+        result?.extraType ===
+            "prize" &&
+            result.prize
+            ? result.prize.nombre
+
+            : result?.extraType ===
+                "sphere" &&
+                result.sphere
+                ? result.sphere.nombre
+
+                : "TU NÚMERO ESTÁ EN JUEGO";
+
+    const resultSubtext =
+        result?.extraType ===
+            "prize"
+            ? "Premio instantáneo desbloqueado"
+
+            : result?.extraType ===
+                "sphere"
+                ? "Añadida a tu colección"
+
+                : "Tu acceso permanece activo para el premio principal.";
+
     /*
-     * =========================================================
-     * INTERFAZ
-     * =========================================================
+     * ID visual corto.
+     * No se utiliza para seguridad.
      */
+
+    const passCode =
+        cardId
+            .replace(
+                /-/g,
+                ""
+            )
+            .slice(
+                -6
+            )
+            .toUpperCase();
+
+    /* ============================================================
+       INTERFAZ
+    ============================================================ */
 
     return (
         <section className="baruk-wrapper">
 
-            {/* CONTROL DE SONIDO */}
 
-            <button
-                type="button"
-                className="baruk-sound"
-                onClick={() =>
-                    setSoundEnabled(
-                        (
-                            current
-                        ) =>
-                            !current
-                    )
-                }
-            >
-                {soundEnabled
-                    ? "🔊 Sonido activado"
-                    : "🔇 Sonido desactivado"}
-            </button>
 
-            {/* TARJETA */}
+            {/* ================================================
+                TARJETA
+            ================================================= */}
 
             <div className="baruk-card-area">
 
@@ -644,145 +851,315 @@ export default function BarukRevealCard({
                     type="button"
                     className="baruk-scene"
                     onClick={
-                        revealCard
+                        activateCard
+                    }
+                    onPointerMove={
+                        handlePointerMove
+                    }
+                    onPointerLeave={
+                        resetTilt
                     }
                     disabled={
+                        revealed ||
                         loading
                     }
                     aria-label={
                         revealed
-                            ? "Tarjeta Baruk593 revelada"
-                            : "Revelar Baruk Card"
+                            ? "Experience Pass Baruk593 activado"
+                            : "Activar Experience Pass Baruk593"
                     }
                 >
+
                     <div
-                        className={`baruk-flip-card ${revealed
+                        className={`
+                            baruk-flip-card
+                            ${revealed
                                 ? "is-revealed"
                                 : ""
-                            }`}
+                            }
+                            ${loading
+                                ? "is-activating"
+                                : ""
+                            }
+                        `}
                     >
 
-                        {/* ===============================
+                        {/* ====================================
                             FRENTE
-                        =============================== */}
+                        ===================================== */}
 
                         <div className="baruk-card-face baruk-card-front">
 
-                            <img
-                                src={
-                                    frontImage
-                                }
-                                alt="Frente de la tarjeta Baruk593"
-                                className="baruk-image"
-                                draggable={
-                                    false
-                                }
+                            {/* MATERIAL */}
+
+                            <div
+                                className="baruk-carbon"
+                                aria-hidden="true"
                             />
 
-                            {!loading && (
-                                <div
-                                    className="baruk-pulse"
-                                    aria-hidden="true"
-                                >
-                                    <span />
-                                    <span />
-                                    <span />
-                                </div>
-                            )}
+                            <div
+                                className="baruk-light"
+                                aria-hidden="true"
+                            />
 
-                            {loading && (
-                                <div className="baruk-loading">
-                                    Revelando...
+                            <div
+                                className="baruk-energy-line"
+                                aria-hidden="true"
+                            />
+
+                            <div
+                                className="baruk-metal-border"
+                                aria-hidden="true"
+                            />
+
+                            {/* HEADER */}
+
+                            <header className="baruk-pass-header">
+
+                                <div className="baruk-logo">
+
+                                    <strong>
+                                        BARUK
+                                    </strong>
+
+                                    <span>
+                                        593
+                                    </span>
+
                                 </div>
-                            )}
+
+                                <div className="baruk-pass-id">
+                                    PASS /{" "}
+                                    {passCode}
+                                </div>
+
+                            </header>
+
+                            {/* CENTRO */}
+
+                            <div className="baruk-pass-center">
+
+                                <p className="baruk-experience-label">
+                                    EXPERIENCE PASS
+                                </p>
+
+                                <div className="baruk-power">
+
+                                    <div className="baruk-power-halo" />
+
+                                    <div className="baruk-power-button">
+
+                                        <div className="baruk-power-symbol">
+                                            <span />
+                                        </div>
+
+                                    </div>
+
+                                </div>
+
+                                <p className="baruk-activate-label">
+                                    {loading
+                                        ? "ENCENDIENDO"
+                                        : "ACTIVAR"}
+                                </p>
+
+                                <p className="baruk-pass-copy">
+                                    TU LLAVE DE ACCESO
+                                </p>
+
+                            </div>
+
+                            {/* FOOTER */}
+
+                            <footer className="baruk-pass-footer">
+
+                                <div className="baruk-series">
+
+                                    <span>
+                                        SERIES
+                                    </span>
+
+                                    <strong>
+                                        KTM
+                                    </strong>
+
+                                </div>
+
+                                <div className="baruk-footer-wordmark">
+                                    ACTIVA
+                                    <i />
+                                    DESCUBRE
+                                    <i />
+                                    ACELERA
+                                </div>
+
+                            </footer>
 
                         </div>
 
-                        {/* ===============================
-                            PARTE POSTERIOR
-                        =============================== */}
+                        {/* ====================================
+                            POSTERIOR
+                        ===================================== */}
 
                         <div className="baruk-card-face baruk-card-back">
 
-                            <img
-                                src={
-                                    backImage
-                                }
-                                alt="Resultado de la tarjeta Baruk593"
-                                className="baruk-image"
-                                draggable={
-                                    false
-                                }
+                            <div
+                                className="baruk-carbon"
+                                aria-hidden="true"
                             />
 
-                            {result && (
-                                <div className="baruk-result-overlay">
+                            <div
+                                className="baruk-light"
+                                aria-hidden="true"
+                            />
 
-                                    {/* NÚMERO */}
+                            <div
+                                className="baruk-energy-line"
+                                aria-hidden="true"
+                            />
 
-                                    <div className="baruk-live-number">
-                                        <strong>
-                                            {
-                                                result.numero
-                                            }
-                                        </strong>
-                                    </div>
+                            <div
+                                className="baruk-metal-border"
+                                aria-hidden="true"
+                            />
 
-                                    {/* PREMIO */}
+                            {/* HEADER */}
 
-                                    {result.extraType ===
-                                        "prize" &&
-                                        result.prize && (
+                            <header className="baruk-pass-header">
 
-                                            <div className="baruk-result-caption">
+                                <div className="baruk-logo">
 
-                                                <span>
-                                                    ¡GANASTE!
-                                                </span>
+                                    <strong>
+                                        BARUK
+                                    </strong>
 
-                                                <p>
-                                                    {
-                                                        result
-                                                            .prize
-                                                            .nombre
-                                                    }
-                                                </p>
-
-                                            </div>
-                                        )}
-
-                                    {/* ESFERA */}
-
-                                    {result.extraType ===
-                                        "sphere" &&
-                                        result.sphere && (
-
-                                            <div className="baruk-result-caption">
-
-                                                <span>
-                                                    ¡ENCONTRASTE UNA ESFERA!
-                                                </span>
-
-                                                <p>
-                                                    {
-                                                        result
-                                                            .sphere
-                                                            .nombre
-                                                    }
-                                                </p>
-
-                                            </div>
-                                        )}
+                                    <span>
+                                        593
+                                    </span>
 
                                 </div>
-                            )}
+
+                                <div className="baruk-active-status">
+
+                                    <i />
+
+                                    ACTIVADA
+
+                                </div>
+
+                            </header>
+
+                            {/* RESULTADO */}
+
+                            <div className="baruk-result">
+
+                                <p className="baruk-result-eyebrow">
+                                    TU NÚMERO
+                                </p>
+
+                                <strong className="baruk-live-number">
+                                    {numeroFormateado}
+                                </strong>
+
+                                <p className="baruk-number-state">
+                                    TU NÚMERO ESTÁ EN JUEGO
+                                </p>
+
+                                <div className="baruk-result-separator" />
+
+                                <p className="baruk-result-kind">
+                                    {resultKind}
+                                </p>
+
+                                {/* PREMIO */}
+
+                                {result?.extraType ===
+                                    "prize" &&
+                                    result.prize
+                                        ?.imagen_url && (
+
+                                        <img
+                                            src={
+                                                result.prize.imagen_url
+                                            }
+                                            alt={
+                                                result.prize.nombre
+                                            }
+                                            className="baruk-result-image"
+                                            draggable={
+                                                false
+                                            }
+                                        />
+
+                                    )}
+
+                                {/* ESFERA */}
+
+                                {result?.extraType ===
+                                    "sphere" &&
+                                    result.sphere
+                                        ?.imagen_url && (
+
+                                        <img
+                                            src={
+                                                result.sphere.imagen_url
+                                            }
+                                            alt={
+                                                result.sphere.nombre
+                                            }
+                                            className="baruk-result-image baruk-result-sphere"
+                                            draggable={
+                                                false
+                                            }
+                                        />
+
+                                    )}
+
+                                <strong className="baruk-result-title">
+                                    {resultTitle}
+                                </strong>
+
+                                <span className="baruk-result-subtext">
+                                    {resultSubtext}
+                                </span>
+
+                            </div>
+
+                            {/* FOOTER */}
+
+                            <footer className="baruk-pass-footer">
+
+                                <div className="baruk-series">
+
+                                    <span>
+                                        STATUS
+                                    </span>
+
+                                    <strong>
+                                        ACTIVE
+                                    </strong>
+
+                                </div>
+
+                                <div className="baruk-footer-wordmark">
+                                    BARUK593
+                                    <i />
+                                    EXPERIENCE
+                                </div>
+
+                            </footer>
 
                         </div>
+
                     </div>
+
                 </button>
+
             </div>
 
-            {/* ERROR */}
+            {/* ================================================
+                ERROR
+            ================================================= */}
 
             {error && (
                 <p className="baruk-error">
@@ -790,14 +1167,20 @@ export default function BarukRevealCard({
                 </p>
             )}
 
-            {/* MENSAJE */}
+            {/* ================================================
+                INSTRUCCIÓN
+            ================================================= */}
 
             <p className="baruk-instruction">
+
                 {revealed
-                    ? "Tu resultado quedó guardado en Baruk593."
+                    ? "Acceso activado. Tu resultado quedó guardado en Baruk593."
+
                     : loading
-                        ? "Estamos revelando tu tarjeta..."
-                        : "Haz clic sobre la tarjeta para revelar el resultado."}
+                        ? "Encendiendo tu Experience Pass..."
+
+                        : "Presiona la tarjeta para activar tu acceso."}
+
             </p>
 
         </section>

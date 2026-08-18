@@ -44,9 +44,44 @@ type InstantPrize = {
     | null;
 };
 
+type CollectionUsedSphere = {
+    sphereInstanceId: string;
+    sphereId: string;
+
+    number:
+    | number
+    | null;
+
+    name:
+    | string
+    | null;
+
+    teamName:
+    | string
+    | null;
+
+    teamSlug:
+    | string
+    | null;
+
+    collectionKey:
+    | string
+    | null;
+
+    season:
+    | number
+    | null;
+};
+
 type CollectionPrize = {
     kind: "collection";
     id: string;
+    claimNumber: number;
+
+    totalUserClaims: number;
+
+    usedSpheres:
+    CollectionUsedSphere[];
     ownerUserId: string;
     ownerEmail: string | null;
     status: ClaimStatus;
@@ -918,8 +953,7 @@ export default function AdminPremiosPage() {
                         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
                             Gestiona los premios instantáneos obtenidos
                             mediante Baruk Cards y los premios especiales
-                            por completar la colección de las 7 esferas.
-                        </p>
+                            por completar la F1 Sphere Collection de 11 escuderías.                        </p>
                     </div>
 
                     <div className="flex flex-wrap gap-2">
@@ -1026,9 +1060,9 @@ export default function AdminPremiosPage() {
                                     )
                                 }
                                 className={`rounded-full px-4 py-2 text-xs font-bold transition ${filter ===
-                                        "all"
-                                        ? "bg-orange-500 text-black"
-                                        : "border border-slate-700 bg-slate-950 text-slate-300 hover:border-orange-500"
+                                    "all"
+                                    ? "bg-orange-500 text-black"
+                                    : "border border-slate-700 bg-slate-950 text-slate-300 hover:border-orange-500"
                                     }`}
                             >
                                 Todos
@@ -1042,9 +1076,9 @@ export default function AdminPremiosPage() {
                                     )
                                 }
                                 className={`rounded-full px-4 py-2 text-xs font-bold transition ${filter ===
-                                        "instant"
-                                        ? "bg-orange-500 text-black"
-                                        : "border border-slate-700 bg-slate-950 text-slate-300 hover:border-orange-500"
+                                    "instant"
+                                    ? "bg-orange-500 text-black"
+                                    : "border border-slate-700 bg-slate-950 text-slate-300 hover:border-orange-500"
                                     }`}
                             >
                                 Instantáneos
@@ -1058,13 +1092,12 @@ export default function AdminPremiosPage() {
                                     )
                                 }
                                 className={`rounded-full px-4 py-2 text-xs font-bold transition ${filter ===
-                                        "collection"
-                                        ? "bg-orange-500 text-black"
-                                        : "border border-slate-700 bg-slate-950 text-slate-300 hover:border-orange-500"
+                                    "collection"
+                                    ? "bg-orange-500 text-black"
+                                    : "border border-slate-700 bg-slate-950 text-slate-300 hover:border-orange-500"
                                     }`}
                             >
-                                Colección 7 esferas
-                            </button>
+                                F1 Sphere Collection                            </button>
                         </div>
 
                         <input
@@ -1459,8 +1492,7 @@ export default function AdminPremiosPage() {
                                             </p>
 
                                             <h2 className="mt-1 text-xl font-black text-white">
-                                                Premios por completar las 7 esferas
-                                            </h2>
+                                                Premios F1 Sphere Collection                                            </h2>
                                         </div>
 
                                         <div className="rounded-full border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-bold text-slate-300">
@@ -1478,8 +1510,7 @@ export default function AdminPremiosPage() {
                                             </p>
 
                                             <p className="mt-2 text-xs text-slate-500">
-                                                El reclamo aparecerá aquí automáticamente cuando un usuario complete las 7 esferas.
-                                            </p>
+                                                El reclamo aparecerá aquí cuando un usuario complete las 11 F1 Spheres y reclame su premio.                                            </p>
                                         </div>
                                     ) : (
                                         <div className="grid gap-4 lg:grid-cols-2">
@@ -1509,7 +1540,7 @@ export default function AdminPremiosPage() {
                                                                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                                                                     <div>
                                                                         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-orange-400">
-                                                                            Colección completa
+                                                                            F1 Sphere Collection · Premio #{item.claimNumber}
                                                                         </p>
 
                                                                         <h3 className="mt-2 text-lg font-black text-white">
@@ -1522,6 +1553,15 @@ export default function AdminPremiosPage() {
                                                                         <p className="mt-2 break-all text-xs text-slate-400">
                                                                             {item.ownerEmail ??
                                                                                 "Sin correo registrado"}
+                                                                        </p>
+
+                                                                        <p className="mt-2 text-[10px] font-bold uppercase tracking-wider text-orange-300/70">
+                                                                            Premio {item.claimNumber} de{" "}
+                                                                            {item.totalUserClaims} obtenido
+                                                                            {item.totalUserClaims === 1
+                                                                                ? ""
+                                                                                : "s"}{" "}
+                                                                            por este usuario
                                                                         </p>
                                                                     </div>
 
@@ -1566,7 +1606,7 @@ export default function AdminPremiosPage() {
                                                                             {item
                                                                                 .reward
                                                                                 ?.requiredSpheres ??
-                                                                                7}
+                                                                                11}
                                                                         </p>
                                                                     </div>
 
@@ -1581,6 +1621,101 @@ export default function AdminPremiosPage() {
                                                                             )}
                                                                         </p>
                                                                     </div>
+                                                                </div>
+
+                                                                {/* =========================================
+    F1 SPHERES UTILIZADAS
+========================================= */}
+
+                                                                <div className="mt-5 border-t border-slate-800 pt-5">
+
+                                                                    <div className="flex items-center justify-between gap-3">
+
+                                                                        <div>
+                                                                            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-400">
+                                                                                F1 Spheres utilizadas
+                                                                            </p>
+
+                                                                            <p className="mt-1 text-[11px] text-slate-500">
+                                                                                Estas esferas quedaron consumidas al reclamar este premio.
+                                                                            </p>
+                                                                        </div>
+
+
+                                                                        <span className="rounded-full border border-orange-500/30 bg-orange-500/10 px-3 py-1 text-[10px] font-black text-orange-200">
+                                                                            {item.usedSpheres.length}/11
+                                                                        </span>
+
+                                                                    </div>
+
+
+                                                                    {item.usedSpheres.length >
+                                                                        0 ? (
+
+                                                                        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+
+                                                                            {item.usedSpheres.map(
+                                                                                (
+                                                                                    sphere
+                                                                                ) => (
+
+                                                                                    <div
+                                                                                        key={
+                                                                                            sphere.sphereInstanceId
+                                                                                        }
+                                                                                        className="flex items-center gap-3 rounded-xl border border-slate-800 bg-black/20 p-3"
+                                                                                    >
+
+                                                                                        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-orange-500/30 bg-orange-500/10 text-xs font-black text-orange-300">
+
+                                                                                            {sphere.number ??
+                                                                                                "—"}
+
+                                                                                        </div>
+
+
+                                                                                        <div className="min-w-0">
+
+                                                                                            <p className="truncate text-xs font-black text-slate-100">
+
+                                                                                                {sphere.teamName ??
+                                                                                                    sphere.name ??
+                                                                                                    "F1 Sphere"}
+
+                                                                                            </p>
+
+
+                                                                                            <p className="mt-0.5 text-[9px] uppercase tracking-wider text-slate-500">
+
+                                                                                                {
+                                                                                                    sphere.collectionKey ??
+                                                                                                    "f1-2026"
+                                                                                                }
+
+                                                                                            </p>
+
+                                                                                        </div>
+
+                                                                                    </div>
+
+                                                                                )
+                                                                            )}
+
+                                                                        </div>
+
+                                                                    ) : (
+
+                                                                        <div className="mt-4 rounded-xl border border-slate-800 bg-black/20 p-4">
+
+                                                                            <p className="text-xs text-slate-500">
+                                                                                No existe detalle individual de las esferas para este reclamo.
+                                                                                Esto puede ocurrir con reclamos creados antes del nuevo sistema F1.
+                                                                            </p>
+
+                                                                        </div>
+
+                                                                    )}
+
                                                                 </div>
 
                                                                 {/* ESTADO */}
