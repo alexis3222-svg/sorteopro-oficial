@@ -93,6 +93,12 @@ export default function PayphoneShopBox({
 
     return (
         <>
+
+            <link
+                rel="stylesheet"
+                href="https://cdn.payphonetodoesposible.com/box/v1.1/payphone-payment-box.css"
+            />
+
             <Script
                 id="payphone-shop-sdk"
                 type="module"

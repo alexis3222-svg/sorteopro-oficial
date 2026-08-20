@@ -376,6 +376,11 @@ export default function MarketplacePayphonePage() {
             "
         >
 
+            <link
+                rel="stylesheet"
+                href="https://cdn.payphonetodoesposible.com/box/v1.1/payphone-payment-box.css"
+            />
+
             <Script
                 src="https://cdn.payphonetodoesposible.com/box/v1.1/payphone-payment-box.js"
 
