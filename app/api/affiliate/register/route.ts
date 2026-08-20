@@ -1,140 +1,944 @@
 // app/api/affiliate/register/route.ts
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import bcrypt from "bcryptjs";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-);
+import {
+    supabaseAdmin,
+} from "@/lib/supabaseAdmin";
 
-function bad(msg: string) {
-    return NextResponse.json({ ok: false, error: msg }, { status: 400 });
+
+export const runtime =
+    "nodejs";
+
+export const dynamic =
+    "force-dynamic";
+
+
+/* ============================================================
+   HELPERS
+============================================================ */
+
+function bad(
+    message: string,
+    status = 400
+) {
+
+    return NextResponse.json(
+        {
+            ok: false,
+            error: message,
+        },
+        {
+            status,
+        }
+    );
 }
 
-// ✅ Lee setting global: key="affiliate_registration", value={ open: true/false }
-async function getAffiliateRegistrationOpen(): Promise<boolean> {
-    const { data, error } = await supabaseAdmin
-        .from("app_settings")
-        .select("value")
-        .eq("key", "affiliate_registration")
-        .maybeSingle();
 
-    if (error) {
-        console.error("Error leyendo app_settings affiliate_registration:", error);
-        // Default seguro para no tumbar producción si falla lectura
+/* ============================================================
+   REGISTRO DE AFILIADOS HABILITADO / DESHABILITADO
+============================================================ */
+
+async function getAffiliateRegistrationOpen():
+    Promise<boolean> {
+
+    const {
+        data,
+        error,
+    } =
+        await supabaseAdmin
+            .from(
+                "app_settings"
+            )
+            .select(
+                "value"
+            )
+            .eq(
+                "key",
+                "affiliate_registration"
+            )
+            .maybeSingle();
+
+
+    if (
+        error
+    ) {
+
+        console.error(
+            "Error leyendo affiliate_registration:",
+            error
+        );
+
+        /*
+         * Conservamos el comportamiento actual:
+         * si falla esta lectura, no tumbamos
+         * el sistema completo.
+         */
         return true;
     }
 
-    const open = (data?.value as any)?.open;
-    return typeof open === "boolean" ? open : true;
+
+    const open =
+        (
+            data?.value as
+            {
+                open?: boolean;
+            }
+            | null
+        )?.open;
+
+
+    return typeof open ===
+        "boolean"
+
+        ? open
+
+        : true;
 }
 
-export async function POST(req: NextRequest) {
+
+/* ============================================================
+   POST
+   ACTIVAR PERFIL DE AFILIADO DESDE MI CUENTA
+============================================================ */
+
+export async function POST(
+    req: NextRequest
+) {
+
     try {
-        // 🔒 Validar si el registro de socios está abierto (backend obligatorio)
-        const regOpen = await getAffiliateRegistrationOpen();
-        if (!regOpen) {
-            return NextResponse.json(
-                { ok: false, error: "Registro de socios comerciales cerrado temporalmente" },
-                { status: 403 }
+
+        /* =====================================================
+           1. VALIDAR SESIÓN DE MI CUENTA
+        ===================================================== */
+
+        const authorization =
+            req.headers.get(
+                "authorization"
+            );
+
+
+        if (
+            !authorization ||
+            !authorization.startsWith(
+                "Bearer "
+            )
+        ) {
+
+            return bad(
+                "Debes iniciar sesión en Mi Cuenta",
+                401
             );
         }
 
-        const body = await req.json().catch(() => null);
 
-        const nombre = (body?.nombre ?? body?.nombres ?? "").toString().trim();
-        const apellido = (body?.apellido ?? body?.apellidos ?? "").toString().trim();
+        const accessToken =
+            authorization
+                .replace(
+                    "Bearer ",
+                    ""
+                )
+                .trim();
 
-        const email = (body?.email ?? body?.correo ?? "").toString().trim().toLowerCase();
-        const username = (body?.username ?? body?.usuario ?? "").toString().trim();
-        const password = (body?.password ?? "").toString();
 
-        const whatsapp = (body?.whatsapp ?? body?.telefono ?? "").toString().trim();
+        if (
+            !accessToken
+        ) {
 
-        if (!whatsapp) return bad("Falta whatsapp");
-        if (!/^09\d{8}$/.test(whatsapp)) return bad("WhatsApp inválido");
-
-        if (!nombre) return bad("Falta nombre");
-        if (!apellido) return bad("Falta apellido");
-        if (!email) return bad("Falta email");
-        if (!username) return bad("Falta username");
-        if (!password) return bad("Falta password");
-        if (password.length < 6) return bad("Password debe tener al menos 6 caracteres");
-
-        const correoValido = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-        if (!correoValido) return bad("Email inválido");
-
-        // ✅ evitar duplicados (username o email)
-        const { data: existsUser, error: existsUserErr } = await supabaseAdmin
-            .from("affiliates")
-            .select("id")
-            .eq("username", username)
-            .maybeSingle();
-
-        if (existsUserErr) {
-            return NextResponse.json(
-                { ok: false, error: existsUserErr.message },
-                { status: 500 }
-            );
-        }
-        if (existsUser?.id) return bad("Ese usuario ya existe");
-
-        const { data: existsEmail, error: existsEmailErr } = await supabaseAdmin
-            .from("affiliates")
-            .select("id")
-            .eq("email", email)
-            .maybeSingle();
-
-        if (existsEmailErr) {
-            return NextResponse.json(
-                { ok: false, error: existsEmailErr.message },
-                { status: 500 }
-            );
-        }
-        if (existsEmail?.id) return bad("Ese email ya está registrado");
-
-        const password_hash = await bcrypt.hash(password, 10);
-
-        // display_name: nombre + apellido
-        const display_name = `${nombre} ${apellido}`.trim();
-
-        // code: según tu flujo actual, ref = username
-        const code = username;
-
-        // ✅ Insert con campos que tu admin ya usa (username, display_name, code, whatsapp, status, kind)
-        const { data, error } = await supabaseAdmin
-            .from("affiliates")
-            .insert({
-                kind: "socio",
-                username,
-                display_name,
-                code,
-                whatsapp,
-                status: "active",
-                password_hash,
-                email,
-            })
-            .select("id, username, display_name, code, whatsapp, status, created_at")
-            .single();
-
-        if (error || !data) {
-            return NextResponse.json(
-                { ok: false, error: error?.message || "No se pudo crear afiliado" },
-                { status: 500 }
+            return bad(
+                "La sesión no es válida",
+                401
             );
         }
 
-        return NextResponse.json({ ok: true, affiliate: data });
-    } catch (e: any) {
-        console.error("affiliate/register error:", e);
-        return NextResponse.json(
-            { ok: false, error: e?.message || "Error interno" },
-            { status: 500 }
+
+        const {
+            data:
+            userData,
+
+            error:
+            userError,
+        } =
+            await supabaseAdmin
+                .auth
+                .getUser(
+                    accessToken
+                );
+
+
+        if (
+            userError ||
+            !userData.user
+        ) {
+
+            return bad(
+                "Tu sesión ha expirado",
+                401
+            );
+        }
+
+
+        const user =
+            userData.user;
+
+
+        const email =
+            String(
+                user.email ??
+                ""
+            )
+                .trim()
+                .toLowerCase();
+
+
+        if (
+            !email
+        ) {
+
+            return bad(
+                "Tu cuenta no tiene un correo válido",
+                400
+            );
+        }
+
+
+        /* =====================================================
+           2. REGISTRO DE AFILIADOS ABIERTO
+        ===================================================== */
+
+        const registrationOpen =
+            await getAffiliateRegistrationOpen();
+
+
+        if (
+            !registrationOpen
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "El registro de afiliados está cerrado temporalmente",
+                },
+                {
+                    status:
+                        403,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           3. LEER DATOS DEL PERFIL
+        ===================================================== */
+
+        const body =
+            await req
+                .json()
+                .catch(
+                    () => ({})
+                );
+
+
+        const whatsapp =
+            String(
+                body?.whatsapp ??
+                body?.telefono ??
+                ""
+            )
+                .trim();
+
+
+        if (
+            !whatsapp
+        ) {
+
+            return bad(
+                "Ingresa tu número de WhatsApp"
+            );
+        }
+
+
+        if (
+            !/^09\d{8}$/.test(
+                whatsapp
+            )
+        ) {
+
+            return bad(
+                "Ingresa un WhatsApp válido (09xxxxxxxx)"
+            );
+        }
+
+
+        /*
+         * Podemos recibir nombre desde Mi Cuenta.
+         *
+         * Si no viene, intentamos utilizar
+         * los metadatos de Supabase.
+         */
+
+        const requestedName =
+            String(
+                body?.displayName ??
+                body?.display_name ??
+                body?.nombre ??
+                ""
+            )
+                .trim();
+
+
+        const metadataName =
+            String(
+                user.user_metadata
+                    ?.full_name ??
+                user.user_metadata
+                    ?.name ??
+                ""
+            )
+                .trim();
+
+
+        const emailName =
+            email
+                .split(
+                    "@"
+                )[0]
+                .trim();
+
+
+        const displayName =
+            requestedName ||
+            metadataName ||
+            emailName ||
+            "Usuario Baruk593";
+
+
+        /* =====================================================
+           4. ¿YA ES AFILIADO?
+        ===================================================== */
+
+        const {
+            data:
+            affiliateByUser,
+
+            error:
+            affiliateByUserError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .select(`
+                    id,
+                    user_id,
+                    display_name,
+                    code,
+                    whatsapp,
+                    email,
+                    status,
+                    commission_rate,
+                    created_at
+                `)
+                .eq(
+                    "user_id",
+                    user.id
+                )
+                .maybeSingle();
+
+
+        if (
+            affiliateByUserError
+        ) {
+
+            console.error(
+                "Error buscando afiliado por user_id:",
+                affiliateByUserError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        affiliateByUserError.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        /*
+         * Idempotencia:
+         *
+         * Si ya estaba activado, no creamos
+         * otro afiliado.
+         */
+
+        if (
+            affiliateByUser
+        ) {
+
+            /*
+             * Aprovechamos para actualizar
+             * nombre y WhatsApp.
+             */
+
+            const {
+                data:
+                updatedAffiliate,
+
+                error:
+                updateError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "affiliates"
+                    )
+                    .update({
+                        display_name:
+                            displayName,
+
+                        whatsapp,
+
+                        email,
+
+                        status:
+                            "active",
+
+                        is_active:
+                            true,
+                    })
+                    .eq(
+                        "id",
+                        affiliateByUser.id
+                    )
+                    .select(`
+                        id,
+                        user_id,
+                        display_name,
+                        code,
+                        whatsapp,
+                        email,
+                        status,
+                        commission_rate,
+                        created_at
+                    `)
+                    .single();
+
+
+            if (
+                updateError ||
+                !updatedAffiliate
+            ) {
+
+                return NextResponse.json(
+                    {
+                        ok:
+                            false,
+
+                        error:
+                            updateError
+                                ?.message ??
+                            "No se pudo actualizar tu perfil de afiliado",
+                    },
+                    {
+                        status:
+                            500,
+                    }
+                );
+            }
+
+
+            await ensureWallet(
+                user.id
+            );
+
+
+            return NextResponse.json({
+                ok:
+                    true,
+
+                alreadyActive:
+                    true,
+
+                affiliate:
+                    updatedAffiliate,
+
+                referralUrl:
+                    `${req.nextUrl.origin}/?ref=${encodeURIComponent(
+                        updatedAffiliate.code
+                    )}`,
+            });
+        }
+
+
+        /* =====================================================
+           5. BUSCAR ANTIGUO PERFIL POR EMAIL
+        =====================================================
+         *
+         * Esto permite reutilizar un afiliado creado
+         * anteriormente sin perder su código/QR.
+         */
+
+        const {
+            data:
+            affiliateByEmail,
+
+            error:
+            affiliateByEmailError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .select(`
+                    id,
+                    user_id,
+                    display_name,
+                    code,
+                    whatsapp,
+                    email,
+                    status,
+                    commission_rate,
+                    created_at
+                `)
+                .eq(
+                    "email",
+                    email
+                )
+                .limit(
+                    1
+                )
+                .maybeSingle();
+
+
+        if (
+            affiliateByEmailError
+        ) {
+
+            console.error(
+                "Error buscando afiliado por email:",
+                affiliateByEmailError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        affiliateByEmailError.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        /*
+         * Si el correo ya pertenece a OTRO auth.user,
+         * no podemos apropiarnos de ese perfil.
+         */
+
+        if (
+            affiliateByEmail?.user_id &&
+            affiliateByEmail.user_id !==
+            user.id
+        ) {
+
+            return bad(
+                "Ese correo ya está vinculado a otra cuenta de afiliado",
+                409
+            );
+        }
+
+
+        /* =====================================================
+           6. VINCULAR PERFIL ANTIGUO
+        ===================================================== */
+
+        if (
+            affiliateByEmail
+        ) {
+
+            const {
+                data:
+                linkedAffiliate,
+
+                error:
+                linkError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "affiliates"
+                    )
+                    .update({
+
+                        user_id:
+                            user.id,
+
+                        /*
+                         * Ya no usamos autenticación
+                         * independiente de afiliados.
+                         */
+
+                        username:
+                            null,
+
+                        password_hash:
+                            null,
+
+                        must_change_password:
+                            false,
+
+                        display_name:
+                            displayName,
+
+                        whatsapp,
+
+                        email,
+
+                        status:
+                            "active",
+
+                        is_active:
+                            true,
+
+                        commission_rate:
+                            0.10,
+                    })
+                    .eq(
+                        "id",
+                        affiliateByEmail.id
+                    )
+                    .select(`
+                        id,
+                        user_id,
+                        display_name,
+                        code,
+                        whatsapp,
+                        email,
+                        status,
+                        commission_rate,
+                        created_at
+                    `)
+                    .single();
+
+
+            if (
+                linkError ||
+                !linkedAffiliate
+            ) {
+
+                return NextResponse.json(
+                    {
+                        ok:
+                            false,
+
+                        error:
+                            linkError
+                                ?.message ??
+                            "No se pudo vincular tu perfil de afiliado",
+                    },
+                    {
+                        status:
+                            500,
+                    }
+                );
+            }
+
+
+            await ensureWallet(
+                user.id
+            );
+
+
+            return NextResponse.json({
+
+                ok:
+                    true,
+
+                alreadyActive:
+                    false,
+
+                linkedExisting:
+                    true,
+
+                affiliate:
+                    linkedAffiliate,
+
+                referralUrl:
+                    `${req.nextUrl.origin}/?ref=${encodeURIComponent(
+                        linkedAffiliate.code
+                    )}`,
+            });
+        }
+
+
+        /* =====================================================
+           7. CREAR NUEVO PERFIL
+        =====================================================
+         *
+         * IMPORTANTE:
+         *
+         * NO enviamos "code".
+         *
+         * PostgreSQL utilizará:
+         *
+         * next_affiliate_code()
+         *
+         * para generar un código único.
+         */
+
+        const {
+            data:
+            affiliate,
+
+            error:
+            insertError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .insert({
+
+                    user_id:
+                        user.id,
+
+                    kind:
+                        "socio",
+
+                    username:
+                        null,
+
+                    password_hash:
+                        null,
+
+                    display_name:
+                        displayName,
+
+                    whatsapp,
+
+                    email,
+
+                    status:
+                        "active",
+
+                    is_active:
+                        true,
+
+                    must_change_password:
+                        false,
+
+                    commission_rate:
+                        0.10,
+                })
+                .select(`
+                    id,
+                    user_id,
+                    display_name,
+                    code,
+                    whatsapp,
+                    email,
+                    status,
+                    commission_rate,
+                    created_at
+                `)
+                .single();
+
+
+        if (
+            insertError ||
+            !affiliate
+        ) {
+
+            console.error(
+                "Error creando afiliado:",
+                insertError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        insertError
+                            ?.message ??
+                        "No se pudo activar tu perfil de afiliado",
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           8. CREAR BILLETERA SI NO EXISTE
+        ===================================================== */
+
+        await ensureWallet(
+            user.id
         );
+
+
+        /* =====================================================
+           9. RESPUESTA
+        ===================================================== */
+
+        return NextResponse.json({
+
+            ok:
+                true,
+
+            alreadyActive:
+                false,
+
+            linkedExisting:
+                false,
+
+            affiliate,
+
+            referralUrl:
+                `${req.nextUrl.origin}/?ref=${encodeURIComponent(
+                    affiliate.code
+                )}`,
+        });
+
+
+    } catch (
+    error:
+        unknown
+    ) {
+
+        console.error(
+            "affiliate/register error:",
+            error
+        );
+
+
+        return NextResponse.json(
+            {
+                ok:
+                    false,
+
+                error:
+                    error instanceof
+                        Error
+
+                        ? error.message
+
+                        : "Error interno",
+            },
+            {
+                status:
+                    500,
+            }
+        );
+    }
+}
+
+
+/* ============================================================
+   ASEGURAR BILLETERA ÚNICA
+============================================================ */
+
+async function ensureWallet(
+    userId: string
+) {
+
+    const {
+        data:
+        wallet,
+
+        error:
+        walletReadError,
+    } =
+        await supabaseAdmin
+            .from(
+                "marketplace_wallets"
+            )
+            .select(
+                "user_id"
+            )
+            .eq(
+                "user_id",
+                userId
+            )
+            .maybeSingle();
+
+
+    if (
+        walletReadError
+    ) {
+
+        throw walletReadError;
+    }
+
+
+    if (
+        wallet
+    ) {
+
+        return;
+    }
+
+
+    const {
+        error:
+        walletInsertError,
+    } =
+        await supabaseAdmin
+            .from(
+                "marketplace_wallets"
+            )
+            .insert({
+
+                user_id:
+                    userId,
+
+                available_balance:
+                    0,
+
+                pending_balance:
+                    0,
+
+                updated_at:
+                    new Date()
+                        .toISOString(),
+            });
+
+
+    /*
+     * 23505:
+     * otro request pudo crear la billetera
+     * simultáneamente.
+     */
+
+    if (
+        walletInsertError &&
+        walletInsertError.code !==
+        "23505"
+    ) {
+
+        throw walletInsertError;
     }
 }

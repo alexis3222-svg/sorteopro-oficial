@@ -14,13 +14,19 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 
+/* ============================================================
+   AUTH
+============================================================ */
+
 async function getAuthenticatedUser(
     req: NextRequest
 ) {
+
     const authorization =
         req.headers.get(
             "authorization"
         );
+
 
     if (
         !authorization ||
@@ -28,8 +34,10 @@ async function getAuthenticatedUser(
             "Bearer "
         )
     ) {
+
         return null;
     }
+
 
     const accessToken =
         authorization
@@ -39,9 +47,11 @@ async function getAuthenticatedUser(
             )
             .trim();
 
+
     if (!accessToken) {
         return null;
     }
+
 
     const {
         data,
@@ -53,21 +63,33 @@ async function getAuthenticatedUser(
                 accessToken
             );
 
+
     if (
         error ||
         !data.user
     ) {
+
         return null;
     }
+
 
     return data.user;
 }
 
 
+/* ============================================================
+   GET
+============================================================ */
+
 export async function GET(
     req: NextRequest
 ) {
+
     try {
+
+        /* =====================================================
+           1. USUARIO
+        ===================================================== */
 
         const user =
             await getAuthenticatedUser(
@@ -76,9 +98,11 @@ export async function GET(
 
 
         if (!user) {
+
             return NextResponse.json(
                 {
                     ok: false,
+
                     error:
                         "Tu sesión no es válida",
                 },
@@ -90,7 +114,7 @@ export async function GET(
 
 
         /* =====================================================
-           ASEGURAR BILLETERA
+           2. ASEGURAR BILLETERA
         ===================================================== */
 
         const {
@@ -119,12 +143,13 @@ export async function GET(
         if (
             walletCreateError
         ) {
+
             throw walletCreateError;
         }
 
 
         /* =====================================================
-           BILLETERA
+           3. BILLETERA
         ===================================================== */
 
         const {
@@ -155,15 +180,18 @@ export async function GET(
             walletError ||
             !wallet
         ) {
-            throw walletError ??
-            new Error(
-                "No se pudo cargar la billetera"
+
+            throw (
+                walletError ??
+                new Error(
+                    "No se pudo cargar la billetera"
+                )
             );
         }
 
 
         /* =====================================================
-           CONFIGURACIÓN
+           4. CONFIGURACIÓN GENERAL
         ===================================================== */
 
         const {
@@ -186,7 +214,7 @@ export async function GET(
 
 
         /* =====================================================
-           CUENTA BANCARIA PREDETERMINADA
+           5. CUENTA BANCARIA PREDETERMINADA
         ===================================================== */
 
         const {
@@ -219,7 +247,7 @@ export async function GET(
 
 
         /* =====================================================
-           VENTAS COMPLETADAS
+           6. VENTAS DE F1 SPHERES
         ===================================================== */
 
         const {
@@ -257,7 +285,10 @@ export async function GET(
                 );
 
 
-        if (salesError) {
+        if (
+            salesError
+        ) {
+
             throw salesError;
         }
 
@@ -278,11 +309,12 @@ export async function GET(
                         sale.price ??
                         0
                     ),
+
                 0
             );
 
 
-        const totalEarned =
+        const totalMarketplaceEarned =
             sales.reduce(
                 (
                     total,
@@ -293,11 +325,12 @@ export async function GET(
                         sale.seller_amount ??
                         0
                     ),
+
                 0
             );
 
 
-        const totalCommission =
+        const totalMarketplaceCommission =
             sales.reduce(
                 (
                     total,
@@ -308,12 +341,205 @@ export async function GET(
                         sale.commission_amount ??
                         0
                     ),
+
                 0
             );
 
 
         /* =====================================================
-           RETIROS
+           7. MOVIMIENTOS DE LA BILLETERA BARUK593
+        ===================================================== */
+
+        const {
+            data:
+            transactionsData,
+
+            error:
+            transactionsError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "marketplace_wallet_transactions"
+                )
+                .select(`
+                    transaction_type,
+                    amount,
+                    reference,
+                    description,
+                    metadata,
+                    created_at
+                `)
+                .eq(
+                    "user_id",
+                    user.id
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending:
+                            false,
+                    }
+                )
+                .limit(
+                    100
+                );
+
+
+        if (
+            transactionsError
+        ) {
+
+            throw transactionsError;
+        }
+
+
+        const transactions =
+            transactionsData ??
+            [];
+
+
+        /* =====================================================
+           8. DESGLOSE DE INGRESOS
+        ===================================================== */
+
+        const affiliateCommissions =
+            transactions
+                .filter(
+                    item =>
+                        item.transaction_type ===
+                        "affiliate_commission"
+                )
+                .reduce(
+                    (
+                        total,
+                        item
+                    ) =>
+                        total +
+                        Math.max(
+                            Number(
+                                item.amount ??
+                                0
+                            ),
+                            0
+                        ),
+
+                    0
+                );
+
+
+        const marketplaceSales =
+            transactions
+                .filter(
+                    item =>
+                        item.transaction_type ===
+                        "sale_credit"
+                )
+                .reduce(
+                    (
+                        total,
+                        item
+                    ) =>
+                        total +
+                        Math.max(
+                            Number(
+                                item.amount ??
+                                0
+                            ),
+                            0
+                        ),
+
+                    0
+                );
+
+
+        const cashPrizes =
+            transactions
+                .filter(
+                    item =>
+                        item.transaction_type ===
+                        "cash_prize"
+                )
+                .reduce(
+                    (
+                        total,
+                        item
+                    ) =>
+                        total +
+                        Math.max(
+                            Number(
+                                item.amount ??
+                                0
+                            ),
+                            0
+                        ),
+
+                    0
+                );
+
+
+        const positiveAdjustments =
+            transactions
+                .filter(
+                    item =>
+                        item.transaction_type ===
+                        "adjustment" &&
+                        Number(
+                            item.amount ??
+                            0
+                        ) > 0
+                )
+                .reduce(
+                    (
+                        total,
+                        item
+                    ) =>
+                        total +
+                        Number(
+                            item.amount ??
+                            0
+                        ),
+
+                    0
+                );
+
+
+        const negativeAdjustments =
+            Math.abs(
+                transactions
+                    .filter(
+                        item =>
+                            item.transaction_type ===
+                            "adjustment" &&
+                            Number(
+                                item.amount ??
+                                0
+                            ) < 0
+                    )
+                    .reduce(
+                        (
+                            total,
+                            item
+                        ) =>
+                            total +
+                            Number(
+                                item.amount ??
+                                0
+                            ),
+
+                        0
+                    )
+            );
+
+
+        const totalIncome =
+            affiliateCommissions +
+            marketplaceSales +
+            cashPrizes +
+            positiveAdjustments;
+
+
+        /* =====================================================
+           9. RETIROS
         ===================================================== */
 
         const {
@@ -358,6 +584,7 @@ export async function GET(
         if (
             withdrawalsError
         ) {
+
             throw withdrawalsError;
         }
 
@@ -384,17 +611,145 @@ export async function GET(
                             item.amount ??
                             0
                         ),
+
+                    0
+                );
+
+
+        const totalPendingWithdrawal =
+            withdrawals
+                .filter(
+                    item =>
+                        item.status ===
+                        "pending" ||
+                        item.status ===
+                        "processing"
+                )
+                .reduce(
+                    (
+                        total,
+                        item
+                    ) =>
+                        total +
+                        Number(
+                            item.amount ??
+                            0
+                        ),
+
                     0
                 );
 
 
         /* =====================================================
-           RESPUESTA
+           10. MAPEAR MOVIMIENTOS
+        ===================================================== */
+
+        const movements =
+            transactions.map(
+                item => {
+
+                    const amount =
+                        Number(
+                            item.amount ??
+                            0
+                        );
+
+
+                    let label =
+                        "Movimiento";
+
+
+                    switch (
+                    item.transaction_type
+                    ) {
+
+                        case "sale_credit":
+
+                            label =
+                                "Venta de F1 Sphere";
+
+                            break;
+
+
+                        case "affiliate_commission":
+
+                            label =
+                                "Comisión de afiliado";
+
+                            break;
+
+
+                        case "cash_prize":
+
+                            label =
+                                "Premio en efectivo";
+
+                            break;
+
+
+                        case "withdrawal":
+
+                            label =
+                                "Solicitud de retiro";
+
+                            break;
+
+
+                        case "adjustment":
+
+                            label =
+                                amount >= 0
+
+                                    ? "Ajuste a favor"
+
+                                    : "Ajuste";
+
+                            break;
+                    }
+
+
+                    return {
+
+                        type:
+                            item.transaction_type,
+
+                        label,
+
+                        amount,
+
+                        direction:
+                            amount >= 0
+                                ? "credit"
+                                : "debit",
+
+                        reference:
+                            item.reference,
+
+                        description:
+                            item.description,
+
+                        metadata:
+                            item.metadata,
+
+                        createdAt:
+                            item.created_at,
+                    };
+                }
+            );
+
+
+        /* =====================================================
+           11. RESPUESTA
         ===================================================== */
 
         return NextResponse.json({
 
             ok: true,
+
+
+            /* =================================================
+               SALDO
+            ================================================= */
 
             wallet: {
 
@@ -412,13 +767,31 @@ export async function GET(
                         0
                     ),
 
+                totalBalance:
+                    Number(
+                        wallet
+                            .available_balance ??
+                        0
+                    )
+                    +
+                    Number(
+                        wallet
+                            .pending_balance ??
+                        0
+                    ),
+
                 updatedAt:
                     wallet.updated_at,
             },
 
+
+            /* =================================================
+               CONFIGURACIÓN
+            ================================================= */
+
             settings: {
 
-                commissionRate:
+                marketplaceCommissionRate:
                     Number(
                         settings
                             ?.commission_rate ??
@@ -433,22 +806,90 @@ export async function GET(
                     ),
             },
 
+
+            /* =================================================
+               RESUMEN GENERAL
+            ================================================= */
+
             summary: {
 
-                completedSales:
-                    sales.length,
-
-                totalSold,
-
-                totalEarned,
-
-                totalCommission,
+                totalIncome,
 
                 totalWithdrawn,
+
+                totalPendingWithdrawal,
+
+                positiveAdjustments,
+
+                negativeAdjustments,
+
+
+                /* ---------------------------------------------
+                   Marketplace
+                --------------------------------------------- */
+
+                marketplace: {
+
+                    completedSales:
+                        sales.length,
+
+                    totalSold,
+
+                    totalEarned:
+                        totalMarketplaceEarned,
+
+                    platformCommission:
+                        totalMarketplaceCommission,
+                },
+
+
+                /* ---------------------------------------------
+                   Afiliados
+                --------------------------------------------- */
+
+                affiliate: {
+
+                    commissionsEarned:
+                        affiliateCommissions,
+                },
+
+
+                /* ---------------------------------------------
+                   Premios
+                --------------------------------------------- */
+
+                prizes: {
+
+                    cashEarned:
+                        cashPrizes,
+                },
             },
+
+
+            /* =================================================
+               DESGLOSE RÁPIDO PARA LA UI
+            ================================================= */
+
+            incomeBreakdown: {
+
+                marketplaceSales,
+
+                affiliateCommissions,
+
+                cashPrizes,
+
+                adjustments:
+                    positiveAdjustments,
+            },
+
+
+            /* =================================================
+               CUENTA BANCARIA
+            ================================================= */
 
             payoutAccount:
                 payoutAccount
+
                     ? {
 
                         id:
@@ -462,18 +903,16 @@ export async function GET(
                             payoutAccount
                                 .account_type,
 
-                        /*
-                         * No mandamos el número completo
-                         * para mostrarlo en pantalla.
-                         */
                         accountNumberMasked:
                             payoutAccount
                                 .account_number
                                 .length >
                                 4
+
                                 ? `•••• ${payoutAccount.account_number.slice(
                                     -4
                                 )}`
+
                                 : payoutAccount
                                     .account_number,
 
@@ -489,7 +928,15 @@ export async function GET(
                             payoutAccount
                                 .is_default,
                     }
+
                     : null,
+
+
+            /* =================================================
+               HISTORIALES
+            ================================================= */
+
+            movements,
 
             sales,
 
@@ -519,9 +966,11 @@ export async function GET(
                                 .account_number
                                 .length >
                                 4
+
                                 ? `•••• ${item.account_number.slice(
                                     -4
                                 )}`
+
                                 : item
                                     .account_number,
 
@@ -551,7 +1000,7 @@ export async function GET(
     ) {
 
         console.error(
-            "marketplace wallet GET:",
+            "Baruk593 wallet GET:",
             error
         );
 
@@ -563,7 +1012,9 @@ export async function GET(
                 error:
                     error instanceof
                         Error
+
                         ? error.message
+
                         : "No se pudo cargar la billetera",
             },
             {

@@ -526,98 +526,117 @@ export async function POST(
 
         /*
          * =====================================================
-         * 8. SI YA FUE REVELADA
+         * 8. REVELAR + FINALIZAR PREMIO
          * =====================================================
          *
-         * Nunca se vuelve a sortear.
-         * Se devuelve exactamente el resultado almacenado.
+         * Esta operación ahora ocurre de forma ATÓMICA
+         * dentro de Supabase.
+         *
+         * Puede:
+         *
+         * - revelar la Experience Pass;
+         * - actualizar premio programado;
+         * - garantizar prize_claim;
+         * - acreditar premio CASH;
+         * - actualizar Billetera Baruk593;
+         * - evitar doble acreditación.
          */
-
-        if (
-            card.revealed
-        ) {
-            return NextResponse.json({
-                ok: true,
-
-                alreadyRevealed:
-                    true,
-
-                card: {
-                    id:
-                        card.id,
-
-                    numero,
-
-                    extraType:
-                        card.extra_type,
-
-                    sphere,
-
-                    prize,
-
-                    revealedAt:
-                        card.revealed_at,
-                },
-            });
-        }
-
-        /*
-         * =====================================================
-         * 9. REGISTRAR REVELADO
-         * =====================================================
-         */
-
-        const revealedAt =
-            new Date().toISOString();
 
         const {
-            data: revealedRow,
-            error: revealError,
+            data: revealResult,
+            error: revealRpcError,
         } =
-            await supabaseAdmin
-                .from(
-                    "baruk_cards"
-                )
-                .update({
-                    revealed:
-                        true,
+            await (
+                supabaseAdmin as any
+            ).rpc(
+                "reveal_baruk_card_and_finalize",
+                {
+                    p_card_id:
+                        card.id,
 
-                    revealed_at:
-                        revealedAt,
+                    p_revealed_by:
+                        authenticatedUser
+                            ?.id ??
+                        null,
+                }
+            );
 
-                    estado:
-                        "revealed",
-
-                    updated_at:
-                        revealedAt,
-                })
-                .eq(
-                    "id",
-                    card.id
-                )
-                .eq(
-                    "revealed",
-                    false
-                )
-                .select(`
-                    id,
-                    revealed_at
-                `)
-                .maybeSingle();
 
         if (
-            revealError
+            revealRpcError
         ) {
             console.error(
-                "Error revelando Baruk Card:",
-                revealError
+                "Error en reveal_baruk_card_and_finalize:",
+                revealRpcError
             );
+
+
+            const message =
+                String(
+                    revealRpcError.message ??
+                    ""
+                );
+
+
+            if (
+                message.includes(
+                    "CARD_CANCELLED"
+                )
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Esta tarjeta se encuentra cancelada",
+                    },
+                    {
+                        status: 409,
+                    }
+                );
+            }
+
+
+            if (
+                message.includes(
+                    "PRIZE_NOT_FOUND"
+                )
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "No se pudo encontrar el premio asociado a esta tarjeta",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
+
+            if (
+                message.includes(
+                    "CASH_PRIZE_WITHOUT_VALUE"
+                )
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "El premio en efectivo no tiene un valor configurado",
+                    },
+                    {
+                        status: 500,
+                    }
+                );
+            }
+
 
             return NextResponse.json(
                 {
                     ok: false,
                     error:
-                        "No se pudo revelar la tarjeta",
+                        "No se pudo completar el revelado de la Experience Pass",
                 },
                 {
                     status: 500,
@@ -625,73 +644,72 @@ export async function POST(
             );
         }
 
+
         /*
-         * Puede ocurrir que dos solicitudes intenten
-         * revelar la misma tarjeta casi simultáneamente.
-         *
-         * Si la segunda no actualizó ninguna fila,
-         * simplemente recuperamos la fecha real
-         * almacenada.
+         * =====================================================
+         * 9. NORMALIZAR RESPUESTA DEL RPC
+         * =====================================================
          */
 
-        if (
-            !revealedRow
-        ) {
-            const {
-                data:
-                currentCard,
-                error:
-                currentCardError,
-            } =
-                await supabaseAdmin
-                    .from(
-                        "baruk_cards"
-                    )
-                    .select(`
-                        revealed,
-                        revealed_at
-                    `)
-                    .eq(
-                        "id",
-                        card.id
-                    )
-                    .maybeSingle();
+        const result =
+            revealResult ??
+            {};
 
-            if (
-                currentCardError
-            ) {
-                console.error(
-                    "Error verificando revelado concurrente:",
-                    currentCardError
-                );
-            }
 
-            return NextResponse.json({
-                ok: true,
+        const alreadyRevealed =
+            Boolean(
+                result
+                    ?.alreadyRevealed
+            );
 
-                alreadyRevealed:
-                    true,
 
-                card: {
-                    id:
-                        card.id,
+        const finalRevealedAt =
+            result
+                ?.revealedAt ??
+            card.revealed_at ??
+            new Date().toISOString();
 
-                    numero,
 
-                    extraType:
-                        card.extra_type,
+        const cashPrize =
+            Boolean(
+                result
+                    ?.cashPrize
+            );
 
-                    sphere,
 
-                    prize,
+        const cashCredited =
+            Boolean(
+                result
+                    ?.cashCredited
+            );
 
-                    revealedAt:
-                        currentCard
-                            ?.revealed_at ??
-                        revealedAt,
-                },
-            });
-        }
+
+        const cashPendingAccount =
+            Boolean(
+                result
+                    ?.cashPendingAccount
+            );
+
+
+        const cashAmount =
+            result
+                ?.cashAmount !=
+                null
+                ? Number(
+                    result.cashAmount
+                )
+                : null;
+
+
+        const walletBalance =
+            result
+                ?.walletBalance !=
+                null
+                ? Number(
+                    result.walletBalance
+                )
+                : null;
+
 
         /*
          * =====================================================
@@ -702,8 +720,7 @@ export async function POST(
         return NextResponse.json({
             ok: true,
 
-            alreadyRevealed:
-                false,
+            alreadyRevealed,
 
             card: {
                 id:
@@ -719,10 +736,32 @@ export async function POST(
                 prize,
 
                 revealedAt:
-                    revealedRow.revealed_at ??
-                    revealedAt,
+                    finalRevealedAt,
             },
+
+
+            /*
+             * Información adicional para premios CASH.
+             *
+             * El frontend puede usar estos valores
+             * para mostrar:
+             *
+             * "Ganaste $50"
+             *
+             * "Acreditados en tu Billetera Baruk593"
+             */
+
+            cashPrize,
+
+            cashAmount,
+
+            cashCredited,
+
+            cashPendingAccount,
+
+            walletBalance,
         });
+
     } catch (
     error: unknown
     ) {

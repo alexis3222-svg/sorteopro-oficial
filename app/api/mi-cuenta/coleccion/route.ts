@@ -164,6 +164,12 @@ type RewardRow = {
     required_unique_spheres:
     number;
 
+    stock_total:
+    number;
+
+    stock_claimed:
+    number;
+
     activo: boolean;
 
     collection_key:
@@ -317,15 +323,17 @@ export async function GET(
                     "collection_rewards"
                 )
                 .select(`
-                    id,
-                    sorteo_id,
-                    nombre,
-                    descripcion,
-                    tipo,
-                    required_unique_spheres,
-                    activo,
-                    collection_key
-                `)
+    id,
+    sorteo_id,
+    nombre,
+    descripcion,
+    tipo,
+    required_unique_spheres,
+    stock_total,
+    stock_claimed,
+    activo,
+    collection_key
+`)
                 .eq(
                     "sorteo_id",
                     CURRENT_SORTEO_ID
@@ -364,6 +372,39 @@ export async function GET(
             rewardData as
             | RewardRow
             | null;
+
+        const rewardStockTotal =
+            reward
+                ? Number(
+                    reward.stock_total ??
+                    0
+                )
+                : 0;
+
+
+        const rewardStockClaimed =
+            reward
+                ? Number(
+                    reward.stock_claimed ??
+                    0
+                )
+                : 0;
+
+
+        const rewardStockRemaining =
+            Math.max(
+                0,
+
+                rewardStockTotal -
+                rewardStockClaimed
+            );
+
+
+        const rewardSoldOut =
+            Boolean(
+                reward &&
+                rewardStockRemaining <= 0
+            );
 
         /*
          * Seguridad:
@@ -1216,6 +1257,16 @@ export async function GET(
 
 
         /*
+         * El primero es el premio más reciente.
+         */
+        const rewardClaim =
+            rewardClaims[
+            0
+            ] ??
+            null;
+
+
+        /*
          * El más reciente se mantiene también
          * como "claim" para no romper la interfaz
          * existente de Mi cuenta.
@@ -1247,9 +1298,14 @@ export async function GET(
             ) &&
             collectionCompleted &&
             uniqueAvailableSpheres >=
-            sphereGoal;
+            sphereGoal &&
+            rewardStockRemaining >
+            0;
 
 
+        /* =====================================================
+           15. RESPUESTA
+        ===================================================== */
 
         return NextResponse.json({
 
@@ -1257,6 +1313,7 @@ export async function GET(
 
             sorteoId:
                 CURRENT_SORTEO_ID,
+
 
             /*
              * IDENTIDAD DE LA COLECCIÓN
@@ -1276,6 +1333,7 @@ export async function GET(
                 totalSpheres:
                     spheres.length,
             },
+
 
             /*
              * RESUMEN DEL USUARIO
@@ -1305,12 +1363,17 @@ export async function GET(
                 collectionCompleted,
 
                 /*
-                 * El botón solo deberá habilitarse
-                 * cuando exista un reward F1
-                 * y el usuario tenga 11/11.
+                 * Reclamar únicamente si:
+                 *
+                 * 1. Existe reward activo.
+                 * 2. Tiene las 11 F1 Spheres.
+                 * 3. Tiene 11 esferas disponibles
+                 *    y no comprometidas en Marketplace.
+                 * 4. Todavía quedan premios.
                  */
                 canClaimReward,
             },
+
 
             /*
              * LAS 11 F1 SPHERES
@@ -1319,8 +1382,9 @@ export async function GET(
             spheres:
                 collection,
 
+
             /*
-             * PREMIO ESPECIAL
+             * PREMIO ESPECIAL DE COLECCIÓN
              */
 
             reward:
@@ -1342,38 +1406,75 @@ export async function GET(
                         requiredSpheres:
                             sphereGoal,
 
+
+                        /*
+                         * STOCK GLOBAL
+                         */
+
+                        stockTotal:
+                            rewardStockTotal,
+
+                        stockClaimed:
+                            rewardStockClaimed,
+
+                        stockRemaining:
+                            rewardStockRemaining,
+
+                        soldOut:
+                            rewardSoldOut,
+
+
+                        /*
+                         * ESTADO DEL USUARIO
+                         */
+
                         completed:
                             collectionCompleted,
 
                         canClaim:
                             canClaimReward,
 
+
+                        /*
+                         * CUÁNTAS VECES GANÓ
+                         */
+
                         totalClaims:
-                            totalRewardClaims,
+                            rewardClaims.length,
+
+
+                        /*
+                         * ÚLTIMO RECLAMO
+                         */
 
                         claim:
-                            latestRewardClaim
+                            rewardClaim
                                 ? {
 
                                     id:
-                                        latestRewardClaim.id,
+                                        rewardClaim.id,
 
                                     status:
-                                        latestRewardClaim.estado,
+                                        rewardClaim.estado,
 
                                     completedAt:
-                                        latestRewardClaim.completed_at,
+                                        rewardClaim.completed_at,
 
                                     verifiedAt:
-                                        latestRewardClaim.verified_at,
+                                        rewardClaim.verified_at,
 
                                     scheduledAt:
-                                        latestRewardClaim.scheduled_at,
+                                        rewardClaim.scheduled_at,
 
                                     deliveredAt:
-                                        latestRewardClaim.delivered_at,
+                                        rewardClaim.delivered_at,
                                 }
                                 : null,
+
+
+                        /*
+                         * HISTORIAL COMPLETO
+                         */
 
                         claims:
                             rewardClaims.map(
@@ -1402,6 +1503,38 @@ export async function GET(
                             ),
                     }
                     : null,
+
+
+            /*
+             * COMPATIBILIDAD:
+             * HISTORIAL TAMBIÉN A NIVEL GENERAL
+             */
+
+            claims:
+                rewardClaims.map(
+                    (
+                        claim
+                    ) => ({
+
+                        id:
+                            claim.id,
+
+                        status:
+                            claim.estado,
+
+                        completedAt:
+                            claim.completed_at,
+
+                        verifiedAt:
+                            claim.verified_at,
+
+                        scheduledAt:
+                            claim.scheduled_at,
+
+                        deliveredAt:
+                            claim.delivered_at,
+                    })
+                ),
         });
 
     } catch (

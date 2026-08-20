@@ -16,25 +16,83 @@ import {
 } from "@/lib/supabaseClient";
 
 
-type MarketplaceWallet = {
+type BarukWallet = {
     availableBalance: number;
     pendingBalance: number;
+    totalBalance: number;
     updatedAt: string | null;
 };
 
 
-type MarketplaceWalletSettings = {
-    commissionRate: number;
+type BarukWalletSettings = {
+    marketplaceCommissionRate: number;
     minWithdrawalAmount: number;
 };
 
 
-type MarketplaceWalletSummary = {
-    completedSales: number;
-    totalSold: number;
-    totalEarned: number;
-    totalCommission: number;
+type BarukWalletSummary = {
+    totalIncome: number;
     totalWithdrawn: number;
+    totalPendingWithdrawal: number;
+
+    positiveAdjustments: number;
+    negativeAdjustments: number;
+
+    marketplace: {
+        completedSales: number;
+        totalSold: number;
+        totalEarned: number;
+        platformCommission: number;
+    };
+
+    affiliate: {
+        commissionsEarned: number;
+    };
+
+    prizes: {
+        cashEarned: number;
+    };
+};
+
+
+type BarukIncomeBreakdown = {
+    marketplaceSales: number;
+    affiliateCommissions: number;
+    cashPrizes: number;
+    adjustments: number;
+};
+
+
+type BarukWalletMovement = {
+    type:
+    | "sale_credit"
+    | "affiliate_commission"
+    | "cash_prize"
+    | "withdrawal"
+    | "adjustment"
+    | string;
+
+    label: string;
+
+    amount: number;
+
+    direction:
+    | "credit"
+    | "debit";
+
+    reference:
+    | string
+    | null;
+
+    description:
+    | string
+    | null;
+
+    metadata:
+    Record<string, unknown>
+    | null;
+
+    createdAt: string;
 };
 
 
@@ -105,7 +163,7 @@ export default function MiBilleteraPage() {
         wallet,
         setWallet,
     ] =
-        useState<MarketplaceWallet | null>(
+        useState<BarukWallet | null>(
             null
         );
 
@@ -114,7 +172,7 @@ export default function MiBilleteraPage() {
         walletSettings,
         setWalletSettings,
     ] =
-        useState<MarketplaceWalletSettings | null>(
+        useState<BarukWalletSettings | null>(
             null
         );
 
@@ -123,10 +181,26 @@ export default function MiBilleteraPage() {
         walletSummary,
         setWalletSummary,
     ] =
-        useState<MarketplaceWalletSummary | null>(
+        useState<BarukWalletSummary | null>(
             null
         );
 
+    const [
+        incomeBreakdown,
+        setIncomeBreakdown,
+    ] =
+        useState<BarukIncomeBreakdown | null>(
+            null
+        );
+
+
+    const [
+        movements,
+        setMovements,
+    ] =
+        useState<BarukWalletMovement[]>(
+            []
+        );
 
     const [
         payoutAccount,
@@ -293,6 +367,16 @@ export default function MiBilleteraPage() {
                 null
             );
 
+            setIncomeBreakdown(
+                data.incomeBreakdown ??
+                null
+            );
+
+
+            setMovements(
+                data.movements ??
+                []
+            );
 
             setPayoutAccount(
                 data.payoutAccount ??
@@ -845,7 +929,7 @@ export default function MiBilleteraPage() {
     const commissionPercent =
         (
             walletSettings
-                ?.commissionRate ??
+                ?.marketplaceCommissionRate ??
             0.10
         ) *
         100;
@@ -905,7 +989,7 @@ export default function MiBilleteraPage() {
                                 text-[#C1317F]
                             "
                         >
-                            Marketplace
+                            BARUK593
                         </p>
 
                         <h1
@@ -931,8 +1015,9 @@ export default function MiBilleteraPage() {
                                 text-slate-500
                             "
                         >
-                            Administra tus ganancias por la venta de F1 Spheres
-                            y solicita retiros a tu cuenta bancaria.
+                            Todas tus ganancias en un solo lugar:
+                            comisiones de afiliado, ventas de F1 Spheres,
+                            premios en efectivo y retiros.
                         </p>
 
                     </div>
@@ -1098,7 +1183,7 @@ export default function MiBilleteraPage() {
                                 text-slate-400
                             "
                         >
-                            Retiro pendiente
+                            Saldo en proceso
                         </p>
 
                         <p
@@ -1127,7 +1212,7 @@ export default function MiBilleteraPage() {
                                 text-slate-400
                             "
                         >
-                            Solicitudes pendientes de transferencia.
+                            Fondos asociados a retiros pendientes o en proceso.
                         </p>
 
                     </div>
@@ -1135,67 +1220,152 @@ export default function MiBilleteraPage() {
                 </div>
 
 
-                {/* ESTADÍSTICAS */}
+                {/* =====================================================
+                    ORIGEN DE TUS GANANCIAS
+                ===================================================== */}
 
-                <div
-                    className="
-                        mt-4
-                        grid
-                        grid-cols-2
-                        gap-3
+                <section className="mt-8">
 
-                        lg:grid-cols-5
-                    "
-                >
+                    <div>
 
-                    <WalletStat
-                        label="Ventas"
-                        value={
-                            String(
-                                walletSummary
-                                    ?.completedSales ??
+                        <p
+                            className="
+                                text-[10px]
+                                font-black
+                                uppercase
+                                tracking-[0.18em]
+                                text-[#C1317F]
+                            "
+                        >
+                            Tus ganancias
+                        </p>
+
+                        <h2
+                            className="
+                                mt-2
+                                text-2xl
+                                font-black
+                                text-[#171717]
+                            "
+                        >
+                            ¿De dónde viene tu saldo?
+                        </h2>
+
+                    </div>
+
+
+                    <div
+                        className="
+                            mt-5
+                            grid
+                            grid-cols-2
+                            gap-3
+
+                            lg:grid-cols-4
+                        "
+                    >
+
+                        <WalletStat
+                            label="Comisiones de afiliado"
+                            value={`$${Number(
+                                incomeBreakdown
+                                    ?.affiliateCommissions ??
                                 0
-                            )
-                        }
-                    />
+                            ).toFixed(2)}`}
+                        />
 
-                    <WalletStat
-                        label="Vendido"
-                        value={`$${Number(
-                            walletSummary
-                                ?.totalSold ??
-                            0
-                        ).toFixed(2)}`}
-                    />
 
-                    <WalletStat
-                        label="Ganado"
-                        value={`$${Number(
-                            walletSummary
-                                ?.totalEarned ??
-                            0
-                        ).toFixed(2)}`}
-                    />
+                        <WalletStat
+                            label="Ventas de F1 Sphere"
+                            value={`$${Number(
+                                incomeBreakdown
+                                    ?.marketplaceSales ??
+                                0
+                            ).toFixed(2)}`}
+                        />
 
-                    <WalletStat
-                        label={`Comisión ${commissionPercent.toFixed(0)}%`}
-                        value={`$${Number(
-                            walletSummary
-                                ?.totalCommission ??
-                            0
-                        ).toFixed(2)}`}
-                    />
 
-                    <WalletStat
-                        label="Retirado"
-                        value={`$${Number(
-                            walletSummary
-                                ?.totalWithdrawn ??
-                            0
-                        ).toFixed(2)}`}
-                    />
+                        <WalletStat
+                            label="Premios en efectivo"
+                            value={`$${Number(
+                                incomeBreakdown
+                                    ?.cashPrizes ??
+                                0
+                            ).toFixed(2)}`}
+                        />
 
-                </div>
+
+                        <WalletStat
+                            label="Otros ingresos"
+                            value={`$${Number(
+                                incomeBreakdown
+                                    ?.adjustments ??
+                                0
+                            ).toFixed(2)}`}
+                        />
+
+                    </div>
+
+
+                    <div
+                        className="
+                            mt-3
+                            grid
+                            grid-cols-2
+                            gap-3
+
+                            lg:grid-cols-4
+                        "
+                    >
+
+                        <WalletStat
+                            label="Ingresos registrados"
+                            value={`$${Number(
+                                walletSummary
+                                    ?.totalIncome ??
+                                0
+                            ).toFixed(2)}`}
+                        />
+
+
+                        <WalletStat
+                            label="Total retirado"
+                            value={`$${Number(
+                                walletSummary
+                                    ?.totalWithdrawn ??
+                                0
+                            ).toFixed(2)}`}
+                        />
+
+
+                        <WalletStat
+                            label="Ventas de esferas"
+                            value={
+                                String(
+                                    walletSummary
+                                        ?.marketplace
+                                        ?.completedSales ??
+                                    0
+                                )
+                            }
+                        />
+
+
+                        <WalletStat
+                            label={`Comisión Marketplace ${commissionPercent.toFixed(
+                                0
+                            )}%`}
+                            value={`$${Number(
+                                walletSummary
+                                    ?.marketplace
+                                    ?.platformCommission ??
+                                0
+                            ).toFixed(2)}`}
+                        />
+
+                    </div>
+
+                </section>
 
 
                 {/* CUENTA + RETIRO */}
@@ -1733,6 +1903,116 @@ export default function MiBilleteraPage() {
 
                 </div>
 
+                {/* =====================================================
+                    MOVIMIENTOS DE BILLETERA
+                ===================================================== */}
+
+                <section
+                    className="
+                        mt-8
+                        rounded-3xl
+                        border
+                        border-slate-200
+                        bg-white
+                        p-6
+
+                        md:p-7
+                    "
+                >
+
+                    <div>
+
+                        <p
+                            className="
+                                text-[10px]
+                                font-black
+                                uppercase
+                                tracking-[0.18em]
+                                text-[#C1317F]
+                            "
+                        >
+                            Billetera Baruk593
+                        </p>
+
+                        <h2
+                            className="
+                                mt-2
+                                text-xl
+                                font-black
+                                text-[#171717]
+                            "
+                        >
+                            Movimientos
+                        </h2>
+
+                        <p
+                            className="
+                                mt-2
+                                text-sm
+                                text-slate-500
+                            "
+                        >
+                            Aquí puedes revisar el origen de tus
+                            ingresos y los retiros realizados.
+                        </p>
+
+                    </div>
+
+
+                    {movements.length === 0 ? (
+
+                        <div
+                            className="
+                                mt-5
+                                rounded-2xl
+                                bg-slate-50
+                                p-6
+                                text-center
+                            "
+                        >
+
+                            <p
+                                className="
+                                    text-sm
+                                    font-bold
+                                    text-slate-500
+                                "
+                            >
+                                Todavía no tienes movimientos
+                                registrados en tu billetera.
+                            </p>
+
+                        </div>
+
+                    ) : (
+
+                        <div className="mt-5 space-y-3">
+
+                            {movements.map(
+                                (
+                                    movement,
+                                    index
+                                ) => (
+
+                                    <WalletMovementRow
+                                        key={
+                                            movement.reference ??
+                                            `${movement.type}-${movement.createdAt}-${index}`
+                                        }
+
+                                        movement={
+                                            movement
+                                        }
+                                    />
+
+                                )
+                            )}
+
+                        </div>
+
+                    )}
+
+                </section>
 
                 {/* HISTORIAL */}
 
@@ -1974,6 +2254,170 @@ function WalletInput({
     );
 }
 
+function WalletMovementRow({
+    movement,
+}: {
+    movement:
+    BarukWalletMovement;
+}) {
+
+    const isCredit =
+        Number(
+            movement.amount
+        ) >= 0;
+
+
+    const icon =
+        movement.type ===
+            "affiliate_commission"
+
+            ? "↗"
+
+            : movement.type ===
+                "sale_credit"
+
+                ? "◉"
+
+                : movement.type ===
+                    "cash_prize"
+
+                    ? "★"
+
+                    : movement.type ===
+                        "withdrawal"
+
+                        ? "↓"
+
+                        : "•";
+
+
+    return (
+
+        <div
+            className="
+                flex
+                items-center
+                justify-between
+                gap-4
+                rounded-2xl
+                border
+                border-slate-100
+                px-4
+                py-4
+
+                sm:px-5
+            "
+        >
+
+            <div
+                className="
+                    flex
+                    min-w-0
+                    items-center
+                    gap-3
+                "
+            >
+
+                <div
+                    className={`
+                        flex
+                        h-10
+                        w-10
+                        shrink-0
+                        items-center
+                        justify-center
+                        rounded-xl
+                        text-sm
+                        font-black
+
+                        ${isCredit
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-slate-100 text-slate-600"
+                        }
+                    `}
+                >
+                    {icon}
+                </div>
+
+
+                <div className="min-w-0">
+
+                    <p
+                        className="
+                            truncate
+                            text-sm
+                            font-black
+                            text-slate-800
+                        "
+                    >
+                        {movement.label}
+                    </p>
+
+
+                    {movement.description && (
+
+                        <p
+                            className="
+                                mt-0.5
+                                truncate
+                                text-[11px]
+                                text-slate-400
+                            "
+                        >
+                            {movement.description}
+                        </p>
+
+                    )}
+
+
+                    <p
+                        className="
+                            mt-1
+                            text-[10px]
+                            text-slate-400
+                        "
+                    >
+                        {new Date(
+                            movement.createdAt
+                        ).toLocaleDateString(
+                            "es-EC"
+                        )}
+                    </p>
+
+                </div>
+
+            </div>
+
+
+            <p
+                className={`
+                    shrink-0
+                    text-base
+                    font-black
+
+                    ${isCredit
+                        ? "text-emerald-600"
+                        : "text-slate-700"
+                    }
+                `}
+            >
+                {isCredit
+                    ? "+"
+                    : "-"
+                }
+                $
+                {Math.abs(
+                    Number(
+                        movement.amount
+                    )
+                ).toFixed(
+                    2
+                )}
+            </p>
+
+        </div>
+    );
+}
 
 function WithdrawalRow({
     withdrawal,

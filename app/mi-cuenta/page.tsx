@@ -145,6 +145,16 @@ type CollectionReward = {
 
     requiredSpheres: number;
 
+
+    /*
+     * Stock global del premio.
+     */
+    stockTotal: number;
+    stockClaimed: number;
+    stockRemaining: number;
+    soldOut: boolean;
+
+
     completed: boolean;
 
     canClaim: boolean;
@@ -390,6 +400,7 @@ type SphereInventoryItem = {
     };
 };
 
+
 export default function MiCuentaPage() {
     const [email, setEmail] =
         useState("");
@@ -611,6 +622,7 @@ export default function MiCuentaPage() {
             current: 0,
             total: 0,
         });
+
 
     /*
      * =========================================================
@@ -2465,6 +2477,32 @@ export default function MiCuentaPage() {
                                 </a>
 
                                 <a
+                                    href="/mi-cuenta/afiliado"
+                                    className="
+        inline-flex
+        min-h-[46px]
+        items-center
+        justify-center
+        rounded-xl
+        border
+        border-[#C1317F]/20
+        bg-[#C1317F]
+        px-5
+        text-sm
+        font-black
+        text-white
+        transition-all
+        hover:bg-[#ad296f]
+    "
+                                >
+                                    Gana con Baruk593
+
+                                    <span className="ml-2">
+                                        →
+                                    </span>
+                                </a>
+
+                                <a
                                     href="/mi-cuenta/billetera"
                                     className="
         inline-flex
@@ -2613,6 +2651,7 @@ export default function MiCuentaPage() {
                             </div>
                         </div>
 
+
                         {/* =====================================================
     PREMIO F1 SPHERE COLLECTION
 ===================================================== */}
@@ -2745,6 +2784,50 @@ export default function MiCuentaPage() {
 
                                         )}
 
+                                        {/* =====================================================
+    PREMIO DE COLECCIÓN AGOTADO
+===================================================== */}
+
+                                        {collection?.reward &&
+                                            summary?.collectionCompleted &&
+                                            collection.reward.soldOut &&
+                                            !showRewardCelebration && (
+
+                                                <div
+                                                    className="
+                mt-8
+                rounded-3xl
+                border
+                border-amber-200
+                bg-amber-50
+                p-6
+                text-center
+            "
+                                                >
+
+                                                    <p className="text-xs font-black uppercase tracking-[0.2em] text-amber-600">
+                                                        F1 Sphere Collection
+                                                    </p>
+
+
+                                                    <h3 className="mt-2 text-xl font-black text-gray-900">
+                                                        Premios de esta colección agotados
+                                                    </h3>
+
+
+                                                    <p className="mx-auto mt-3 max-w-xl text-sm leading-6 text-gray-600">
+                                                        Completaste las 11 F1 Spheres, pero los premios disponibles
+                                                        para esta colección ya fueron reclamados.
+                                                    </p>
+
+
+                                                    <p className="mx-auto mt-2 max-w-xl text-xs leading-5 text-gray-500">
+                                                        Tus F1 Spheres no serán consumidas y permanecerán en tu colección.
+                                                    </p>
+
+                                                </div>
+
+                                            )}
 
                                         {/* =================================================
                     PREMIO

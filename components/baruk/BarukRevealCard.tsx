@@ -50,6 +50,12 @@ interface RevealResult {
     prize: PrizeResult | null;
 
     revealedAt: string | null;
+
+    cashPrize: boolean;
+    cashAmount: number | null;
+    cashCredited: boolean;
+    cashPendingAccount: boolean;
+    walletBalance: number | null;
 }
 
 interface BarukRevealCardProps {
@@ -479,7 +485,38 @@ export default function BarukRevealCard({
                     );
                 }
 
-                return data.card as RevealResult;
+                return {
+                    ...data.card,
+
+                    cashPrize:
+                        Boolean(
+                            data.cashPrize
+                        ),
+
+                    cashAmount:
+                        data.cashAmount != null
+                            ? Number(
+                                data.cashAmount
+                            )
+                            : null,
+
+                    cashCredited:
+                        Boolean(
+                            data.cashCredited
+                        ),
+
+                    cashPendingAccount:
+                        Boolean(
+                            data.cashPendingAccount
+                        ),
+
+                    walletBalance:
+                        data.walletBalance != null
+                            ? Number(
+                                data.walletBalance
+                            )
+                            : null,
+                } as RevealResult;
             },
             [
                 cardId,
@@ -855,15 +892,38 @@ export default function BarukRevealCard({
                 : "TU NÚMERO ESTÁ EN JUEGO";
 
     const resultSubtext =
+
         result?.extraType ===
-            "prize"
-            ? "Premio instantáneo desbloqueado"
+            "prize" &&
+            result.prize?.tipo ===
+            "cash"
+
+            ? result.cashPendingAccount
+
+                ? "Premio confirmado. Vincula tu cuenta para recibirlo en tu Billetera Baruk593."
+
+                : result.cashCredited &&
+                    result.cashAmount != null
+
+                    ? `$${result.cashAmount.toFixed(
+                        2
+                    )} acreditados en tu Billetera Baruk593`
+
+                    : "Premio en efectivo desbloqueado"
+
 
             : result?.extraType ===
-                "sphere"
-                ? "Añadida a tu colección"
+                "prize"
 
-                : "Tu acceso permanece activo para el premio principal.";
+                ? "Premio instantáneo desbloqueado"
+
+
+                : result?.extraType ===
+                    "sphere"
+
+                    ? "Añadida a tu colección"
+
+                    : "Tu acceso permanece activo para el premio principal.";
 
     /*
      * ID visual corto.
