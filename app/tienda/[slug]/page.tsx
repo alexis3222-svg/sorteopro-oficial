@@ -10,6 +10,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 import { useBarukCart } from "@/components/baruk/shop/BarukCartProvider";
+import {
+    getBarukShopImageUrl,
+} from "@/lib/barukShopImage";
+
 type ImagenProducto = {
     id: string;
     image_url: string;
@@ -325,12 +329,17 @@ export default function ProductoPage() {
                         productoData
                     );
 
-                    const primeraImagen =
+                    const primeraImagenRaw =
                         productoData.imagen_principal ??
                         productoData
                             .store_product_images?.[0]
                             ?.image_url ??
                         null;
+
+                    const primeraImagen =
+                        getBarukShopImageUrl(
+                            primeraImagenRaw
+                        );
 
                     setImagenActiva(
                         primeraImagen
@@ -372,6 +381,7 @@ export default function ProductoPage() {
 
     const imagenes =
         useMemo(() => {
+
             if (!producto) {
                 return [];
             }
@@ -381,36 +391,65 @@ export default function ProductoPage() {
                 alt: string;
             }[] = [];
 
-            if (
-                producto.imagen_principal
-            ) {
+
+            /* =========================================
+               IMAGEN PRINCIPAL
+            ========================================= */
+
+            const principal =
+                getBarukShopImageUrl(
+                    producto.imagen_principal
+                );
+
+
+            if (principal) {
+
                 lista.push({
                     url:
-                        producto.imagen_principal,
+                        principal,
 
                     alt:
                         producto.nombre,
                 });
             }
 
+
+            /* =========================================
+               GALERÍA
+            ========================================= */
+
             for (
                 const imagen of
                 producto.store_product_images ??
                 []
             ) {
+
+                const url =
+                    getBarukShopImageUrl(
+                        imagen.image_url
+                    );
+
+
+                if (!url) {
+                    continue;
+                }
+
+
                 if (
                     lista.some(
-                        (item) =>
+                        (
+                            item
+                        ) =>
                             item.url ===
-                            imagen.image_url
+                            url
                     )
                 ) {
                     continue;
                 }
 
+
                 lista.push({
-                    url:
-                        imagen.image_url,
+                    url,
 
                     alt:
                         imagen.alt_text ??
@@ -418,8 +457,12 @@ export default function ProductoPage() {
                 });
             }
 
+
             return lista;
-        }, [producto]);
+
+        }, [
+            producto,
+        ]);
 
     /* ============================================================
        LOADING
@@ -576,7 +619,10 @@ export default function ProductoPage() {
                 slug: producto.slug,
                 precio: Number(producto.precio),
                 stock: Number(producto.stock),
-                imagen: producto.imagen_principal,
+                imagen:
+                    getBarukShopImageUrl(
+                        producto.imagen_principal
+                    ),
                 sku: producto.sku,
             },
             cantidad

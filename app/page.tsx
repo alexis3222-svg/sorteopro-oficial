@@ -11,6 +11,7 @@ import BarukPurchaseSection from "@/components/baruk/BarukPurchaseSection";
 import BarukShop from "@/components/baruk/BarukShop";
 import BarukHowItWorks from "@/components/baruk/BarukHowItWorks";
 import BarukParallaxBanner from "@/components/baruk/BarukParallaxBanner";
+import F1SphereHomeSection from "@/components/baruk/F1SphereHomeSection";
 
 const anton = Anton({
   subsets: ["latin"],
@@ -20,6 +21,11 @@ const anton = Anton({
 type ModalStep = "resumen" | "pago" | "ok";
 
 type TipoCompra = "self" | "gift";
+
+type MetodoPago =
+  | "transferencia"
+  | "payphone"
+  | "wallet";
 
 type NumeroAsignado = {
   numero: string | number;
@@ -43,10 +49,24 @@ export default function HomePage() {
     useState<number | null>(5);
   const [modalStep, setModalStep] = useState<ModalStep>("resumen");
 
-  // ✅ SOLO estos 2 métodos (coinciden con /api/pedidos/crear)
-  const [metodoPago, setMetodoPago] = useState<"transferencia" | "payphone">(
-    "transferencia"
-  );
+  // Métodos de pago disponibles.
+  const [metodoPago, setMetodoPago] =
+    useState<MetodoPago>(
+      "transferencia"
+    );
+
+  // Billetera Baruk593
+  const [walletBalance, setWalletBalance] =
+    useState<number | null>(null);
+
+  const [walletLoading, setWalletLoading] =
+    useState(false);
+
+  const [
+    walletSessionEmail,
+    setWalletSessionEmail,
+  ] =
+    useState<string | null>(null);
 
   const [nombreCliente, setNombreCliente] = useState("");
   const [telefonoCliente, setTelefonoCliente] = useState("");
@@ -247,6 +267,10 @@ export default function HomePage() {
     // Método de pago.
     setMetodoPago("transferencia");
 
+    setWalletBalance(null);
+    setWalletLoading(false);
+    setWalletSessionEmail(null);
+
     // Estados del pedido.
     setOrderError(null);
     setSavingOrder(false);
@@ -254,6 +278,158 @@ export default function HomePage() {
 
   const totalPaquete =
     selectedCantidad != null ? selectedCantidad * precioUnidad : 0;
+
+  /* ============================================================
+     SELECCIONAR BILLETERA BARUK593
+  ============================================================ */
+
+  const seleccionarWallet = async () => {
+    setMetodoPago(
+      "wallet"
+    );
+
+    setOrderError(
+      null
+    );
+
+    setWalletLoading(
+      true
+    );
+
+    setWalletBalance(
+      null
+    );
+
+    try {
+      const {
+        data:
+        sessionData,
+
+        error:
+        sessionError,
+      } =
+        await supabase
+          .auth
+          .getSession();
+
+
+      if (sessionError) {
+        throw sessionError;
+      }
+
+
+      const session =
+        sessionData.session;
+
+
+      if (!session) {
+        setWalletSessionEmail(
+          null
+        );
+
+        setOrderError(
+          "Para pagar con tu saldo Baruk593 debes iniciar sesión en Mi Cuenta."
+        );
+
+        return;
+      }
+
+
+      const sessionEmail =
+        String(
+          session.user.email ??
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      setWalletSessionEmail(
+        sessionEmail ||
+        null
+      );
+
+
+      /*
+       * Si todavía no escribió el correo,
+       * usamos automáticamente el de su
+       * cuenta Baruk593.
+       */
+      if (
+        sessionEmail &&
+        !correoCliente.trim()
+      ) {
+        setCorreoCliente(
+          sessionEmail
+        );
+      }
+
+
+      const response =
+        await fetch(
+          "/api/marketplace/wallet",
+          {
+            method:
+              "GET",
+
+            headers: {
+              Authorization:
+                `Bearer ${session.access_token}`,
+            },
+
+            cache:
+              "no-store",
+          }
+        );
+
+
+      const data =
+        await response
+          .json()
+          .catch(
+            () => null
+          );
+
+
+      if (
+        !response.ok ||
+        !data?.ok
+      ) {
+        throw new Error(
+          data?.error ??
+          "No se pudo consultar tu saldo."
+        );
+      }
+
+
+      setWalletBalance(
+        Number(
+          data.wallet
+            ?.availableBalance ??
+          0
+        )
+      );
+
+    } catch (
+    err: unknown
+    ) {
+      console.error(
+        "Error consultando billetera:",
+        err
+      );
+
+      setOrderError(
+        err instanceof Error
+          ? err.message
+          : "No se pudo consultar tu Billetera Baruk593."
+      );
+
+    } finally {
+      setWalletLoading(
+        false
+      );
+    }
+  };
 
   // ✅ Crear pedido SIEMPRE en backend (service role)
   async function crearPedidoServer(
@@ -451,6 +627,116 @@ export default function HomePage() {
       return;
     }
 
+
+    /*
+     * =====================================================
+     * VALIDAR PAGO CON BILLETERA
+     * =====================================================
+     */
+
+    let walletAccessToken:
+      string | null =
+      null;
+
+
+    if (
+      metodoPago ===
+      "wallet"
+    ) {
+      const {
+        data:
+        sessionData,
+
+        error:
+        sessionError,
+      } =
+        await supabase
+          .auth
+          .getSession();
+
+
+      if (sessionError) {
+        setOrderError(
+          "No se pudo validar tu sesión."
+        );
+
+        return;
+      }
+
+
+      const session =
+        sessionData.session;
+
+
+      if (!session) {
+        setOrderError(
+          "Para pagar con tu saldo Baruk593 debes iniciar sesión en Mi Cuenta."
+        );
+
+        return;
+      }
+
+
+      const sessionEmail =
+        String(
+          session.user.email ??
+          ""
+        )
+          .trim()
+          .toLowerCase();
+
+
+      const buyerEmail =
+        correoCliente
+          .trim()
+          .toLowerCase();
+
+
+      /*
+       * La billetera pertenece a la cuenta
+       * autenticada. El correo del comprador
+       * debe coincidir.
+       */
+      if (
+        !sessionEmail ||
+        buyerEmail !==
+        sessionEmail
+      ) {
+        setOrderError(
+          `Para utilizar tu saldo debes comprar con el correo de tu cuenta Baruk593: ${sessionEmail || "correo no disponible"}`
+        );
+
+        return;
+      }
+
+
+      /*
+       * Validación visual.
+       * El servidor también vuelve a comprobar
+       * el saldo antes de descontarlo.
+       */
+      if (
+        walletBalance !== null &&
+        walletBalance <
+        totalPaquete
+      ) {
+        setOrderError(
+          `Saldo insuficiente. Tienes $${walletBalance.toFixed(
+            2
+          )} disponibles y esta compra cuesta $${totalPaquete.toFixed(
+            2
+          )}.`
+        );
+
+        return;
+      }
+
+
+      walletAccessToken =
+        session.access_token;
+    }
+
+
     setSavingOrder(true);
 
     try {
@@ -473,26 +759,181 @@ export default function HomePage() {
       const pedido = await crearPedidoServer(clientTransactionId);
 
       // ✅ 2) Flujo por método
-      if (metodoPago === "payphone") {
-        setIsModalOpen(false);
+      if (
+        metodoPago ===
+        "payphone"
+      ) {
+        /*
+         * ===============================================
+         * PAYPHONE
+         * NO MODIFICAMOS SU FUNCIONAMIENTO ACTUAL
+         * ===============================================
+         */
 
-        const totalStr = Number(totalPaquete).toFixed(2);
-        const ref = `Sorteo ${numeroActividad} - Pedido ${pedido.id}`;
-        const tx = clientTransactionId ?? pedido.tx;
+        setIsModalOpen(
+          false
+        );
+
+
+        const totalStr =
+          Number(
+            totalPaquete
+          ).toFixed(
+            2
+          );
+
+
+        const ref =
+          `Sorteo ${numeroActividad} - Pedido ${pedido.id}`;
+
+
+        const tx =
+          clientTransactionId ??
+          pedido.tx;
+
 
         if (!tx) {
-          throw new Error("Falta tx para PayPhone (clientTransactionId/pedido.tx)");
+          throw new Error(
+            "Falta tx para PayPhone (clientTransactionId/pedido.tx)"
+          );
         }
 
-        // ✅ ÚNICO push (evita doble navegación y evita null)
+
         router.push(
-          `/pago-payphone?amount=${encodeURIComponent(totalStr)}` +
-          `&ref=${encodeURIComponent(ref)}` +
-          `&tx=${encodeURIComponent(tx)}`
+          `/pago-payphone?amount=${encodeURIComponent(
+            totalStr
+          )}` +
+          `&ref=${encodeURIComponent(
+            ref
+          )}` +
+          `&tx=${encodeURIComponent(
+            tx
+          )}`
         );
+
+
+      } else if (
+        metodoPago ===
+        "wallet"
+      ) {
+        /*
+         * ===============================================
+         * BILLETERA BARUK593
+         * ===============================================
+         */
+
+        if (
+          !walletAccessToken
+        ) {
+          throw new Error(
+            "No se pudo validar tu sesión para pagar con saldo."
+          );
+        }
+
+
+        const walletResponse =
+          await fetch(
+            "/api/wallet/pay/cards",
+            {
+              method:
+                "POST",
+
+              headers: {
+                Authorization:
+                  `Bearer ${walletAccessToken}`,
+
+                "Content-Type":
+                  "application/json",
+              },
+
+              body:
+                JSON.stringify({
+                  pedidoId:
+                    pedido.id,
+                }),
+            }
+          );
+
+
+        const walletData =
+          await walletResponse
+            .json()
+            .catch(
+              () => null
+            );
+
+
+        /*
+         * Si paymentConfirmed = true,
+         * el dinero ya fue cobrado correctamente,
+         * incluso si las tarjetas siguen
+         * terminando de procesarse.
+         */
+        if (
+          !walletResponse.ok &&
+          !walletData
+            ?.paymentConfirmed
+        ) {
+          throw new Error(
+            walletData?.error ??
+            "No se pudo realizar el pago con tu saldo."
+          );
+        }
+
+
+        if (
+          !walletData
+            ?.paymentConfirmed
+        ) {
+          throw new Error(
+            walletData?.error ??
+            "No se pudo confirmar el pago con tu saldo."
+          );
+        }
+
+
+        /*
+         * Actualizamos el saldo mostrado.
+         */
+        if (
+          walletData
+            ?.newBalance != null
+        ) {
+          setWalletBalance(
+            Number(
+              walletData.newBalance
+            )
+          );
+        }
+
+
+        setIsModalOpen(
+          false
+        );
+
+
+        /*
+         * Pago exitoso acepta ?id=
+         */
+        router.push(
+          `/pago-exitoso?id=${encodeURIComponent(
+            String(
+              pedido.id
+            )
+          )}&status=approved`
+        );
+
+
       } else {
-        // Transferencia: pedido ya existe como pendiente
-        setModalStep("ok");
+        /*
+         * ===============================================
+         * TRANSFERENCIA
+         * ===============================================
+         */
+
+        setModalStep(
+          "ok"
+        );
       }
 
     } catch (err: any) {
@@ -913,13 +1354,8 @@ export default function HomePage() {
 ===================================================== */}
 
       <BarukPurchaseSection
-        precioUnidad={
-          precioUnidad
-        }
-
-        agotado={
-          agotado
-        }
+        precioUnidad={precioUnidad}
+        agotado={agotado}
 
         cantidadSeleccionada={
           selectedCantidad
@@ -974,6 +1410,14 @@ export default function HomePage() {
         }
       />
 
+
+      {/* =====================================================
+    F1 SPHERE COLLECTION
+===================================================== */}
+
+      <F1SphereHomeSection />
+
+
       {/* =====================================================
     CÓMO FUNCIONA
 ===================================================== */}
@@ -998,10 +1442,10 @@ export default function HomePage() {
           className="
       mx-auto
       w-full
-      max-w-6xl
-      px-5
-      sm:px-6
-    "
+      max-w-7xl
+      px-4
+      md:px-6
+  "
         >
           <div
             className="
@@ -1452,285 +1896,1211 @@ export default function HomePage() {
 
       <BarukShop />
 
-      {/* CÓMO PARTICIPAR */}
-      <div
-        id="como-funciona"
-        className="mt-16 scroll-mt-24"
-      >
+      {/* =====================================================
+    MODAL DE COMPRA — BARUK593
+===================================================== */}
 
-      </div>
-
-      {/* MODAL COMPRA */}
       {isModalOpen && selectedCantidad != null && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60">
-          <div className="w-full max-w-md rounded-2xl bg-[#1f2128] p-6 shadow-xl border border-white/10">
+        <div
+          className="
+      fixed
+      inset-0
+      z-50
+      flex
+      items-center
+      justify-center
+      bg-black/65
+      px-4
+      py-5
+      backdrop-blur-[6px]
+    "
+        >
+          <div
+            className="
+        relative
+        w-full
+        max-w-[480px]
+        max-h-[92vh]
+        overflow-y-auto
+        rounded-[28px]
+        border
+        border-black/[0.06]
+        bg-white
+        shadow-[0_30px_100px_rgba(0,0,0,0.28)]
+      "
+          >
+            {/* =================================================
+          ACENTO SUPERIOR
+      ================================================= */}
+
+            <div
+              className="
+          h-1.5
+          w-full
+          bg-gradient-to-r
+          from-[#C1317F]
+          via-[#ff6600]
+          to-[#C1317F]
+        "
+            />
+
+            {/* =================================================
+          CERRAR
+      ================================================= */}
+
+            <button
+              type="button"
+              onClick={handleCerrarModal}
+              className="
+          absolute
+          right-4
+          top-5
+          z-10
+          flex
+          h-9
+          w-9
+          items-center
+          justify-center
+          rounded-full
+          border
+          border-slate-200
+          bg-white
+          text-lg
+          text-slate-500
+          shadow-sm
+          transition
+          hover:border-slate-300
+          hover:bg-slate-50
+          hover:text-[#171717]
+        "
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+
+            {/* =================================================
+          PASO: RESUMEN
+      ================================================= */}
+
             {modalStep === "resumen" && (
-              <>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
+              <div className="p-6 md:p-7">
+                <div className="pr-10">
+
+                  <p
+                    className="
+                text-[10px]
+                font-black
+                uppercase
+                tracking-[0.22em]
+                text-[#C1317F]
+              "
+                  >
+                    Experience Pass
+                  </p>
+
+                  <h3
+                    className="
+                mt-1
+                text-[25px]
+                font-black
+                tracking-[-0.04em]
+                text-[#171717]
+              "
+                  >
+                    Resumen de compra
+                  </h3>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Revisa los datos de tu compra antes de continuar.
+                  </p>
+
+                </div>
+
+                {/* RESUMEN */}
+
+                <div
+                  className="
+              mt-6
+              overflow-hidden
+              rounded-[20px]
+              border
+              border-slate-200
+              bg-[#fafafa]
+            "
                 >
-                  Resumen de compra
-                </h3>
+                  <div className="space-y-4 p-5">
 
-                <p className="mt-2 text-center text-xs text-slate-300">
-                  Actividad #{numeroActividad} · {sorteo.titulo}
-                </p>
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">
+                        Experience Pass
+                      </span>
 
-                <div className="mt-4 space-y-2 text-sm text-slate-200">
-                  <div className="flex justify-between">
-                    <span>Cantidad de números</span>
-                    <span className="font-semibold">x{selectedCantidad}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Precio por número</span>
-                    <span>${precioUnidad.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between border-t border-white/10 pt-2 mt-1">
-                    <span className="font-semibold">Total a pagar</span>
-                    <span className="font-semibold text-[#FF7F00]">
-                      ${totalPaquete.toFixed(2)}
-                    </span>
+                      <span className="text-sm font-black text-[#171717]">
+                        x{selectedCantidad}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-slate-500">
+                        Valor unitario
+                      </span>
+
+                      <span className="text-sm font-bold text-[#171717]">
+                        ${Number(precioUnidad).toFixed(2)}
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-slate-200" />
+
+                    <div className="flex items-end justify-between">
+
+                      <span className="text-xs font-bold uppercase tracking-[0.12em] text-slate-400">
+                        Total
+                      </span>
+
+                      <span className="text-3xl font-black tracking-[-0.05em] text-[#171717]">
+                        ${totalPaquete.toFixed(2)}
+                      </span>
+
+                    </div>
+
                   </div>
                 </div>
 
-                <p className="mt-3 text-[11px] text-slate-400 text-center">
-                  En el siguiente paso podrás elegir tu método de pago y dejar
-                  tus datos para confirmar la reserva de tus números.
-                </p>
+                {/* REGALO */}
+
                 {tipoCompra === "gift" && (
+                  <div
+                    className="
+                mt-4
+                rounded-[18px]
+                border
+                border-[#C1317F]/20
+                bg-[#C1317F]/[0.05]
+                p-4
+              "
+                  >
+                    <div className="flex items-start gap-3">
 
-                  <div className="mt-4 rounded-xl border border-[#FF7F00]/30 bg-[#FF7F00]/10 p-4 text-center">
+                      <div
+                        className="
+                    flex
+                    h-9
+                    w-9
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-[#C1317F]/10
+                    text-lg
+                  "
+                      >
+                        🎁
+                      </div>
 
-                    <p className="text-xs font-bold text-[#ff9933]">
-                      🎁 Este pedido es un regalo para {destinatarioNombre}
-                    </p>
+                      <div>
+                        <p className="text-xs font-black text-[#171717]">
+                          Regalo para {destinatarioNombre}
+                        </p>
 
-                    <p className="mt-2 text-[11px] leading-5 text-slate-300">
-                      Una vez confirmado el pago, las Baruk Cards
-                      quedarán vinculadas al destinatario mediante:
-                    </p>
+                        <p className="mt-1 text-[11px] leading-5 text-slate-500">
+                          Las Experience Pass serán vinculadas al destinatario.
+                        </p>
 
-                    <p className="mt-2 break-all text-[11px] font-semibold text-white">
-                      {destinatarioCorreo}
-                    </p>
+                        <p className="mt-1 break-all text-[11px] font-bold text-[#C1317F]">
+                          {destinatarioCorreo}
+                        </p>
+                      </div>
 
+                    </div>
                   </div>
-
                 )}
 
-                <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff9933]"
-                    onClick={() => setModalStep("pago")}
-                  >
-                    Continuar al pago
-                  </button>
-                  <button
-                    className="w-full rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"
-                    onClick={handleCerrarModal}
-                  >
-                    Cerrar
-                  </button>
-                </div>
-              </>
+                <button
+                  type="button"
+                  onClick={() => setModalStep("pago")}
+                  className="
+              mt-6
+              min-h-[52px]
+              w-full
+              rounded-2xl
+              bg-[#171717]
+              px-5
+              text-sm
+              font-black
+              text-white
+              shadow-[0_10px_30px_rgba(0,0,0,0.15)]
+              transition
+              hover:bg-[#C1317F]
+            "
+                >
+                  Continuar
+                </button>
+
+              </div>
             )}
+
+            {/* =================================================
+          PASO: DATOS Y PAGO
+      ================================================= */}
 
             {modalStep === "pago" && (
               <form onSubmit={handleConfirmarDatosPago}>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff9933] text-center`}
-                >
-                  Datos y método de pago
-                </h3>
 
-                <p className="mt-2 text-center text-xs text-slate-300">
-                  Actividad #{numeroActividad} · Paquete x{selectedCantidad} ·{" "}
-                  <span className="font-semibold text-[#FF7F00]">
-                    ${totalPaquete.toFixed(2)}
-                  </span>
-                </p>
+                {/* CABECERA */}
 
-                <div className="mt-4 space-y-3 text-sm text-slate-200">
-                  <div className="space-y-1">
+                <div className="px-6 pb-5 pt-6 md:px-7">
 
-                    <p className="pt-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#FF7F00]">
-                      Tus datos de compra
-                    </p>
-                    <label className="text-xs text-slate-300">
-                      Nombre completo
-                    </label>
-                    <input
-                      type="text"
-                      value={nombreCliente}
-                      onChange={(e) => setNombreCliente(e.target.value)}
-                      className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
-                      placeholder="Ej: Juan Pérez"
-                    />
-                  </div>
+                  <div className="pr-10">
 
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300">
-                      WhatsApp / Teléfono
-                    </label>
-                    <input
-                      type="tel"
-                      value={telefonoCliente}
-                      onChange={(e) => setTelefonoCliente(e.target.value)}
-                      className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
-                      placeholder="Ej: 09xxxxxxxx"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-xs text-slate-300">
-                      Correo electrónico
-                    </label>
-                    <input
-                      type="email"
-                      value={correoCliente}
-                      onChange={(e) => setCorreoCliente(e.target.value)}
-                      className="w-full rounded-lg border border-white/15 bg-[#15161b] px-3 py-2 text-xs outline-none focus:border-[#FF7F00]"
-                      placeholder="Ej: correo@ejemplo.com"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <p className="text-xs text-slate-300">
-                      Elige tu método de pago:
+                    <p
+                      className="
+                  text-[10px]
+                  font-black
+                  uppercase
+                  tracking-[0.22em]
+                  text-[#C1317F]
+                "
+                    >
+                      Compra segura
                     </p>
 
-                    <label className="flex items-center gap-2 text-xs">
-                      <input
-                        type="radio"
-                        className="h-3 w-3"
-                        checked={metodoPago === "payphone"}
-                        onChange={() => setMetodoPago("payphone")}
-                      />
-                      <span>Tarjeta (Debito / Credito)</span>
-                    </label>
+                    <h3
+                      className="
+                  mt-1
+                  text-[25px]
+                  font-black
+                  tracking-[-0.04em]
+                  text-[#171717]
+                "
+                    >
+                      Completa tu compra
+                    </h3>
 
-                    <label className="flex items-center gap-2 text-xs">
-                      <input
-                        type="radio"
-                        className="h-3 w-3"
-                        checked={metodoPago === "transferencia"}
-                        onChange={() => setMetodoPago("transferencia")}
-                      />
-                      <span>Transferencia / Depósito bancario</span>
-                    </label>
+                    <p className="mt-2 text-xs leading-5 text-slate-500">
+                      Ingresa tus datos y selecciona cómo deseas pagar.
+                    </p>
+
                   </div>
 
-                  {orderError && (
-                    <p className="text-[11px] text-red-400">{orderError}</p>
-                  )}
+                  {/* MINI RESUMEN */}
+
+                  <div
+                    className="
+                mt-5
+                flex
+                items-center
+                justify-between
+                rounded-[18px]
+                border
+                border-slate-200
+                bg-[#fafafa]
+                px-4
+                py-3.5
+              "
+                  >
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                        Tu compra
+                      </p>
+
+                      <p className="mt-1 text-sm font-black text-[#171717]">
+                        {selectedCantidad} Experience Pass
+                      </p>
+                    </div>
+
+                    <div className="text-right">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
+                        Total
+                      </p>
+
+                      <p className="mt-1 text-xl font-black text-[#ff6600]">
+                        ${totalPaquete.toFixed(2)}
+                      </p>
+                    </div>
+                  </div>
+
                 </div>
 
-                <div className="mt-5 flex flex-col gap-2">
+                <div className="h-px bg-slate-100" />
+
+                {/* =================================================
+              DATOS
+          ================================================= */}
+
+                <div className="px-6 py-5 md:px-7">
+
+                  <div className="mb-4 flex items-center gap-3">
+
+                    <div
+                      className="
+                  flex
+                  h-8
+                  w-8
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-[#171717]
+                  text-xs
+                  font-black
+                  text-white
+                "
+                    >
+                      1
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-black text-[#171717]">
+                        Tus datos
+                      </p>
+
+                      <p className="text-[11px] text-slate-400">
+                        Información para identificar tu compra.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <div className="space-y-4">
+
+                    {/* NOMBRE */}
+
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                        Nombre completo
+                      </label>
+
+                      <input
+                        type="text"
+                        value={nombreCliente}
+                        onChange={(e) =>
+                          setNombreCliente(e.target.value)
+                        }
+                        placeholder="Ej: Juan Pérez"
+                        className="
+                    min-h-[50px]
+                    w-full
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-[#fafafa]
+                    px-4
+                    text-sm
+                    text-[#171717]
+                    outline-none
+                    transition
+                    placeholder:text-slate-300
+                    focus:border-[#C1317F]
+                    focus:bg-white
+                    focus:shadow-[0_0_0_4px_rgba(193,49,127,0.08)]
+                  "
+                      />
+                    </div>
+
+                    {/* TELÉFONO */}
+
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                        WhatsApp / Teléfono
+                      </label>
+
+                      <input
+                        type="tel"
+                        value={telefonoCliente}
+                        onChange={(e) =>
+                          setTelefonoCliente(e.target.value)
+                        }
+                        placeholder="09xxxxxxxx"
+                        className="
+                    min-h-[50px]
+                    w-full
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-[#fafafa]
+                    px-4
+                    text-sm
+                    text-[#171717]
+                    outline-none
+                    transition
+                    placeholder:text-slate-300
+                    focus:border-[#C1317F]
+                    focus:bg-white
+                    focus:shadow-[0_0_0_4px_rgba(193,49,127,0.08)]
+                  "
+                      />
+                    </div>
+
+                    {/* CORREO */}
+
+                    <div>
+                      <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                        Correo electrónico
+                      </label>
+
+                      <input
+                        type="email"
+                        value={correoCliente}
+                        onChange={(e) =>
+                          setCorreoCliente(e.target.value)
+                        }
+                        placeholder="correo@ejemplo.com"
+                        className="
+                    min-h-[50px]
+                    w-full
+                    rounded-xl
+                    border
+                    border-slate-200
+                    bg-[#fafafa]
+                    px-4
+                    text-sm
+                    text-[#171717]
+                    outline-none
+                    transition
+                    placeholder:text-slate-300
+                    focus:border-[#C1317F]
+                    focus:bg-white
+                    focus:shadow-[0_0_0_4px_rgba(193,49,127,0.08)]
+                  "
+                      />
+                    </div>
+
+                  </div>
+
+                </div>
+
+                <div className="h-px bg-slate-100" />
+
+                {/* =================================================
+              MÉTODO DE PAGO
+          ================================================= */}
+
+                <div className="px-6 py-5 md:px-7">
+
+                  <div className="mb-4 flex items-center gap-3">
+
+                    <div
+                      className="
+                  flex
+                  h-8
+                  w-8
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-[#C1317F]
+                  text-xs
+                  font-black
+                  text-white
+                "
+                    >
+                      2
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-black text-[#171717]">
+                        Método de pago
+                      </p>
+
+                      <p className="text-[11px] text-slate-400">
+                        Elige la opción que prefieras.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <div className="space-y-3">
+
+                    {/* =============================================
+                  PAYPHONE
+              ============================================= */}
+
+                    <label
+                      className={`
+                  group
+                  flex
+                  cursor-pointer
+                  items-center
+                  gap-3
+                  rounded-[18px]
+                  border
+                  p-4
+                  transition-all
+                  ${metodoPago === "payphone"
+                          ? "border-[#ff6600] bg-[#ff6600]/[0.04] shadow-[0_0_0_3px_rgba(255,102,0,0.08)]"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                        }
+                `}
+                    >
+                      <input
+                        type="radio"
+                        name="metodo_pago"
+                        className="h-4 w-4 accent-[#ff6600]"
+                        checked={metodoPago === "payphone"}
+                        onChange={() => {
+                          setMetodoPago("payphone");
+                          setOrderError(null);
+                        }}
+                      />
+
+                      <div
+                        className="
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-[#ff6600]/10
+                    text-[#ff6600]
+                  "
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-5 w-5"
+                        >
+                          <rect
+                            x="3"
+                            y="6"
+                            width="18"
+                            height="12"
+                            rx="2.5"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          />
+                          <path
+                            d="M3 10h18"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+
+                        <div className="flex items-center justify-between gap-2">
+
+                          <p className="text-sm font-black text-[#171717]">
+                            PayPhone
+                          </p>
+
+                          {metodoPago === "payphone" && (
+                            <span
+                              className="
+                          rounded-full
+                          bg-[#ff6600]
+                          px-2
+                          py-1
+                          text-[9px]
+                          font-black
+                          uppercase
+                          tracking-[0.08em]
+                          text-white
+                        "
+                            >
+                              Seleccionado
+                            </span>
+                          )}
+
+                        </div>
+
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Tarjeta de débito, crédito o PayPhone App.
+                        </p>
+
+                      </div>
+                    </label>
+
+                    {/* =============================================
+                  BILLETERA
+              ============================================= */}
+
+                    <label
+                      className={`
+                  group
+                  flex
+                  cursor-pointer
+                  items-center
+                  gap-3
+                  rounded-[18px]
+                  border
+                  p-4
+                  transition-all
+                  ${metodoPago === "wallet"
+                          ? "border-[#C1317F] bg-[#C1317F]/[0.04] shadow-[0_0_0_3px_rgba(193,49,127,0.08)]"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                        }
+                `}
+                    >
+                      <input
+                        type="radio"
+                        name="metodo_pago"
+                        className="h-4 w-4 accent-[#C1317F]"
+                        checked={metodoPago === "wallet"}
+                        onChange={() => {
+                          void seleccionarWallet();
+                        }}
+                      />
+
+                      <div
+                        className="
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-[#C1317F]/10
+                    text-[#C1317F]
+                  "
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-5 w-5"
+                        >
+                          <path
+                            d="M4 7.5A2.5 2.5 0 0 1 6.5 5h11A2.5 2.5 0 0 1 20 7.5v9A2.5 2.5 0 0 1 17.5 19h-11A2.5 2.5 0 0 1 4 16.5v-9Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          />
+
+                          <path
+                            d="M15 10h5v4h-5a2 2 0 1 1 0-4Z"
+                            stroke="currentColor"
+                            strokeWidth="1.8"
+                          />
+                        </svg>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+
+                        <div className="flex items-center justify-between gap-2">
+
+                          <p className="text-sm font-black text-[#171717]">
+                            Saldo Baruk593
+                          </p>
+
+                          {walletBalance !== null && (
+                            <span
+                              className="
+                          rounded-full
+                          bg-[#C1317F]/10
+                          px-2.5
+                          py-1
+                          text-[10px]
+                          font-black
+                          text-[#C1317F]
+                        "
+                            >
+                              ${walletBalance.toFixed(2)}
+                            </span>
+                          )}
+
+                        </div>
+
+                        <p className="mt-1 text-[11px] leading-4 text-slate-400">
+                          Usa tus comisiones, ventas o premios.
+                        </p>
+
+                      </div>
+                    </label>
+
+                    {/* ESTADO WALLET */}
+
+                    {metodoPago === "wallet" && (
+                      <div
+                        className="
+                    rounded-[16px]
+                    border
+                    border-[#C1317F]/15
+                    bg-[#C1317F]/[0.035]
+                    px-4
+                    py-3
+                  "
+                      >
+                        {walletLoading ? (
+                          <div className="flex items-center gap-2">
+
+                            <div
+                              className="
+                          h-4
+                          w-4
+                          animate-spin
+                          rounded-full
+                          border-2
+                          border-[#C1317F]/20
+                          border-t-[#C1317F]
+                        "
+                            />
+
+                            <p className="text-[11px] font-semibold text-slate-500">
+                              Consultando tu saldo...
+                            </p>
+
+                          </div>
+                        ) : !walletSessionEmail ? (
+                          <div>
+
+                            <p className="text-[11px] font-semibold text-amber-700">
+                              Debes iniciar sesión para utilizar tu saldo.
+                            </p>
+
+                            <button
+                              type="button"
+                              onClick={() =>
+                                router.push("/mi-cuenta")
+                              }
+                              className="
+                          mt-2
+                          text-[11px]
+                          font-black
+                          text-[#C1317F]
+                          underline
+                          underline-offset-4
+                        "
+                            >
+                              Ir a Mi Cuenta
+                            </button>
+
+                          </div>
+                        ) : walletBalance !== null ? (
+                          <div className="flex items-center justify-between gap-3">
+
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-[0.1em] text-slate-400">
+                                Disponible
+                              </p>
+
+                              <p className="mt-0.5 text-lg font-black text-[#171717]">
+                                ${walletBalance.toFixed(2)}
+                              </p>
+                            </div>
+
+                            {walletBalance >= totalPaquete ? (
+                              <span
+                                className="
+                            rounded-full
+                            bg-emerald-50
+                            px-3
+                            py-1.5
+                            text-[10px]
+                            font-black
+                            text-emerald-700
+                          "
+                              >
+                                ✓ Saldo suficiente
+                              </span>
+                            ) : (
+                              <span
+                                className="
+                            rounded-full
+                            bg-amber-50
+                            px-3
+                            py-1.5
+                            text-[10px]
+                            font-black
+                            text-amber-700
+                          "
+                              >
+                                Saldo insuficiente
+                              </span>
+                            )}
+
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-500">
+                            No se pudo consultar tu saldo.
+                          </p>
+                        )}
+                      </div>
+                    )}
+
+                    {/* =============================================
+                  TRANSFERENCIA
+              ============================================= */}
+
+                    <label
+                      className={`
+                  group
+                  flex
+                  cursor-pointer
+                  items-center
+                  gap-3
+                  rounded-[18px]
+                  border
+                  p-4
+                  transition-all
+                  ${metodoPago === "transferencia"
+                          ? "border-[#171717] bg-[#171717]/[0.025] shadow-[0_0_0_3px_rgba(23,23,23,0.05)]"
+                          : "border-slate-200 bg-white hover:border-slate-300"
+                        }
+                `}
+                    >
+                      <input
+                        type="radio"
+                        name="metodo_pago"
+                        className="h-4 w-4 accent-[#171717]"
+                        checked={metodoPago === "transferencia"}
+                        onChange={() => {
+                          setMetodoPago("transferencia");
+                          setOrderError(null);
+                        }}
+                      />
+
+                      <div
+                        className="
+                    flex
+                    h-10
+                    w-10
+                    shrink-0
+                    items-center
+                    justify-center
+                    rounded-xl
+                    bg-slate-100
+                    text-[#171717]
+                  "
+                      >
+                        <svg
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          className="h-5 w-5"
+                        >
+                          <path
+                            d="M3 9h18M5 9V19M9 9V19M15 9V19M19 9V19M3 19h18M12 4 3 8h18L12 4Z"
+                            stroke="currentColor"
+                            strokeWidth="1.6"
+                            strokeLinejoin="round"
+                          />
+                        </svg>
+                      </div>
+
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-black text-[#171717]">
+                          Transferencia bancaria
+                        </p>
+
+                        <p className="mt-1 text-[11px] text-slate-400">
+                          Confirmación manual del comprobante.
+                        </p>
+                      </div>
+                    </label>
+
+                  </div>
+
+                  {/* ERROR */}
+
+                  {orderError && (
+                    <div
+                      className="
+                  mt-4
+                  rounded-[16px]
+                  border
+                  border-red-200
+                  bg-red-50
+                  px-4
+                  py-3
+                  text-[11px]
+                  font-semibold
+                  leading-5
+                  text-red-600
+                "
+                    >
+                      {orderError}
+                    </div>
+                  )}
+
+                </div>
+
+                {/* =================================================
+              ACCIONES
+          ================================================= */}
+
+                <div
+                  className="
+              sticky
+              bottom-0
+              border-t
+              border-slate-100
+              bg-white/95
+              px-6
+              py-5
+              backdrop-blur
+              md:px-7
+            "
+                >
                   <button
                     type="submit"
-                    disabled={savingOrder}
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600] disabled:opacity-60 disabled:cursor-not-allowed"
+                    disabled={
+                      savingOrder ||
+                      (
+                        metodoPago === "wallet" &&
+                        walletBalance !== null &&
+                        walletBalance < totalPaquete
+                      )
+                    }
+                    className="
+                min-h-[54px]
+                w-full
+                rounded-2xl
+                bg-[#171717]
+                px-5
+                text-sm
+                font-black
+                text-white
+                shadow-[0_12px_30px_rgba(0,0,0,0.16)]
+                transition
+                hover:bg-[#C1317F]
+                disabled:cursor-not-allowed
+                disabled:opacity-40
+              "
                   >
-                    {savingOrder ? "Registrando pedido..." : "Confirmar pedido"}
+                    {savingOrder
+                      ? metodoPago === "wallet"
+                        ? "Procesando pago..."
+                        : "Registrando pedido..."
+                      : metodoPago === "wallet"
+                        ? `Pagar $${totalPaquete.toFixed(2)} con saldo`
+                        : metodoPago === "payphone"
+                          ? `Continuar a PayPhone · $${totalPaquete.toFixed(2)}`
+                          : "Registrar pedido"}
                   </button>
+
                   <button
                     type="button"
-                    className="w-full rounded-xl border border-white/30 px-3 py-2 text-xs font-semibold text-slate-100 hover:bg-white/10"
                     onClick={handleCerrarModal}
+                    className="
+                mt-2
+                min-h-[42px]
+                w-full
+                rounded-xl
+                text-xs
+                font-bold
+                text-slate-400
+                transition
+                hover:text-[#171717]
+              "
                   >
                     Cancelar
                   </button>
+
+                  <p className="mt-2 text-center text-[9px] font-semibold text-slate-300">
+                    Pago seguro · Tus datos están protegidos
+                  </p>
+
                 </div>
+
               </form>
             )}
 
+            {/* =================================================
+          PASO: TRANSFERENCIA REGISTRADA
+      ================================================= */}
+
             {modalStep === "ok" && (
-              <>
-                <h3
-                  className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.18em] text-[#ff6600] text-center`}
-                >
-                  Pedido recibido
-                </h3>
+              <div className="p-6 md:p-7">
 
-                <p className="mt-3 text-sm text-slate-200 text-center">
-                  ¡Gracias, {nombreCliente || "participante"}! 🙌
-                </p>
+                <div className="text-center">
 
-                <p className="mt-2 text-xs text-slate-300 text-center">
-                  Hemos registrado tu pedido del paquete{" "}
-                  <span className="font-semibold">x{selectedCantidad}</span> por{" "}
-                  <span className="font-semibold text-[#FF7F00]">
-                    ${totalPaquete.toFixed(2)}
-                  </span>
-                  .
-                </p>
-
-                <p className="mt-3 text-[11px] text-slate-400 text-center">
-                  Tu pedido aparecerá como pendiente hasta que confirmemos el pago desde el
-                  panel administrativo.
-                </p>
-
-                {/* 🔹 INFORMACIÓN PARA TRANSFERENCIA */}
-                <div className="mt-4 rounded-xl border border-slate-700 bg-slate-900/60 px-4 py-3 text-xs text-slate-200 space-y-2">
-                  <p className="text-center font-semibold text-[#FF7F00]">
-                    Datos para transferencia o depósito
-                  </p>
-
-                  <p className="text-center">
-                    <span className="font-semibold">Banco:</span> Guayaquil
-                  </p>
-                  <p className="text-center">
-                    <span className="font-semibold">Tipo de cuenta:</span> Ahorros
-                  </p>
-                  <p className="text-center">
-                    <span className="font-semibold">Número de cuenta:</span> 0048055945
-                  </p>
-                  <p className="text-center">
-                    <span className="font-semibold">Titular:</span> Alexis Amaguay Vásquez "Baruk593"
-                  </p>
-
-                  <p className="mt-2 text-center text-slate-300">
-                    📲 Envía el comprobante por WhatsApp:
-                  </p>
-
-                  <div className="flex flex-col items-center gap-2">
-                    {/* 🔗 Link WhatsApp */}
-                    <a
-                      href="https://wa.me/593990575984"
-                      target="_blank"
-                      rel="noreferrer"
-                      className="font-semibold text-emerald-400 underline underline-offset-4 hover:text-emerald-300"
-                    >
-                      0990575984
-                    </a>
-
-                    {/* 📋 Copiar al portapapeles */}
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText("0990575984");
-                        alert("Número copiado al portapapeles");
-                      }}
-                      className="rounded-full border border-slate-600 px-3 py-1 text-[11px] text-slate-200 hover:border-emerald-400 hover:text-emerald-300"
-                    >
-                      Copiar número
-                    </button>
+                  <div
+                    className="
+                mx-auto
+                flex
+                h-14
+                w-14
+                items-center
+                justify-center
+                rounded-2xl
+                bg-emerald-50
+                text-2xl
+              "
+                  >
+                    ✓
                   </div>
 
+                  <p
+                    className="
+                mt-5
+                text-[10px]
+                font-black
+                uppercase
+                tracking-[0.2em]
+                text-[#C1317F]
+              "
+                  >
+                    Pedido registrado
+                  </p>
+
+                  <h3
+                    className="
+                mt-1
+                text-[25px]
+                font-black
+                tracking-[-0.04em]
+                text-[#171717]
+              "
+                  >
+                    Ahora realiza tu transferencia
+                  </h3>
+
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Tu pedido queda pendiente hasta confirmar el pago.
+                  </p>
+
                 </div>
 
-                <div className="mt-5 flex flex-col gap-2">
-                  <button
-                    className="w-full rounded-xl bg-[#FF7F00] px-3 py-2 text-xs font-semibold text-slate-950 hover:bg-[#ff6600]"
-                    onClick={handleCerrarModal}
-                  >
-                    Cerrar
-                  </button>
+                {/* TOTAL */}
+
+                <div
+                  className="
+              mt-5
+              flex
+              items-center
+              justify-between
+              rounded-[18px]
+              bg-[#171717]
+              px-5
+              py-4
+            "
+                >
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
+                      Pedido
+                    </p>
+
+                    <p className="mt-1 text-xs font-bold text-white">
+                      x{selectedCantidad} Experience Pass
+                    </p>
+                  </div>
+
+                  <div className="text-right">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
+                      Total
+                    </p>
+
+                    <p className="mt-1 text-xl font-black text-[#ff6600]">
+                      ${totalPaquete.toFixed(2)}
+                    </p>
+                  </div>
                 </div>
-              </>
+
+                {/* BANCO */}
+
+                <div
+                  className="
+              mt-4
+              rounded-[20px]
+              border
+              border-slate-200
+              bg-[#fafafa]
+              p-5
+            "
+                >
+                  <p className="text-[10px] font-black uppercase tracking-[0.15em] text-[#C1317F]">
+                    Datos bancarios
+                  </p>
+
+                  <div className="mt-4 space-y-3">
+
+                    <div className="flex justify-between gap-4">
+                      <span className="text-xs text-slate-400">
+                        Banco
+                      </span>
+
+                      <span className="text-xs font-black text-[#171717]">
+                        Guayaquil
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4">
+                      <span className="text-xs text-slate-400">
+                        Cuenta
+                      </span>
+
+                      <span className="text-xs font-black text-[#171717]">
+                        Ahorros
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between gap-4">
+                      <span className="text-xs text-slate-400">
+                        Número
+                      </span>
+
+                      <span className="text-xs font-black text-[#171717]">
+                        0048055945
+                      </span>
+                    </div>
+
+                    <div className="h-px bg-slate-200" />
+
+                    <div>
+                      <span className="text-xs text-slate-400">
+                        Titular
+                      </span>
+
+                      <p className="mt-1 text-xs font-black text-[#171717]">
+                        Alexis Amaguay Vásquez · Baruk593
+                      </p>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* WHATSAPP */}
+
+                <a
+                  href="https://wa.me/593990575984"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="
+              mt-4
+              flex
+              min-h-[52px]
+              w-full
+              items-center
+              justify-center
+              rounded-2xl
+              bg-emerald-500
+              px-5
+              text-sm
+              font-black
+              text-white
+              shadow-[0_10px_25px_rgba(16,185,129,0.20)]
+              transition
+              hover:bg-emerald-600
+            "
+                >
+                  Enviar comprobante por WhatsApp
+                </a>
+
+                <button
+                  type="button"
+                  onClick={handleCerrarModal}
+                  className="
+              mt-2
+              min-h-[46px]
+              w-full
+              rounded-xl
+              text-xs
+              font-bold
+              text-slate-400
+              transition
+              hover:text-[#171717]
+            "
+                >
+                  Cerrar
+                </button>
+
+              </div>
             )}
+
           </div>
         </div>
       )}
+
     </div>
   );
 }

@@ -73,13 +73,10 @@ function ProductPlaceholder() {
             className="
                 absolute
                 inset-0
-
                 flex
                 items-center
                 justify-center
-
-                bg-[#f7f7f7]
-
+                bg-[#f7f7f8]
                 p-6
             "
         >
@@ -88,22 +85,16 @@ function ProductPlaceholder() {
                 <div
                     className="
                         mx-auto
-
                         flex
                         h-16
                         w-16
                         items-center
                         justify-center
-
                         rounded-2xl
-
                         border
                         border-slate-200
-
                         bg-white
-
                         text-slate-300
-
                         shadow-sm
                     "
                 >
@@ -139,7 +130,6 @@ function ProductPlaceholder() {
                 <p
                     className="
                         mt-3
-
                         text-[8px]
                         font-black
                         uppercase
@@ -161,6 +151,7 @@ function ProductPlaceholder() {
 ============================================================ */
 
 export default function BarukShop() {
+
     const [
         productos,
         setProductos,
@@ -169,11 +160,15 @@ export default function BarukShop() {
             []
         );
 
+
     const [
         loading,
         setLoading,
     ] =
-        useState(true);
+        useState(
+            true
+        );
+
 
     const [
         error,
@@ -181,111 +176,146 @@ export default function BarukShop() {
     ] =
         useState<
             string | null
-        >(null);
+        >(
+            null
+        );
+
+
+    /*
+     * Guarda solamente las imágenes que fallaron.
+     * Así el placeholder NO aparece detrás de una
+     * imagen real transparente.
+     */
+    const [
+        imageErrors,
+        setImageErrors,
+    ] =
+        useState<
+            Record<
+                string,
+                boolean
+            >
+        >(
+            {}
+        );
 
 
     /* ============================================================
        CARGAR PRODUCTOS
     ============================================================ */
 
-    useEffect(() => {
-        const cargarProductos =
-            async () => {
-                try {
-                    setLoading(
-                        true
-                    );
+    useEffect(
+        () => {
 
-                    setError(
-                        null
-                    );
+            const cargarProductos =
+                async () => {
 
-                    const {
-                        data,
-                        error:
-                        productosError,
-                    } =
-                        await supabase
-                            .from(
-                                "store_products"
-                            )
-                            .select(`
-                                id,
-                                nombre,
-                                slug,
-                                descripcion_corta,
-                                precio,
-                                precio_anterior,
-                                stock,
-                                imagen_principal,
-                                etiqueta,
-                                nuevo,
-                                tendencia,
-                                destacado,
-                                orden,
+                    try {
 
-                                store_categories (
-                                    nombre,
-                                    slug
+                        setLoading(
+                            true
+                        );
+
+
+                        setError(
+                            null
+                        );
+
+
+                        const {
+                            data,
+
+                            error:
+                            productosError,
+                        } =
+                            await supabase
+                                .from(
+                                    "store_products"
                                 )
-                            `)
-                            .eq(
-                                "activo",
-                                true
-                            )
-                            .eq(
-                                "destacado",
-                                true
-                            )
-                            .order(
-                                "orden",
-                                {
-                                    ascending:
-                                        true,
-                                }
-                            )
-                            .limit(
-                                4
-                            );
+                                .select(`
+                                    id,
+                                    nombre,
+                                    slug,
+                                    descripcion_corta,
+                                    precio,
+                                    precio_anterior,
+                                    stock,
+                                    imagen_principal,
+                                    etiqueta,
+                                    nuevo,
+                                    tendencia,
+                                    destacado,
+                                    orden,
+
+                                    store_categories (
+                                        nombre,
+                                        slug
+                                    )
+                                `)
+                                .eq(
+                                    "activo",
+                                    true
+                                )
+                                .eq(
+                                    "destacado",
+                                    true
+                                )
+                                .order(
+                                    "orden",
+                                    {
+                                        ascending:
+                                            true,
+                                    }
+                                )
+                                .limit(
+                                    4
+                                );
 
 
-                    if (
-                        productosError
+                        if (
+                            productosError
+                        ) {
+                            throw productosError;
+                        }
+
+
+                        setProductos(
+                            (
+                                data ??
+                                []
+                            ) as unknown as Producto[]
+                        );
+
+
+                    } catch (
+                    err
                     ) {
-                        throw productosError;
+
+                        console.error(
+                            "Error cargando Baruk Shop:",
+                            err
+                        );
+
+
+                        setError(
+                            "No pudimos cargar los productos de Baruk Shop."
+                        );
+
+
+                    } finally {
+
+                        setLoading(
+                            false
+                        );
                     }
+                };
 
 
-                    setProductos(
-                        (
-                            data ??
-                            []
-                        ) as unknown as Producto[]
-                    );
+            void cargarProductos();
 
-                } catch (
-                err
-                ) {
-                    console.error(
-                        "Error cargando Baruk Shop:",
-                        err
-                    );
-
-                    setError(
-                        "No pudimos cargar los productos de Baruk Shop."
-                    );
-
-                } finally {
-                    setLoading(
-                        false
-                    );
-                }
-            };
-
-
-        void cargarProductos();
-
-    }, []);
+        },
+        []
+    );
 
 
     /* ============================================================
@@ -293,25 +323,26 @@ export default function BarukShop() {
     ============================================================ */
 
     return (
+
         <section
             id="baruk-shop"
+
             className="
-        scroll-mt-24
-        w-full
-        bg-white
-        py-14
-        md:py-16
-    "
+                scroll-mt-24
+                w-full
+                bg-white
+                py-14
+                md:py-16
+            "
         >
+
             <div
                 className="
                     mx-auto
                     w-full
                     max-w-7xl
-
-                    px-5
-
-                    sm:px-6
+                    px-4
+                    md:px-6
                 "
             >
 
@@ -330,7 +361,10 @@ export default function BarukShop() {
                         md:justify-between
                     "
                 >
+
                     <div>
+
+                        {/* LÍNEA + ETIQUETA */}
 
                         <div
                             className="
@@ -339,13 +373,17 @@ export default function BarukShop() {
                                 gap-3
                             "
                         >
+
                             <span
                                 className="
                                     h-[2px]
-                                    w-7
-                                    bg-[#C1317F]
+                                    w-8
+                                    shrink-0
+                                    rounded-full
+                                    bg-[#F36B2B]
                                 "
                             />
+
 
                             <p
                                 className="
@@ -358,18 +396,20 @@ export default function BarukShop() {
                             >
                                 Equipamiento
                             </p>
+
                         </div>
 
 
                         <h2
                             className="
-                                mt-3
-
-                                text-3xl
+                                mt-5
+                                text-[30px]
                                 font-black
+                                leading-[1.05]
                                 tracking-[-0.045em]
                                 text-[#171717]
 
+                                sm:text-[34px]
                                 md:text-[38px]
                             "
                         >
@@ -379,20 +419,17 @@ export default function BarukShop() {
 
                         <p
                             className="
-                                mt-2
-
+                                mt-3
                                 max-w-xl
-
                                 text-[13px]
                                 leading-6
                                 text-slate-500
 
-                                md:text-sm
+                                md:text-[14px]
                             "
                         >
-                            Encuentra productos seleccionados
-                            para acompañarte dentro y fuera de
-                            la ruta.
+                            Encuentra productos seleccionados para acompañarte
+                            dentro y fuera de la ruta.
                         </p>
 
                     </div>
@@ -400,17 +437,15 @@ export default function BarukShop() {
 
                     <Link
                         href="/tienda"
+
                         className="
                             group
-
                             hidden
                             items-center
                             gap-2
-
                             text-xs
                             font-black
                             text-[#171717]
-
                             transition-colors
 
                             hover:text-[#C1317F]
@@ -423,12 +458,12 @@ export default function BarukShop() {
                         <span
                             className="
                                 transition-transform
-
                                 group-hover:translate-x-1
                             "
                         >
                             →
                         </span>
+
                     </Link>
 
                 </div>
@@ -439,10 +474,10 @@ export default function BarukShop() {
                 ================================================= */}
 
                 {loading && (
+
                     <div
                         className="
                             mt-8
-
                             grid
                             grid-cols-2
                             gap-3
@@ -451,10 +486,12 @@ export default function BarukShop() {
                             lg:gap-5
                         "
                     >
+
                         {[1, 2, 3, 4].map(
                             (
                                 item
                             ) => (
+
                                 <div
                                     key={
                                         item
@@ -463,15 +500,15 @@ export default function BarukShop() {
                                         animate-pulse
                                     "
                                 >
+
                                     <div
                                         className="
                                             aspect-[4/5]
-
                                             rounded-[22px]
-
                                             bg-slate-200/70
                                         "
                                     />
+
 
                                     <div
                                         className="
@@ -483,6 +520,7 @@ export default function BarukShop() {
                                         "
                                     />
 
+
                                     <div
                                         className="
                                             mt-3
@@ -493,6 +531,7 @@ export default function BarukShop() {
                                         "
                                     />
 
+
                                     <div
                                         className="
                                             mt-3
@@ -502,9 +541,11 @@ export default function BarukShop() {
                                             bg-slate-200
                                         "
                                     />
+
                                 </div>
                             )
                         )}
+
                     </div>
                 )}
 
@@ -515,23 +556,20 @@ export default function BarukShop() {
 
                 {!loading &&
                     error && (
+
                         <div
                             className="
                                 mt-8
-
                                 rounded-[20px]
-
                                 border
                                 border-slate-200
-
                                 bg-white
-
                                 px-6
                                 py-10
-
                                 text-center
                             "
                         >
+
                             <p
                                 className="
                                     text-sm
@@ -539,9 +577,9 @@ export default function BarukShop() {
                                     text-[#171717]
                                 "
                             >
-                                Baruk Shop no está disponible
-                                en este momento.
+                                Baruk Shop no está disponible en este momento.
                             </p>
+
 
                             <p
                                 className="
@@ -552,6 +590,7 @@ export default function BarukShop() {
                             >
                                 Intenta nuevamente más tarde.
                             </p>
+
                         </div>
                     )}
 
@@ -564,23 +603,20 @@ export default function BarukShop() {
                     !error &&
                     productos.length ===
                     0 && (
+
                         <div
                             className="
                                 mt-8
-
                                 rounded-[20px]
-
                                 border
                                 border-slate-200
-
                                 bg-white
-
                                 px-6
                                 py-10
-
                                 text-center
                             "
                         >
+
                             <p
                                 className="
                                     text-sm
@@ -591,6 +627,7 @@ export default function BarukShop() {
                                 Próximamente nuevos productos
                             </p>
 
+
                             <p
                                 className="
                                     mt-1
@@ -598,9 +635,9 @@ export default function BarukShop() {
                                     text-slate-400
                                 "
                             >
-                                Estamos preparando novedades
-                                para Baruk Shop.
+                                Estamos preparando novedades para Baruk Shop.
                             </p>
+
                         </div>
                     )}
 
@@ -613,6 +650,7 @@ export default function BarukShop() {
                     !error &&
                     productos.length >
                     0 && (
+
                         <div
                             className="
                                 mt-8
@@ -628,6 +666,7 @@ export default function BarukShop() {
                                 lg:grid-cols-4
                             "
                         >
+
                             {productos.map(
                                 (
                                     producto
@@ -640,11 +679,15 @@ export default function BarukShop() {
 
 
                                     const precioAnterior =
-                                        producto.precio_anterior !==
+                                        producto
+                                            .precio_anterior !==
                                             null
+
                                             ? Number(
-                                                producto.precio_anterior
+                                                producto
+                                                    .precio_anterior
                                             )
+
                                             : null;
 
 
@@ -657,15 +700,33 @@ export default function BarukShop() {
 
                                     const imagenUrl =
                                         getBarukShopImageUrl(
-                                            producto.imagen_principal
+                                            producto
+                                                .imagen_principal
+                                        );
+
+
+                                    const imagenFallida =
+                                        Boolean(
+                                            imageErrors[
+                                            producto.id
+                                            ]
+                                        );
+
+
+                                    const mostrarImagen =
+                                        Boolean(
+                                            imagenUrl &&
+                                            !imagenFallida
                                         );
 
 
                                     return (
+
                                         <article
                                             key={
                                                 producto.id
                                             }
+
                                             className="
                                                 group
                                             "
@@ -677,40 +738,42 @@ export default function BarukShop() {
 
                                             <Link
                                                 href={`/tienda/${producto.slug}`}
-                                                aria-label={`Ver ${producto.nombre}`}
+
+                                                aria-label={
+                                                    `Ver ${producto.nombre}`
+                                                }
+
                                                 className="
                                                     block
                                                 "
                                             >
+
                                                 <div
                                                     className="
-        relative
-        aspect-[4/5]
-        overflow-hidden
+                                                        relative
+                                                        aspect-[4/5]
+                                                        overflow-hidden
 
-        rounded-[22px]
+                                                        rounded-[22px]
 
-        border
-        border-slate-200/80
+                                                        border
+                                                        border-slate-200/80
 
-        bg-white
+                                                        bg-[#f7f7f8]
 
-        shadow-[0_8px_22px_rgba(0,0,0,0.20)]
+                                                        shadow-[0_8px_22px_rgba(0,0,0,0.10)]
 
-        transition-all
-        duration-300
-        ease-out
+                                                        transition-all
+                                                        duration-300
+                                                        ease-out
 
-        group-hover:-translate-y-[3px]
+                                                        group-hover:-translate-y-[3px]
 
-        group-hover:border-[#C1317F]/30
+                                                        group-hover:border-[#C1317F]/30
 
-        group-hover:shadow-[0_9px_30px_rgba(193,49,127,0.42)]
-    "
+                                                        group-hover:shadow-[0_12px_30px_rgba(193,49,127,0.18)]
+                                                    "
                                                 >
-
-
-
 
                                                     {/* =========================
                                                         ESTADO / ETIQUETA
@@ -724,16 +787,15 @@ export default function BarukShop() {
                                                             z-30
                                                         "
                                                     >
+
                                                         {agotado ? (
+
                                                             <span
                                                                 className="
                                                                     rounded-full
-
                                                                     bg-[#171717]
-
                                                                     px-2.5
                                                                     py-1.5
-
                                                                     text-[8px]
                                                                     font-black
                                                                     uppercase
@@ -743,99 +805,138 @@ export default function BarukShop() {
                                                             >
                                                                 Agotado
                                                             </span>
-                                                        ) : producto.etiqueta ? (
+
+                                                        ) : producto
+                                                            .etiqueta ? (
+
                                                             <span
                                                                 className="
                                                                     rounded-full
-
                                                                     border
                                                                     border-slate-100
-
-                                                                    bg-white
-
+                                                                    bg-white/95
                                                                     px-2.5
                                                                     py-1.5
-
                                                                     text-[8px]
                                                                     font-black
                                                                     uppercase
                                                                     tracking-[0.10em]
                                                                     text-[#171717]
-
                                                                     shadow-sm
+                                                                    backdrop-blur-sm
                                                                 "
                                                             >
                                                                 {
-                                                                    producto.etiqueta
+                                                                    producto
+                                                                        .etiqueta
                                                                 }
                                                             </span>
-                                                        ) : producto.nuevo ? (
+
+                                                        ) : producto
+                                                            .nuevo ? (
+
                                                             <span
                                                                 className="
                                                                     rounded-full
-
                                                                     bg-[#C1317F]
-
                                                                     px-2.5
                                                                     py-1.5
-
                                                                     text-[8px]
                                                                     font-black
                                                                     uppercase
                                                                     tracking-[0.10em]
                                                                     text-white
-
                                                                     shadow-sm
                                                                 "
                                                             >
                                                                 Nuevo
                                                             </span>
+
                                                         ) : null}
+
                                                     </div>
 
 
                                                     {/* =========================
                                                         PLACEHOLDER
+
+                                                        Solo aparece si realmente
+                                                        NO hay imagen o falló.
                                                     ========================= */}
 
-                                                    <ProductPlaceholder />
+                                                    {!mostrarImagen && (
+                                                        <ProductPlaceholder />
+                                                    )}
 
 
                                                     {/* =========================
                                                         IMAGEN REAL
                                                     ========================= */}
 
-                                                    {imagenUrl && (
-                                                        <img
-                                                            src={
-                                                                imagenUrl
-                                                            }
-                                                            alt={
-                                                                producto.nombre
-                                                            }
+                                                    {mostrarImagen && (
+
+                                                        <div
                                                             className="
-                                                                relative
-                                                                z-10
+                                                                absolute
+                                                                inset-0
+                                                                flex
+                                                                items-center
+                                                                justify-center
+                                                                p-4
 
-                                                                h-full
-                                                                w-full
-
-                                                                object-contain
-
-                                                                p-5
-
-                                                                transition-transform
-                                                                duration-500
-
-                                                                group-hover:scale-[1.055]
+                                                                sm:p-5
+                                                                md:p-6
                                                             "
-                                                            onError={(
-                                                                event
-                                                            ) => {
-                                                                event.currentTarget.style.display =
-                                                                    "none";
-                                                            }}
-                                                        />
+                                                        >
+
+                                                            <img
+                                                                src={
+                                                                    imagenUrl!
+                                                                }
+
+                                                                alt={
+                                                                    producto
+                                                                        .nombre
+                                                                }
+
+                                                                loading="lazy"
+
+                                                                draggable={
+                                                                    false
+                                                                }
+
+                                                                className="
+                                                                    h-full
+                                                                    w-full
+
+                                                                    object-contain
+
+                                                                    transition-transform
+                                                                    duration-500
+                                                                    ease-out
+
+                                                                    group-hover:scale-[1.055]
+                                                                "
+
+                                                                onError={() => {
+
+                                                                    setImageErrors(
+                                                                        (
+                                                                            actual
+                                                                        ) => ({
+                                                                            ...actual,
+
+                                                                            [
+                                                                                producto
+                                                                                    .id
+                                                                            ]:
+                                                                                true,
+                                                                        })
+                                                                    );
+                                                                }}
+                                                            />
+
+                                                        </div>
                                                     )}
 
 
@@ -883,6 +984,7 @@ export default function BarukShop() {
                                                     </div>
 
                                                 </div>
+
                                             </Link>
 
 
@@ -908,10 +1010,12 @@ export default function BarukShop() {
                                                         text-[#C1317F]
                                                     "
                                                 >
-                                                    {producto
-                                                        .store_categories
-                                                        ?.nombre ??
-                                                        "Baruk Shop"}
+                                                    {
+                                                        producto
+                                                            .store_categories
+                                                            ?.nombre ??
+                                                        "Baruk Shop"
+                                                    }
                                                 </p>
 
 
@@ -920,6 +1024,7 @@ export default function BarukShop() {
                                                 <Link
                                                     href={`/tienda/${producto.slug}`}
                                                 >
+
                                                     <h3
                                                         className="
                                                             mt-1.5
@@ -942,6 +1047,7 @@ export default function BarukShop() {
                                                             producto.nombre
                                                         }
                                                     </h3>
+
                                                 </Link>
 
 
@@ -950,15 +1056,14 @@ export default function BarukShop() {
                                                 <div
                                                     className="
                                                         mt-2
-
                                                         flex
                                                         flex-wrap
                                                         items-center
-
                                                         gap-x-2
                                                         gap-y-1
                                                     "
                                                 >
+
                                                     <p
                                                         className="
                                                             text-base
@@ -969,9 +1074,12 @@ export default function BarukShop() {
                                                         "
                                                     >
                                                         $
-                                                        {precio.toFixed(
-                                                            2
-                                                        )}
+                                                        {
+                                                            precio
+                                                                .toFixed(
+                                                                    2
+                                                                )
+                                                        }
                                                     </p>
 
 
@@ -979,7 +1087,9 @@ export default function BarukShop() {
                                                         null &&
                                                         precioAnterior >
                                                         precio && (
+
                                                             <>
+
                                                                 <p
                                                                     className="
                                                                         text-[11px]
@@ -989,20 +1099,21 @@ export default function BarukShop() {
                                                                     "
                                                                 >
                                                                     $
-                                                                    {precioAnterior.toFixed(
-                                                                        2
-                                                                    )}
+                                                                    {
+                                                                        precioAnterior
+                                                                            .toFixed(
+                                                                                2
+                                                                            )
+                                                                    }
                                                                 </p>
+
 
                                                                 <span
                                                                     className="
                                                                         rounded-full
-
                                                                         bg-[#C1317F]/10
-
                                                                         px-2
                                                                         py-1
-
                                                                         text-[7px]
                                                                         font-black
                                                                         uppercase
@@ -1011,8 +1122,10 @@ export default function BarukShop() {
                                                                 >
                                                                     Oferta
                                                                 </span>
+
                                                             </>
                                                         )}
+
                                                 </div>
 
 
@@ -1020,9 +1133,9 @@ export default function BarukShop() {
 
                                                 <Link
                                                     href={`/tienda/${producto.slug}`}
+
                                                     className="
                                                         mt-3
-
                                                         inline-flex
                                                         items-center
                                                         gap-1.5
@@ -1042,6 +1155,7 @@ export default function BarukShop() {
                                                     <span>
                                                         →
                                                     </span>
+
                                                 </Link>
 
                                             </div>
@@ -1050,6 +1164,7 @@ export default function BarukShop() {
                                     );
                                 }
                             )}
+
                         </div>
                     )}
 
@@ -1062,8 +1177,10 @@ export default function BarukShop() {
                     !error &&
                     productos.length >
                     0 && (
+
                         <Link
                             href="/tienda"
+
                             className="
                                 mt-8
 
@@ -1093,6 +1210,7 @@ export default function BarukShop() {
                     )}
 
             </div>
+
         </section>
     );
 }

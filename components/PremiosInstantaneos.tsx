@@ -5,6 +5,7 @@ import {
     useState,
 } from "react";
 
+
 type TipoPremio =
     | "physical"
     | "digital_cards"
@@ -12,28 +13,52 @@ type TipoPremio =
     | "experience"
     | "discount";
 
+
 type Premio = {
     id: string;
+
     nombre: string;
-    descripcion: string | null;
+
+    descripcion:
+    | string
+    | null;
+
     tipo: TipoPremio;
-    imagenUrl: string | null;
-    cantidadCards: number | null;
-    valorReferencial: number | null;
-    instrucciones: string | null;
+
+    imagenUrl:
+    | string
+    | null;
+
+    cantidadCards:
+    | number
+    | null;
+
+    valorReferencial:
+    | number
+    | null;
+
+    instrucciones:
+    | string
+    | null;
 
     agotado: boolean;
+
     revelados: number;
 
     stockTotal: number;
+
     stockAsignado: number;
 };
 
+
 type ApiResponse = {
     ok: boolean;
+
     premios: Premio[];
+
     error?: string;
 };
+
 
 /* ============================================================
    TIPO DE PREMIO
@@ -42,7 +67,11 @@ type ApiResponse = {
 function textoTipo(
     tipo: TipoPremio
 ) {
-    switch (tipo) {
+
+    switch (
+    tipo
+    ) {
+
         case "digital_cards":
             return "Tarjetas";
 
@@ -63,6 +92,38 @@ function textoTipo(
     }
 }
 
+
+/* ============================================================
+   TEXTO DE PREMIOS GANADOS
+
+   Si solo existe 1 unidad:
+   NO mostramos contador públicamente.
+============================================================ */
+
+function textoGanados(
+    premio: Premio
+) {
+
+    if (
+        Number(
+            premio.stockTotal ??
+            0
+        ) <= 1
+    ) {
+        return null;
+    }
+
+
+    return `${Number(
+        premio.stockAsignado ??
+        0
+    )} de ${Number(
+        premio.stockTotal ??
+        0
+    )} ganados`;
+}
+
+
 /* ============================================================
    ICONOS
 ============================================================ */
@@ -72,13 +133,20 @@ function PremioIcon({
 }: {
     tipo: TipoPremio;
 }) {
-    if (tipo === "cash") {
+
+    if (
+        tipo ===
+        "cash"
+    ) {
+
         return (
+
             <svg
                 viewBox="0 0 48 48"
                 fill="none"
                 className="h-8 w-8"
             >
+
                 <rect
                     x="7"
                     y="12"
@@ -89,6 +157,7 @@ function PremioIcon({
                     strokeWidth="2.5"
                 />
 
+
                 <circle
                     cx="24"
                     cy="24"
@@ -97,23 +166,32 @@ function PremioIcon({
                     strokeWidth="2.5"
                 />
 
+
                 <path
                     d="M12 18h3M33 30h3"
                     stroke="currentColor"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                 />
+
             </svg>
         );
     }
 
-    if (tipo === "digital_cards") {
+
+    if (
+        tipo ===
+        "digital_cards"
+    ) {
+
         return (
+
             <svg
                 viewBox="0 0 48 48"
                 fill="none"
                 className="h-8 w-8"
             >
+
                 <rect
                     x="9"
                     y="10"
@@ -124,28 +202,38 @@ function PremioIcon({
                     strokeWidth="2.5"
                 />
 
+
                 <path
                     d="M15 18h18M15 24h12"
                     stroke="currentColor"
                     strokeWidth="2.5"
                     strokeLinecap="round"
                 />
+
             </svg>
         );
     }
 
-    if (tipo === "physical") {
+
+    if (
+        tipo ===
+        "physical"
+    ) {
+
         return (
+
             <svg
                 viewBox="0 0 48 48"
                 fill="none"
                 className="h-8 w-8"
             >
+
                 <path
                     d="M10 18h28v21H10V18Z"
                     stroke="currentColor"
                     strokeWidth="2.5"
                 />
+
 
                 <path
                     d="M24 18v21M8 18h32v-7H8v7Z"
@@ -153,27 +241,37 @@ function PremioIcon({
                     strokeWidth="2.5"
                 />
 
+
                 <path
                     d="M24 11c-1-5-8-6-8-2 0 3 4 4 8 2Zm0 0c1-5 8-6 8-2 0 3-4 4-8 2Z"
                     stroke="currentColor"
                     strokeWidth="2.5"
                 />
+
             </svg>
         );
     }
 
-    if (tipo === "experience") {
+
+    if (
+        tipo ===
+        "experience"
+    ) {
+
         return (
+
             <svg
                 viewBox="0 0 48 48"
                 fill="none"
                 className="h-8 w-8"
             >
+
                 <path
                     d="M24 41s12-12 12-22a12 12 0 1 0-24 0c0 10 12 22 12 22Z"
                     stroke="currentColor"
                     strokeWidth="2.5"
                 />
+
 
                 <circle
                     cx="24"
@@ -182,16 +280,20 @@ function PremioIcon({
                     stroke="currentColor"
                     strokeWidth="2.5"
                 />
+
             </svg>
         );
     }
 
+
     return (
+
         <svg
             viewBox="0 0 48 48"
             fill="none"
             className="h-8 w-8"
         >
+
             <path
                 d="M10 15h16l12 12-12 12L10 23v-8Z"
                 stroke="currentColor"
@@ -199,34 +301,44 @@ function PremioIcon({
                 strokeLinejoin="round"
             />
 
+
             <circle
                 cx="17"
                 cy="21"
                 r="2"
                 fill="currentColor"
             />
+
         </svg>
     );
 }
+
 
 /* ============================================================
    COMPONENTE
 ============================================================ */
 
 export function PremiosInstantaneos() {
+
     const [
         premios,
         setPremios,
     ] =
-        useState<Premio[]>(
+        useState<
+            Premio[]
+        >(
             []
         );
+
 
     const [
         loading,
         setLoading,
     ] =
-        useState(true);
+        useState(
+            true
+        );
+
 
     const [
         error,
@@ -234,7 +346,10 @@ export function PremiosInstantaneos() {
     ] =
         useState<
             string | null
-        >(null);
+        >(
+            null
+        );
+
 
     const [
         premioSeleccionado,
@@ -242,267 +357,384 @@ export function PremiosInstantaneos() {
     ] =
         useState<
             Premio | null
-        >(null);
+        >(
+            null
+        );
+
 
     /* ============================================================
        CARGAR PREMIOS
     ============================================================ */
 
-    useEffect(() => {
-        const cargar =
-            async () => {
-                try {
-                    setLoading(
-                        true
-                    );
+    useEffect(
+        () => {
 
-                    setError(
-                        null
-                    );
+            const cargar =
+                async () => {
 
-                    const response =
-                        await fetch(
-                            "/api/public/premios-instantaneos",
-                            {
-                                cache:
-                                    "no-store",
-                            }
+                    try {
+
+                        setLoading(
+                            true
                         );
 
-                    const data:
-                        ApiResponse =
-                        await response.json();
 
-                    if (
-                        !response.ok ||
-                        !data.ok
+                        setError(
+                            null
+                        );
+
+
+                        const response =
+                            await fetch(
+                                "/api/public/premios-instantaneos",
+                                {
+                                    cache:
+                                        "no-store",
+                                }
+                            );
+
+
+                        const data:
+                            ApiResponse =
+                            await response
+                                .json();
+
+
+                        if (
+                            !response.ok ||
+                            !data.ok
+                        ) {
+
+                            throw new Error(
+                                data.error ??
+                                "No se pudieron cargar los premios."
+                            );
+                        }
+
+
+                        setPremios(
+                            data.premios ??
+                            []
+                        );
+
+
+                    } catch (
+                    err
                     ) {
-                        throw new Error(
-                            data.error ??
-                            "No se pudieron cargar los premios."
+
+                        console.error(
+                            err
+                        );
+
+
+                        setError(
+                            "No pudimos cargar los premios en este momento."
+                        );
+
+
+                    } finally {
+
+                        setLoading(
+                            false
                         );
                     }
+                };
 
-                    setPremios(
-                        data.premios ??
-                        []
-                    );
-                } catch (err) {
-                    console.error(
-                        err
-                    );
 
-                    setError(
-                        "No pudimos cargar los premios en este momento."
-                    );
-                } finally {
-                    setLoading(
-                        false
-                    );
-                }
-            };
+            void cargar();
 
-        void cargar();
-    }, []);
+        },
+        []
+    );
+
 
     /* ============================================================
        CERRAR MODAL CON ESC
     ============================================================ */
 
-    useEffect(() => {
-        if (
-            !premioSeleccionado
-        ) {
-            return;
-        }
+    useEffect(
+        () => {
 
-        const cerrar = (
-            event: KeyboardEvent
-        ) => {
             if (
-                event.key ===
-                "Escape"
+                !premioSeleccionado
             ) {
-                setPremioSeleccionado(
-                    null
-                );
+                return;
             }
-        };
 
-        window.addEventListener(
-            "keydown",
-            cerrar
-        );
 
-        return () => {
-            window.removeEventListener(
-                "keydown",
-                cerrar
-            );
-        };
-    }, [
-        premioSeleccionado,
-    ]);
+            const cerrar = (
+                event:
+                    KeyboardEvent
+            ) => {
+
+                if (
+                    event.key ===
+                    "Escape"
+                ) {
+
+                    setPremioSeleccionado(
+                        null
+                    );
+                }
+            };
+
+
+            window
+                .addEventListener(
+                    "keydown",
+                    cerrar
+                );
+
+
+            return () => {
+
+                window
+                    .removeEventListener(
+                        "keydown",
+                        cerrar
+                    );
+            };
+
+        },
+        [
+            premioSeleccionado,
+        ]
+    );
+
 
     /* ============================================================
        IR A COMPRAR
     ============================================================ */
 
     function irAComprar() {
+
         setPremioSeleccionado(
             null
         );
 
-        setTimeout(() => {
-            document
-                .getElementById(
-                    "comprar-baruk-card"
-                )
-                ?.scrollIntoView({
-                    behavior:
-                        "smooth",
 
-                    block:
-                        "start",
-                });
-        }, 100);
+        setTimeout(
+            () => {
+
+                document
+                    .getElementById(
+                        "comprar-baruk-card"
+                    )
+                    ?.scrollIntoView({
+                        behavior:
+                            "smooth",
+
+                        block:
+                            "start",
+                    });
+
+            },
+            100
+        );
     }
 
+
     return (
+
         <>
+
             {/* =====================================================
                 SECCIÓN
             ===================================================== */}
 
             <section
                 id="premios-instantaneos"
+
                 className="
                     scroll-mt-24
                     w-full
                     bg-white
                     py-12
-
                     md:py-14
                 "
             >
+
                 <div
                     className="
                         mx-auto
                         w-full
-                        max-w-6xl
-
-                        px-5
-
-                        sm:px-6
+                        max-w-7xl
+                        px-4
+                        md:px-6
                     "
                 >
+
                     {/* =================================================
-                        HEADER
-                    ================================================= */}
+    HEADER
+================================================= */}
 
                     <div
                         className="
-                            flex
-                            flex-col
-                            gap-4
+        flex
+        flex-col
+        gap-5
 
-                            md:flex-row
-                            md:items-end
-                            md:justify-between
-                        "
+        md:flex-row
+        md:items-end
+        md:justify-between
+    "
                     >
-                        <div>
-                            <p
+
+                        {/* =============================================
+        IZQUIERDA
+    ============================================= */}
+
+                        <div
+                            className="
+            max-w-3xl
+        "
+                        >
+
+                            {/* LÍNEA + ETIQUETA */}
+
+                            <div
                                 className="
-                                    text-[9px]
-                                    font-black
-                                    uppercase
-                                    tracking-[0.22em]
-                                    text-[#C1317F]
-                                "
+                flex
+                items-center
+                gap-3
+            "
                             >
-                                Descubre al instante
-                            </p>
+
+                                <span
+                                    className="
+                    h-[2px]
+                    w-8
+                    shrink-0
+                    rounded-full
+                    bg-[#F36B2B]
+                "
+                                />
+
+
+                                <p
+                                    className="
+                    text-[9px]
+                    font-black
+                    uppercase
+                    tracking-[0.22em]
+                    text-[#C1317F]
+                "
+                                >
+                                    Descubre al instante
+                                </p>
+
+                            </div>
+
+
+                            {/* TÍTULO */}
 
                             <h2
                                 className="
-                                    mt-2
+                mt-5
 
-                                    text-2xl
-                                    font-black
-                                    tracking-[-0.04em]
-                                    text-[#171717]
+                text-[30px]
+                font-black
+                leading-[1.05]
+                tracking-[-0.045em]
+                text-[#171717]
 
-                                    md:text-[30px]
-                                "
+                sm:text-[34px]
+                md:text-[38px]
+            "
                             >
                                 Premios instantáneos
                             </h2>
 
+
+                            {/* DESCRIPCIÓN */}
+
                             <p
                                 className="
-                                    mt-2
-                                    max-w-2xl
+                mt-3
+                max-w-2xl
 
-                                    text-[13px]
-                                    leading-6
-                                    text-slate-500
-                                "
+                text-[13px]
+                leading-6
+                text-slate-500
+
+                md:text-[14px]
+            "
                             >
-                                Algunas Tarjetas de la
-                                Suerte Baruk593 pueden
-                                revelar premios además
-                                de tu número de
-                                participación.
+                                Cada Tarjeta de la Suerte incluye tu número para el sorteo
+                                y algunas pueden sorprenderte con un premio instantáneo
+                                al momento de revelarlas.
                             </p>
+
                         </div>
 
-                        <button
-                            type="button"
-                            onClick={
-                                irAComprar
-                            }
+
+                        {/* =============================================
+        DERECHA
+    ============================================= */}
+
+                        <div
                             className="
-                                hidden
+            hidden
+            shrink-0
+            pb-1
 
-                                text-xs
-                                font-black
-                                text-[#171717]
-
-                                transition-colors
-
-                                hover:text-[#C1317F]
-
-                                md:inline-flex
-                            "
+            md:block
+        "
                         >
-                            Comprar Tarjetas
 
-                            <span className="ml-2">
-                                →
-                            </span>
-                        </button>
+                            <button
+                                type="button"
+
+                                onClick={
+                                    irAComprar
+                                }
+
+                                className="
+                inline-flex
+                items-center
+                gap-3
+
+                text-sm
+                font-black
+                text-[#171717]
+
+                transition-colors
+
+                hover:text-[#C1317F]
+            "
+                            >
+                                Comprar Tarjetas
+
+                                <span
+                                    className="
+                    text-base
+                "
+                                >
+                                    →
+                                </span>
+
+                            </button>
+
+                        </div>
+
                     </div>
+
 
                     {/* =================================================
                         LOADING
                     ================================================= */}
 
                     {loading && (
+
                         <div
                             className="
                                 mt-7
-
                                 rounded-[20px]
-
                                 border
                                 border-slate-200
-
                                 bg-[#fafafa]
-
                                 px-6
                                 py-10
-
                                 text-center
                                 text-sm
                                 text-slate-400
@@ -512,33 +744,33 @@ export function PremiosInstantaneos() {
                         </div>
                     )}
 
+
                     {/* =================================================
                         ERROR
                     ================================================= */}
 
                     {!loading &&
                         error && (
+
                             <div
                                 className="
                                     mt-7
-
                                     rounded-2xl
-
                                     border
                                     border-red-100
-
                                     bg-red-50
-
                                     px-5
                                     py-4
-
                                     text-sm
                                     text-red-600
                                 "
                             >
-                                {error}
+                                {
+                                    error
+                                }
                             </div>
                         )}
+
 
                     {/* =================================================
                         PREMIOS
@@ -548,10 +780,10 @@ export function PremiosInstantaneos() {
                         !error &&
                         premios.length >
                         0 && (
+
                             <div
                                 className="
                                     mt-8
-
                                     grid
                                     grid-cols-2
                                     gap-3
@@ -561,315 +793,319 @@ export function PremiosInstantaneos() {
                                     lg:grid-cols-4
                                 "
                             >
+
                                 {premios.map(
                                     (
                                         premio
-                                    ) => (
-                                        <button
-                                            key={
-                                                premio.id
-                                            }
-                                            type="button"
-                                            onClick={() =>
-                                                setPremioSeleccionado(
-                                                    premio
-                                                )
-                                            }
-                                            className="
-                                                group
-                                                relative
-                                                overflow-hidden
+                                    ) => {
 
-                                                rounded-[20px]
+                                        const ganados =
+                                            textoGanados(
+                                                premio
+                                            );
 
-                                                border
-                                                border-slate-200
 
-                                                bg-white
+                                        return (
 
-                                                text-left
+                                            <button
+                                                key={
+                                                    premio.id
+                                                }
 
-                                                shadow-[0_5px_16px_rgba(0,0,0,0.08)]
+                                                type="button"
 
-                                                transition-all
-                                                duration-300
+                                                onClick={() =>
+                                                    setPremioSeleccionado(
+                                                        premio
+                                                    )
+                                                }
 
-                                                hover:-translate-y-[3px]
-
-                                                hover:border-[#C1317F]/35
-
-                                                hover:shadow-[0_12px_32px_rgba(193,49,127,0.28)]
-
-                                                focus:outline-none
-
-                                                focus:ring-2
-                                                focus:ring-[#C1317F]/20
-                                            "
-                                        >
-                                            {/* =====================================
-                                                VISUAL
-                                            ===================================== */}
-
-                                            <div
                                                 className="
+                                                    group
                                                     relative
-                                                    z-10
-
-                                                    flex
-                                                    aspect-[4/3]
-                                                    items-center
-                                                    justify-center
-
                                                     overflow-hidden
 
-                                                    bg-[#f8f8f8]
+                                                    rounded-[20px]
+
+                                                    border
+                                                    border-slate-200
+
+                                                    bg-white
+
+                                                    text-left
+
+                                                    shadow-[0_5px_16px_rgba(0,0,0,0.08)]
+
+                                                    transition-all
+                                                    duration-300
+
+                                                    hover:-translate-y-[3px]
+
+                                                    hover:border-[#C1317F]/35
+
+                                                    hover:shadow-[0_12px_32px_rgba(193,49,127,0.18)]
+
+                                                    focus:outline-none
+
+                                                    focus:ring-2
+                                                    focus:ring-[#C1317F]/20
                                                 "
                                             >
-                                                {/* =================================
-                                                    CANTIDAD GANADA
-                                                ================================= */}
+
+                                                {/* =====================================
+                                                    VISUAL
+                                                ===================================== */}
 
                                                 <div
                                                     className="
-                                                        absolute
-                                                        left-3
-                                                        top-3
-                                                        z-20
+                                                        relative
+                                                        z-10
+
+                                                        flex
+                                                        aspect-[4/3]
+                                                        items-center
+                                                        justify-center
+
+                                                        overflow-hidden
+
+                                                        bg-[#f8f8f8]
                                                     "
                                                 >
-                                                    <div
-                                                        className="
-                                                            inline-flex
-                                                            h-[30px]
-                                                            items-center
-                                                            gap-2
 
-                                                            rounded-full
+                                                    {/* =================================
+                                                        CANTIDAD GANADA
 
-                                                            border
-                                                            border-white/80
+                                                        SIN PÍLDORA
+                                                        SIN FONDO
+                                                        SIN PUNTO
 
-                                                            bg-white/95
+                                                        Si stockTotal = 1:
+                                                        NO aparece.
+                                                    ================================= */}
 
-                                                            px-3
+                                                    {ganados && (
 
-                                                            shadow-[0_4px_14px_rgba(0,0,0,0.08)]
-
-                                                            backdrop-blur-sm
-                                                        "
-                                                    >
-                                                        <span
-                                                            className={`
-                                                                h-1.5
-                                                                w-1.5
-                                                                shrink-0
-
-                                                                rounded-full
-
-                                                                ${premio.agotado
-                                                                    ? "bg-slate-400"
-                                                                    : "bg-[#C1317F]"
-                                                                }
-                                                            `}
-                                                        />
-
-                                                        <span
+                                                        <div
                                                             className="
-                                                                whitespace-nowrap
-
-                                                                text-[8px]
-                                                                font-black
-                                                                uppercase
-                                                                tracking-[0.10em]
-
-                                                                text-[#171717]
+                                                                absolute
+                                                                left-4
+                                                                top-4
+                                                                z-20
                                                             "
                                                         >
-                                                            {
-                                                                premio.stockAsignado
-                                                            }{" "}
-                                                            de{" "}
-                                                            {
-                                                                premio.stockTotal
-                                                            }{" "}
-                                                            ganados
-                                                        </span>
-                                                    </div>
-                                                </div>
 
-                                                {/* =================================
-                                                    IMAGEN / ICONO
-                                                ================================= */}
+                                                            <span
+                                                                className="
+                                                                    text-[8px]
+                                                                    font-black
+                                                                    uppercase
+                                                                    tracking-[0.11em]
+                                                                    text-[#171717]
 
-                                                {premio.imagenUrl ? (
-                                                    <img
-                                                        src={
-                                                            premio.imagenUrl
-                                                        }
-                                                        alt={
-                                                            premio.nombre
-                                                        }
-                                                        className="
-                                                            h-full
-                                                            w-full
+                                                                    sm:text-[9px]
+                                                                "
+                                                            >
+                                                                {
+                                                                    ganados
+                                                                }
+                                                            </span>
 
-                                                            object-contain
+                                                        </div>
+                                                    )}
 
-                                                            p-5
 
-                                                            transition-transform
-                                                            duration-500
+                                                    {/* =================================
+                                                        IMAGEN / ICONO
+                                                    ================================= */}
 
-                                                            group-hover:scale-[1.06]
-                                                        "
-                                                    />
-                                                ) : (
+                                                    {premio.imagenUrl ? (
+
+                                                        <img
+                                                            src={
+                                                                premio.imagenUrl
+                                                            }
+
+                                                            alt={
+                                                                premio.nombre
+                                                            }
+
+                                                            className="
+                                                                h-full
+                                                                w-full
+
+                                                                object-contain
+
+                                                                p-5
+
+                                                                transition-transform
+                                                                duration-500
+
+                                                                group-hover:scale-[1.06]
+                                                            "
+                                                        />
+
+                                                    ) : (
+
+                                                        <div
+                                                            className="
+                                                                flex
+                                                                h-16
+                                                                w-16
+                                                                items-center
+                                                                justify-center
+
+                                                                rounded-2xl
+
+                                                                border
+                                                                border-slate-200
+
+                                                                bg-white
+
+                                                                text-[#555]
+
+                                                                shadow-sm
+
+                                                                transition-all
+                                                                duration-300
+
+                                                                group-hover:border-[#C1317F]/30
+                                                                group-hover:text-[#C1317F]
+                                                            "
+                                                        >
+
+                                                            <PremioIcon
+                                                                tipo={
+                                                                    premio.tipo
+                                                                }
+                                                            />
+
+                                                        </div>
+                                                    )}
+
+
+                                                    {/* =================================
+                                                        FLECHA
+                                                    ================================= */}
+
                                                     <div
                                                         className="
+                                                            absolute
+                                                            bottom-3
+                                                            right-3
+                                                            z-20
+
                                                             flex
-                                                            h-16
-                                                            w-16
+                                                            h-8
+                                                            w-8
+                                                            translate-y-1
                                                             items-center
                                                             justify-center
 
-                                                            rounded-2xl
-
-                                                            border
-                                                            border-slate-200
+                                                            rounded-full
 
                                                             bg-white
 
-                                                            text-[#555]
+                                                            text-xs
+                                                            font-black
+                                                            text-[#171717]
 
-                                                            shadow-sm
+                                                            opacity-0
+
+                                                            shadow-md
 
                                                             transition-all
                                                             duration-300
 
-                                                            group-hover:border-[#C1317F]/30
+                                                            group-hover:translate-y-0
+                                                            group-hover:opacity-100
                                                             group-hover:text-[#C1317F]
                                                         "
                                                     >
-                                                        <PremioIcon
-                                                            tipo={
-                                                                premio.tipo
-                                                            }
-                                                        />
+                                                        →
                                                     </div>
-                                                )}
 
-                                                {/* =================================
-                                                    FLECHA
-                                                ================================= */}
+                                                </div>
+
+
+                                                {/* =====================================
+                                                    INFORMACIÓN
+                                                ===================================== */}
 
                                                 <div
                                                     className="
-                                                        absolute
-                                                        bottom-3
-                                                        right-3
-                                                        z-20
-
-                                                        flex
-                                                        h-8
-                                                        w-8
-                                                        translate-y-1
-                                                        items-center
-                                                        justify-center
-
-                                                        rounded-full
-
+                                                        relative
+                                                        z-10
                                                         bg-white
-
-                                                        text-xs
-                                                        font-black
-                                                        text-[#171717]
-
-                                                        opacity-0
-
-                                                        shadow-md
-
-                                                        transition-all
-                                                        duration-300
-
-                                                        group-hover:translate-y-0
-                                                        group-hover:opacity-100
-                                                        group-hover:text-[#C1317F]
+                                                        p-4
                                                     "
                                                 >
-                                                    →
-                                                </div>
-                                            </div>
 
-                                            {/* =====================================
-                                                INFORMACIÓN
-                                            ===================================== */}
-
-                                            <div
-                                                className="
-                                                    relative
-                                                    z-10
-
-                                                    bg-white
-
-                                                    p-4
-                                                "
-                                            >
-                                                <p
-                                                    className="
-                                                        text-[8px]
-                                                        font-black
-                                                        uppercase
-                                                        tracking-[0.18em]
-                                                        text-[#C1317F]
-                                                    "
-                                                >
-                                                    {textoTipo(
-                                                        premio.tipo
-                                                    )}
-                                                </p>
-
-                                                <h3
-                                                    className="
-                                                        mt-1.5
-
-                                                        text-[13px]
-                                                        font-black
-                                                        leading-5
-                                                        text-[#171717]
-
-                                                        md:text-sm
-                                                    "
-                                                >
-                                                    {
-                                                        premio.nombre
-                                                    }
-                                                </h3>
-
-                                                {premio.descripcion && (
                                                     <p
                                                         className="
-                                                            mt-1.5
-
-                                                            line-clamp-2
-
-                                                            text-[10px]
-                                                            leading-[18px]
-                                                            text-slate-400
-
-                                                            md:text-[11px]
+                                                            text-[8px]
+                                                            font-black
+                                                            uppercase
+                                                            tracking-[0.18em]
+                                                            text-[#C1317F]
                                                         "
                                                     >
                                                         {
-                                                            premio.descripcion
+                                                            textoTipo(
+                                                                premio.tipo
+                                                            )
                                                         }
                                                     </p>
-                                                )}
-                                            </div>
-                                        </button>
-                                    )
+
+
+                                                    <h3
+                                                        className="
+                                                            mt-1.5
+
+                                                            text-[13px]
+                                                            font-black
+                                                            leading-5
+                                                            text-[#171717]
+
+                                                            md:text-sm
+                                                        "
+                                                    >
+                                                        {
+                                                            premio.nombre
+                                                        }
+                                                    </h3>
+
+
+                                                    {premio.descripcion && (
+
+                                                        <p
+                                                            className="
+                                                                mt-1.5
+
+                                                                line-clamp-2
+
+                                                                text-[10px]
+                                                                leading-[18px]
+                                                                text-slate-400
+
+                                                                md:text-[11px]
+                                                            "
+                                                        >
+                                                            {
+                                                                premio.descripcion
+                                                            }
+                                                        </p>
+                                                    )}
+
+                                                </div>
+
+                                            </button>
+                                        );
+                                    }
                                 )}
+
                             </div>
                         )}
+
 
                     {/* =================================================
                         CTA MÓVIL
@@ -877,9 +1113,11 @@ export function PremiosInstantaneos() {
 
                     <button
                         type="button"
+
                         onClick={
                             irAComprar
                         }
+
                         className="
                             mt-6
 
@@ -908,14 +1146,18 @@ export function PremiosInstantaneos() {
                     >
                         Comprar Tarjetas
                     </button>
+
                 </div>
+
             </section>
+
 
             {/* =====================================================
                 MODAL
             ===================================================== */}
 
             {premioSeleccionado && (
+
                 <div
                     className="
                         fixed
@@ -932,12 +1174,14 @@ export function PremiosInstantaneos() {
 
                         backdrop-blur-[2px]
                     "
+
                     onClick={() =>
                         setPremioSeleccionado(
                             null
                         )
                     }
                 >
+
                     <div
                         className="
                             relative
@@ -954,24 +1198,29 @@ export function PremiosInstantaneos() {
 
                             shadow-[0_30px_90px_rgba(0,0,0,0.25)]
                         "
+
                         onClick={(
                             event
                         ) =>
                             event.stopPropagation()
                         }
                     >
+
                         {/* =================================================
                             CERRAR
                         ================================================= */}
 
                         <button
                             type="button"
+
                             onClick={() =>
                                 setPremioSeleccionado(
                                     null
                                 )
                             }
+
                             aria-label="Cerrar"
+
                             className="
                                 absolute
                                 right-4
@@ -1002,6 +1251,7 @@ export function PremiosInstantaneos() {
                             ×
                         </button>
 
+
                         {/* =================================================
                             IMAGEN
                         ================================================= */}
@@ -1020,14 +1270,18 @@ export function PremiosInstantaneos() {
                                 bg-[#f7f7f7]
                             "
                         >
+
                             {premioSeleccionado.imagenUrl ? (
+
                                 <img
                                     src={
                                         premioSeleccionado.imagenUrl
                                     }
+
                                     alt={
                                         premioSeleccionado.nombre
                                     }
+
                                     className="
                                         h-full
                                         w-full
@@ -1037,7 +1291,9 @@ export function PremiosInstantaneos() {
                                         p-7
                                     "
                                 />
+
                             ) : (
+
                                 <div
                                     className="
                                         flex
@@ -1058,29 +1314,38 @@ export function PremiosInstantaneos() {
                                         shadow-sm
                                     "
                                 >
+
                                     <PremioIcon
                                         tipo={
                                             premioSeleccionado.tipo
                                         }
                                     />
+
                                 </div>
                             )}
+
                         </div>
+
 
                         {/* =================================================
                             INFORMACIÓN MODAL
                         ================================================= */}
 
-                        <div className="p-6">
+                        <div
+                            className="
+                                p-6
+                            "
+                        >
 
                             <div
                                 className="
                                     flex
-                                    items-center
+                                    items-start
                                     justify-between
                                     gap-3
                                 "
                             >
+
                                 <p
                                     className="
                                         text-[9px]
@@ -1093,37 +1358,40 @@ export function PremiosInstantaneos() {
                                     Premio instantáneo
                                 </p>
 
-                                {/* CANTIDAD GANADA */}
 
-                                <span
-                                    className="
-                                        shrink-0
+                                {/* =========================================
+                                    CONTADOR MODAL
 
-                                        rounded-full
+                                    Sin píldora.
+                                    Solo si stockTotal > 1.
+                                ========================================= */}
 
-                                        bg-[#C1317F]/10
+                                {textoGanados(
+                                    premioSeleccionado
+                                ) && (
 
-                                        px-3
-                                        py-1.5
+                                        <span
+                                            className="
+                                            shrink-0
 
-                                        text-[8px]
-                                        font-black
-                                        uppercase
-                                        tracking-[0.08em]
+                                            text-[8px]
+                                            font-black
+                                            uppercase
+                                            tracking-[0.09em]
 
-                                        text-[#C1317F]
-                                    "
-                                >
-                                    {
-                                        premioSeleccionado.stockAsignado
-                                    }{" "}
-                                    de{" "}
-                                    {
-                                        premioSeleccionado.stockTotal
-                                    }{" "}
-                                    ganados
-                                </span>
+                                            text-slate-500
+                                        "
+                                        >
+                                            {
+                                                textoGanados(
+                                                    premioSeleccionado
+                                                )
+                                            }
+                                        </span>
+                                    )}
+
                             </div>
+
 
                             <h3
                                 className="
@@ -1140,7 +1408,9 @@ export function PremiosInstantaneos() {
                                 }
                             </h3>
 
+
                             {premioSeleccionado.descripcion && (
+
                                 <p
                                     className="
                                         mt-3
@@ -1156,15 +1426,18 @@ export function PremiosInstantaneos() {
                                 </p>
                             )}
 
+
                             {/* =================================================
                                 CTA
                             ================================================= */}
 
                             <button
                                 type="button"
+
                                 onClick={
                                     irAComprar
                                 }
+
                                 className="
                                     mt-6
 
@@ -1190,10 +1463,14 @@ export function PremiosInstantaneos() {
                             >
                                 Quiero una Tarjeta de la Suerte
                             </button>
+
                         </div>
+
                     </div>
+
                 </div>
             )}
+
         </>
     );
 }
