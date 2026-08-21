@@ -1,8 +1,11 @@
 "use client";
 
 import {
-    FormEvent,
+    type ClipboardEvent,
+    type FormEvent,
+    type KeyboardEvent,
     useEffect,
+    useRef,
     useState,
 } from "react";
 
@@ -411,6 +414,39 @@ export default function MiCuentaPage() {
     const [sent, setSent] =
         useState(false);
 
+    /*
+     * Código OTP de 6 dígitos.
+     */
+    const [
+        otpDigits,
+        setOtpDigits,
+    ] =
+        useState<string[]>([
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]);
+
+    const [
+        verifyingOtp,
+        setVerifyingOtp,
+    ] =
+        useState(false);
+
+    const [
+        resendCooldown,
+        setResendCooldown,
+    ] =
+        useState(0);
+
+    const otpRefs =
+        useRef<
+            Array<HTMLInputElement | null>
+        >([]);
+
     const [error, setError] =
         useState<string | null>(
             null
@@ -623,6 +659,11 @@ export default function MiCuentaPage() {
             total: 0,
         });
 
+    const [
+        isAffiliate,
+        setIsAffiliate,
+    ] =
+        useState(false);
 
     /*
      * =========================================================
@@ -965,6 +1006,73 @@ export default function MiCuentaPage() {
      * =========================================================
      */
 
+    async function loadAffiliateStatus(
+        accessToken: string
+    ) {
+        try {
+
+            const response =
+                await fetch(
+                    "/api/mi-cuenta/afiliado/status",
+                    {
+                        method:
+                            "GET",
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${accessToken}`,
+                        },
+
+                        cache:
+                            "no-store",
+                    }
+                );
+
+
+            const data =
+                await response
+                    .json()
+                    .catch(
+                        () =>
+                            null
+                    );
+
+
+            if (
+                !response.ok ||
+                !data?.ok
+            ) {
+                setIsAffiliate(
+                    false
+                );
+
+                return;
+            }
+
+
+            setIsAffiliate(
+                Boolean(
+                    data.isAffiliate
+                )
+            );
+
+
+        } catch (
+        error
+        ) {
+
+            console.error(
+                "Affiliate status:",
+                error
+            );
+
+
+            setIsAffiliate(
+                false
+            );
+        }
+    }
+
     async function linkAccount(
         accessToken: string
     ) {
@@ -1049,6 +1157,10 @@ export default function MiCuentaPage() {
             ),
 
             loadSphereInventory(
+                accessToken
+            ),
+
+            loadAffiliateStatus(
                 accessToken
             ),
         ]);
@@ -1452,6 +1564,8 @@ export default function MiCuentaPage() {
                                 null
                             );
 
+                            setIsAffiliate(false);
+
                             setSellPrice(
                                 ""
                             );
@@ -1510,9 +1624,89 @@ export default function MiCuentaPage() {
 
     /*
      * =========================================================
-     * ENVIAR MAGIC LINK
+     * OTP DE 6 DÍGITOS
      * =========================================================
      */
+
+    useEffect(() => {
+        if (
+            resendCooldown <= 0
+        ) {
+            return;
+        }
+
+        const timer =
+            window.setInterval(
+                () => {
+                    setResendCooldown(
+                        (
+                            current
+                        ) =>
+                            Math.max(
+                                0,
+                                current - 1
+                            )
+                    );
+                },
+                1000
+            );
+
+        return () => {
+            window.clearInterval(
+                timer
+            );
+        };
+    }, [
+        resendCooldown,
+    ]);
+
+
+    function limpiarOtp() {
+        setOtpDigits([
+            "",
+            "",
+            "",
+            "",
+            "",
+            "",
+        ]);
+    }
+
+
+    async function enviarCodigoOtp(
+        normalizedEmail: string
+    ) {
+        const {
+            error:
+            signInError,
+        } =
+            await supabaseBrowser
+                .auth
+                .signInWithOtp({
+                    email:
+                        normalizedEmail,
+
+                    options: {
+                        /*
+                         * Conservamos el comportamiento
+                         * actual de Baruk593:
+                         * si todavía no existe una cuenta
+                         * Auth para ese correo, Supabase
+                         * puede crearla.
+                         */
+                        shouldCreateUser:
+                            true,
+                    },
+                });
+
+
+        if (
+            signInError
+        ) {
+            throw signInError;
+        }
+    }
+
 
     async function handleSubmit(
         event: FormEvent<HTMLFormElement>
@@ -1524,70 +1718,553 @@ export default function MiCuentaPage() {
                 .trim()
                 .toLowerCase();
 
+
         if (
-            !normalizedEmail
+            !normalizedEmail ||
+            !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
+                normalizedEmail
+            )
         ) {
             setError(
-                "Ingresa un correo electrónico válido"
+                "Ingresa un correo electrónico válido."
             );
 
             return;
         }
 
-        setLoading(true);
-        setError(null);
+
+        setLoading(
+            true
+        );
+
+        setError(
+            null
+        );
+
 
         try {
-            const redirectTo =
-                `${window.location.origin}/mi-cuenta`;
 
-            const {
-                error:
-                signInError,
-            } =
-                await supabaseBrowser
-                    .auth
-                    .signInWithOtp(
-                        {
-                            email:
-                                normalizedEmail,
+            await enviarCodigoOtp(
+                normalizedEmail
+            );
 
-                            options: {
-                                emailRedirectTo:
-                                    redirectTo,
-
-                                shouldCreateUser:
-                                    true,
-                            },
-                        }
-                    );
-
-            if (
-                signInError
-            ) {
-                throw signInError;
-            }
 
             setEmail(
                 normalizedEmail
             );
 
-            setSent(true);
+            limpiarOtp();
+
+            setSent(
+                true
+            );
+
+            /*
+             * Supabase limita por defecto
+             * las solicitudes de OTP por correo.
+             * Mostramos el mismo tiempo para
+             * evitar reintentos innecesarios.
+             */
+            setResendCooldown(
+                60
+            );
+
+
+            window.setTimeout(
+                () => {
+                    otpRefs
+                        .current[0]
+                        ?.focus();
+                },
+                120
+            );
+
+
         } catch (
         err: unknown
         ) {
+
             setError(
                 err instanceof
                     Error
                     ? err.message
-                    : "No se pudo enviar el enlace de acceso"
+                    : "No se pudo enviar el código de acceso."
             );
+
+
         } finally {
+
             setLoading(
                 false
             );
         }
     }
+
+
+    function handleOtpChange(
+        index: number,
+        value: string
+    ) {
+
+        const digits =
+            value
+                .replace(
+                    /\D/g,
+                    ""
+                )
+                .slice(
+                    0,
+                    6
+                );
+
+
+        if (
+            digits.length >
+            1
+        ) {
+
+            setOtpDigits(
+                (
+                    current
+                ) => {
+
+                    const next =
+                        [
+                            ...current,
+                        ];
+
+
+                    digits
+                        .split(
+                            ""
+                        )
+                        .forEach(
+                            (
+                                digit,
+                                offset
+                            ) => {
+
+                                const targetIndex =
+                                    index +
+                                    offset;
+
+
+                                if (
+                                    targetIndex <
+                                    6
+                                ) {
+
+                                    next[
+                                        targetIndex
+                                    ] =
+                                        digit;
+                                }
+                            }
+                        );
+
+
+                    return next;
+                }
+            );
+
+
+            setError(
+                null
+            );
+
+
+            const nextFocus =
+                Math.min(
+                    index +
+                    digits.length,
+                    5
+                );
+
+
+            window.setTimeout(
+                () => {
+
+                    otpRefs
+                        .current[
+                        nextFocus
+                    ]
+                        ?.focus();
+
+                },
+                0
+            );
+
+
+            return;
+        }
+
+
+        const digit =
+            digits
+                .slice(
+                    -1
+                );
+
+
+        setOtpDigits(
+            (
+                current
+            ) => {
+
+                const next =
+                    [
+                        ...current,
+                    ];
+
+                next[index] =
+                    digit;
+
+                return next;
+            }
+        );
+
+
+        setError(
+            null
+        );
+
+
+        if (
+            digit &&
+            index < 5
+        ) {
+
+            otpRefs
+                .current[
+                index + 1
+            ]
+                ?.focus();
+        }
+    }
+
+
+    function handleOtpKeyDown(
+        index: number,
+        event:
+            KeyboardEvent<HTMLInputElement>
+    ) {
+
+        if (
+            event.key ===
+            "Backspace" &&
+            !otpDigits[index] &&
+            index > 0
+        ) {
+
+            otpRefs
+                .current[
+                index - 1
+            ]
+                ?.focus();
+        }
+
+
+        if (
+            event.key ===
+            "ArrowLeft" &&
+            index > 0
+        ) {
+
+            event
+                .preventDefault();
+
+            otpRefs
+                .current[
+                index - 1
+            ]
+                ?.focus();
+        }
+
+
+        if (
+            event.key ===
+            "ArrowRight" &&
+            index < 5
+        ) {
+
+            event
+                .preventDefault();
+
+            otpRefs
+                .current[
+                index + 1
+            ]
+                ?.focus();
+        }
+    }
+
+
+    function handleOtpPaste(
+        event:
+            ClipboardEvent<HTMLInputElement>
+    ) {
+
+        event
+            .preventDefault();
+
+
+        const digits =
+            event
+                .clipboardData
+                .getData(
+                    "text"
+                )
+                .replace(
+                    /\D/g,
+                    ""
+                )
+                .slice(
+                    0,
+                    6
+                )
+                .split(
+                    ""
+                );
+
+
+        if (
+            digits.length ===
+            0
+        ) {
+            return;
+        }
+
+
+        const next =
+            Array.from(
+                {
+                    length: 6,
+                },
+                (
+                    _,
+                    index
+                ) =>
+                    digits[index] ??
+                    ""
+            );
+
+
+        setOtpDigits(
+            next
+        );
+
+        setError(
+            null
+        );
+
+
+        const focusIndex =
+            Math.min(
+                digits.length,
+                6
+            ) - 1;
+
+
+        window.setTimeout(
+            () => {
+
+                otpRefs
+                    .current[
+                    focusIndex
+                ]
+                    ?.focus();
+
+            },
+            0
+        );
+    }
+
+
+    async function handleVerifyOtp(
+        event:
+            FormEvent<HTMLFormElement>
+    ) {
+
+        event
+            .preventDefault();
+
+
+        const normalizedEmail =
+            email
+                .trim()
+                .toLowerCase();
+
+
+        const token =
+            otpDigits
+                .join(
+                    ""
+                );
+
+
+        if (
+            !/^\d{6}$/.test(
+                token
+            )
+        ) {
+
+            setError(
+                "Ingresa los 6 dígitos del código."
+            );
+
+            return;
+        }
+
+
+        setVerifyingOtp(
+            true
+        );
+
+        setError(
+            null
+        );
+
+
+        try {
+
+            const {
+                data,
+                error:
+                verifyError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .verifyOtp({
+                        email:
+                            normalizedEmail,
+
+                        token,
+
+                        type:
+                            "email",
+                    });
+
+
+            if (
+                verifyError
+            ) {
+                throw verifyError;
+            }
+
+
+            if (
+                !data.session
+            ) {
+
+                throw new Error(
+                    "No se pudo iniciar la sesión. Solicita un nuevo código."
+                );
+            }
+
+
+            /*
+             * verifyOtp crea la sesión.
+             * El listener SIGNED_IN que ya existe
+             * en esta página ejecutará linkAccount()
+             * y cargará compras, tarjetas, colección,
+             * premios e inventario.
+             */
+            limpiarOtp();
+
+
+        } catch (
+        err: unknown
+        ) {
+
+            setError(
+                err instanceof
+                    Error
+                    ? err.message
+                    : "El código ingresado no es válido o ya expiró."
+            );
+
+
+        } finally {
+
+            setVerifyingOtp(
+                false
+            );
+        }
+    }
+
+
+    async function handleResendOtp() {
+
+        if (
+            loading ||
+            resendCooldown >
+            0
+        ) {
+            return;
+        }
+
+
+        const normalizedEmail =
+            email
+                .trim()
+                .toLowerCase();
+
+
+        setLoading(
+            true
+        );
+
+        setError(
+            null
+        );
+
+
+        try {
+
+            await enviarCodigoOtp(
+                normalizedEmail
+            );
+
+
+            limpiarOtp();
+
+            setResendCooldown(
+                60
+            );
+
+
+            window.setTimeout(
+                () => {
+
+                    otpRefs
+                        .current[0]
+                        ?.focus();
+
+                },
+                100
+            );
+
+
+        } catch (
+        err: unknown
+        ) {
+
+            setError(
+                err instanceof
+                    Error
+                    ? err.message
+                    : "No se pudo reenviar el código."
+            );
+
+
+        } finally {
+
+            setLoading(
+                false
+            );
+        }
+    }
+
 
     /*
      * =========================================================
@@ -2362,7 +3039,19 @@ export default function MiCuentaPage() {
 
         setSent(false);
 
+        limpiarOtp();
+
+        setVerifyingOtp(
+            false
+        );
+
+        setResendCooldown(
+            0
+        );
+
         setEmail("");
+
+        setIsAffiliate(false);
     }
 
     /*
@@ -2495,7 +3184,9 @@ export default function MiCuentaPage() {
         hover:bg-[#ad296f]
     "
                                 >
-                                    Gana con Baruk593
+                                    {isAffiliate
+                                        ? "Socio"
+                                        : "Gana con Baruk593"}
 
                                     <span className="ml-2">
                                         →
@@ -4712,61 +5403,463 @@ export default function MiCuentaPage() {
 
     /*
      * =========================================================
-     * MAGIC LINK ENVIADO
+     * CÓDIGO OTP ENVIADO
      * =========================================================
      */
 
     if (sent) {
+
         return (
-            <main className="flex min-h-screen items-center justify-center bg-white px-4">
 
-                <div className="w-full max-w-md rounded-3xl border border-gray-200 bg-white p-8 text-center shadow-xl">
+            <main
+                className="
+                    flex
+                    min-h-screen
+                    items-center
+                    justify-center
+                    bg-white
+                    px-4
+                    py-24
+                "
+            >
 
-                    <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-50 text-3xl">
-                        ✉️
+                <div
+                    className="
+                        w-full
+                        max-w-md
+                        overflow-hidden
+                        rounded-3xl
+                        border
+                        border-gray-200
+                        bg-white
+                        shadow-xl
+                    "
+                >
+
+                    <div
+                        className="
+                            h-2
+                            bg-gradient-to-r
+                            from-[#C1317F]
+                            via-[#ff6600]
+                            to-[#ff9a55]
+                        "
+                    />
+
+
+                    <div
+                        className="
+                            p-7
+                            sm:p-8
+                        "
+                    >
+
+                        <div
+                            className="
+                                text-center
+                            "
+                        >
+
+                            <div
+                                className="
+                                    mx-auto
+                                    flex
+                                    h-16
+                                    w-16
+                                    items-center
+                                    justify-center
+                                    rounded-2xl
+                                    bg-[#ff6600]/10
+                                    text-[#ff6600]
+                                "
+                            >
+
+                                <svg
+                                    viewBox="0 0 24 24"
+                                    fill="none"
+                                    className="h-7 w-7"
+                                >
+
+                                    <rect
+                                        x="3"
+                                        y="5"
+                                        width="18"
+                                        height="14"
+                                        rx="3"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                    />
+
+                                    <path
+                                        d="m5 8 7 5 7-5"
+                                        stroke="currentColor"
+                                        strokeWidth="1.8"
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                    />
+
+                                </svg>
+
+                            </div>
+
+
+                            <p
+                                className="
+                                    mt-5
+                                    text-[10px]
+                                    font-black
+                                    uppercase
+                                    tracking-[0.22em]
+                                    text-[#C1317F]
+                                "
+                            >
+                                Acceso seguro
+                            </p>
+
+
+                            <h1
+                                className="
+                                    mt-2
+                                    text-2xl
+                                    font-black
+                                    tracking-[-0.035em]
+                                    text-gray-900
+                                "
+                            >
+                                Ingresa tu código
+                            </h1>
+
+
+                            <p
+                                className="
+                                    mt-3
+                                    text-sm
+                                    leading-6
+                                    text-gray-500
+                                "
+                            >
+                                Enviamos un código de 6 dígitos a:
+                            </p>
+
+
+                            <p
+                                className="
+                                    mt-1
+                                    break-all
+                                    text-sm
+                                    font-black
+                                    text-[#ff6600]
+                                "
+                            >
+                                {
+                                    email
+                                }
+                            </p>
+
+                        </div>
+
+
+                        <form
+                            onSubmit={
+                                handleVerifyOtp
+                            }
+                            className="
+                                mt-7
+                            "
+                        >
+
+                            <div
+                                className="
+                                    grid
+                                    grid-cols-6
+                                    gap-2
+
+                                    sm:gap-3
+                                "
+                            >
+
+                                {otpDigits.map(
+                                    (
+                                        digit,
+                                        index
+                                    ) => (
+
+                                        <input
+                                            key={
+                                                index
+                                            }
+
+                                            ref={(
+                                                element
+                                            ) => {
+                                                otpRefs
+                                                    .current[
+                                                    index
+                                                ] =
+                                                    element;
+                                            }}
+
+                                            type="text"
+
+                                            inputMode="numeric"
+
+                                            autoComplete={
+                                                index ===
+                                                    0
+                                                    ? "one-time-code"
+                                                    : "off"
+                                            }
+
+                                            maxLength={
+                                                6
+                                            }
+
+                                            value={
+                                                digit
+                                            }
+
+                                            onChange={(
+                                                event
+                                            ) =>
+                                                handleOtpChange(
+                                                    index,
+                                                    event
+                                                        .target
+                                                        .value
+                                                )
+                                            }
+
+                                            onKeyDown={(
+                                                event
+                                            ) =>
+                                                handleOtpKeyDown(
+                                                    index,
+                                                    event
+                                                )
+                                            }
+
+                                            onPaste={
+                                                handleOtpPaste
+                                            }
+
+                                            aria-label={
+                                                `Dígito ${index + 1} del código`
+                                            }
+
+                                            className="
+                                                aspect-square
+                                                min-w-0
+                                                rounded-xl
+
+                                                border
+                                                border-gray-200
+
+                                                bg-[#fafafa]
+
+                                                text-center
+                                                text-xl
+                                                font-black
+                                                text-[#171717]
+
+                                                outline-none
+
+                                                transition-all
+
+                                                focus:border-[#C1317F]
+                                                focus:bg-white
+                                                focus:shadow-[0_0_0_4px_rgba(193,49,127,0.08)]
+
+                                                sm:text-2xl
+                                            "
+                                        />
+                                    )
+                                )}
+
+                            </div>
+
+
+                            {error && (
+
+                                <div
+                                    className="
+                                        mt-4
+                                        rounded-xl
+                                        border
+                                        border-red-100
+                                        bg-red-50
+                                        p-3
+                                        text-sm
+                                        font-semibold
+                                        text-red-600
+                                    "
+                                >
+                                    {
+                                        error
+                                    }
+                                </div>
+                            )}
+
+
+                            <button
+                                type="submit"
+
+                                disabled={
+                                    verifyingOtp ||
+                                    otpDigits
+                                        .join(
+                                            ""
+                                        )
+                                        .length !==
+                                    6
+                                }
+
+                                className="
+                                    mt-6
+                                    min-h-[52px]
+                                    w-full
+                                    rounded-xl
+                                    bg-[#171717]
+                                    px-5
+                                    text-sm
+                                    font-black
+                                    text-white
+                                    shadow-[0_10px_25px_rgba(0,0,0,0.12)]
+                                    transition
+
+                                    hover:bg-[#C1317F]
+
+                                    disabled:cursor-not-allowed
+                                    disabled:opacity-40
+                                "
+                            >
+                                {
+                                    verifyingOtp
+                                        ? "Ingresando..."
+                                        : "Ingresar a Mi Cuenta"
+                                }
+                            </button>
+
+                        </form>
+
+
+                        <div
+                            className="
+                                mt-6
+                                border-t
+                                border-gray-100
+                                pt-5
+                                text-center
+                            "
+                        >
+
+                            <p
+                                className="
+                                    text-xs
+                                    text-gray-400
+                                "
+                            >
+                                ¿No recibiste el código?
+                            </p>
+
+
+                            <button
+                                type="button"
+
+                                onClick={
+                                    handleResendOtp
+                                }
+
+                                disabled={
+                                    loading ||
+                                    resendCooldown >
+                                    0
+                                }
+
+                                className="
+                                    mt-2
+                                    text-xs
+                                    font-black
+                                    text-[#C1317F]
+                                    transition
+
+                                    hover:text-[#ad296f]
+
+                                    disabled:cursor-not-allowed
+                                    disabled:text-gray-300
+                                "
+                            >
+                                {
+                                    loading
+                                        ? "Reenviando..."
+                                        : resendCooldown >
+                                            0
+                                            ? `Reenviar en ${resendCooldown}s`
+                                            : "Reenviar código"
+                                }
+                            </button>
+
+
+                            <button
+                                type="button"
+
+                                onClick={() => {
+
+                                    setSent(
+                                        false
+                                    );
+
+                                    limpiarOtp();
+
+                                    setError(
+                                        null
+                                    );
+
+                                    setResendCooldown(
+                                        0
+                                    );
+                                }}
+
+                                className="
+                                    mt-4
+                                    block
+                                    w-full
+                                    text-xs
+                                    font-bold
+                                    text-gray-400
+                                    underline
+                                    underline-offset-4
+                                    transition
+
+                                    hover:text-gray-700
+                                "
+                            >
+                                Usar otro correo
+                            </button>
+
+                        </div>
+
+
+                        <p
+                            className="
+                                mt-5
+                                text-center
+                                text-[10px]
+                                leading-5
+                                text-gray-400
+                            "
+                        >
+                            Si no encuentras el mensaje, revisa también
+                            la carpeta de correo no deseado.
+                        </p>
+
                     </div>
 
-                    <h1 className="mt-5 text-2xl font-black text-gray-900">
-                        Revisa tu correo
-                    </h1>
-
-                    <p className="mt-3 text-sm leading-6 text-gray-500">
-                        Enviamos un enlace seguro de acceso a:
-                    </p>
-
-                    <p className="mt-2 break-all font-bold text-[#ff6600]">
-                        {email}
-                    </p>
-
-                    <p className="mt-4 text-sm leading-6 text-gray-500">
-                        Abre el enlace para ingresar a tu cuenta Baruk593.
-                        No necesitas contraseña.
-                    </p>
-
-                    <p className="mt-4 text-xs leading-5 text-gray-400">
-                        Si no encuentras el mensaje, revisa también tu carpeta de correo no deseado.
-                    </p>
-
-                    <button
-                        type="button"
-                        onClick={() => {
-                            setSent(
-                                false
-                            );
-
-                            setError(
-                                null
-                            );
-                        }}
-                        className="mt-7 text-sm font-bold text-gray-600 underline"
-                    >
-                        Usar otro correo
-                    </button>
-
                 </div>
+
             </main>
         );
     }
+
 
     /*
      * =========================================================
@@ -4775,94 +5868,253 @@ export default function MiCuentaPage() {
      */
 
     return (
-        <main className="flex min-h-screen items-center justify-center bg-white px-4">
 
-            <div className="w-full max-w-md overflow-hidden rounded-3xl border border-gray-200 bg-white shadow-xl">
+        <main
+            className="
+                flex
+                min-h-screen
+                items-center
+                justify-center
+                bg-white
+                px-4
+                py-24
+            "
+        >
 
-                <div className="h-2 bg-gradient-to-r from-[#ff6600] to-[#ff9a55]" />
+            <div
+                className="
+                    w-full
+                    max-w-md
+                    overflow-hidden
+                    rounded-3xl
+                    border
+                    border-gray-200
+                    bg-white
+                    shadow-xl
+                "
+            >
 
-                <div className="p-8">
+                <div
+                    className="
+                        h-2
+                        bg-gradient-to-r
+                        from-[#C1317F]
+                        via-[#ff6600]
+                        to-[#ff9a55]
+                    "
+                />
 
-                    <div className="text-center">
 
-                        <p className="text-xs font-black uppercase tracking-[0.25em] text-[#ff6600]">
+                <div
+                    className="
+                        p-8
+                    "
+                >
+
+                    <div
+                        className="
+                            text-center
+                        "
+                    >
+
+                        <p
+                            className="
+                                text-xs
+                                font-black
+                                uppercase
+                                tracking-[0.25em]
+                                text-[#ff6600]
+                            "
+                        >
                             BARUK593
                         </p>
 
-                        <h1 className="mt-3 text-3xl font-black text-gray-900">
+
+                        <h1
+                            className="
+                                mt-3
+                                text-3xl
+                                font-black
+                                tracking-[-0.04em]
+                                text-gray-900
+                            "
+                        >
                             Mi cuenta
                         </h1>
 
-                        <p className="mt-3 text-sm leading-6 text-gray-500">
-                            Ingresa tu correo para acceder a tus Baruk Cards,
-                            esferas, premios y compras.
+
+                        <p
+                            className="
+                                mt-3
+                                text-sm
+                                leading-6
+                                text-gray-500
+                            "
+                        >
+                            Ingresa tu correo para acceder a tus Experience Pass,
+                            F1 Spheres, premios, compras y billetera.
                         </p>
 
                     </div>
+
 
                     <form
                         onSubmit={
                             handleSubmit
                         }
-                        className="mt-8"
+
+                        className="
+                            mt-8
+                        "
                     >
 
                         <label
                             htmlFor="baruk-email"
-                            className="text-sm font-bold text-gray-700"
+
+                            className="
+                                text-sm
+                                font-bold
+                                text-gray-700
+                            "
                         >
                             Correo electrónico
                         </label>
 
+
                         <input
                             id="baruk-email"
+
                             type="email"
+
                             autoComplete="email"
+
                             required
+
                             value={
                                 email
                             }
+
                             onChange={(
                                 event
                             ) =>
                                 setEmail(
-                                    event.target.value
+                                    event
+                                        .target
+                                        .value
                                 )
                             }
+
                             placeholder="tu@correo.com"
-                            className="mt-2 w-full rounded-xl border border-gray-300 bg-white px-4 py-3 text-gray-900 outline-none transition focus:border-[#ff6600] focus:ring-2 focus:ring-[#ff6600]/15"
+
+                            className="
+                                mt-2
+                                min-h-[50px]
+                                w-full
+                                rounded-xl
+
+                                border
+                                border-gray-300
+
+                                bg-white
+
+                                px-4
+
+                                text-gray-900
+
+                                outline-none
+
+                                transition
+
+                                placeholder:text-gray-300
+
+                                focus:border-[#C1317F]
+                                focus:ring-2
+                                focus:ring-[#C1317F]/15
+                            "
                         />
 
+
                         {error && (
-                            <div className="mt-4 rounded-xl bg-red-50 p-3 text-sm font-semibold text-red-600">
+
+                            <div
+                                className="
+                                    mt-4
+                                    rounded-xl
+                                    bg-red-50
+                                    p-3
+                                    text-sm
+                                    font-semibold
+                                    text-red-600
+                                "
+                            >
                                 {
                                     error
                                 }
                             </div>
                         )}
 
+
                         <button
                             type="submit"
+
                             disabled={
                                 loading
                             }
-                            className="mt-6 w-full rounded-xl bg-[#ff6600] px-5 py-3.5 font-bold text-white shadow-lg transition hover:bg-[#ff7a22] disabled:cursor-not-allowed disabled:opacity-60"
+
+                            className="
+                                mt-6
+                                min-h-[52px]
+                                w-full
+                                rounded-xl
+                                bg-[#ff6600]
+                                px-5
+                                text-sm
+                                font-black
+                                text-white
+                                shadow-lg
+                                transition
+
+                                hover:bg-[#ed5d00]
+
+                                disabled:cursor-not-allowed
+                                disabled:opacity-60
+                            "
                         >
                             {
                                 loading
-                                    ? "Enviando enlace..."
-                                    : "Recibir enlace de acceso"
+                                    ? "Enviando código..."
+                                    : "Enviar código de acceso"
                             }
                         </button>
 
                     </form>
 
-                    <p className="mt-6 text-center text-xs leading-5 text-gray-400">
-                        El acceso se realiza mediante un enlace seguro enviado a tu correo.
-                    </p>
+
+                    <div
+                        className="
+                            mt-6
+                            flex
+                            items-center
+                            justify-center
+                            gap-2
+                            text-center
+                            text-xs
+                            text-gray-400
+                        "
+                    >
+                        <span>
+                            🔒
+                        </span>
+
+                        <span>
+                            Acceso sin contraseña mediante código de un solo uso.
+                        </span>
+                    </div>
 
                 </div>
+
             </div>
+
         </main>
     );
 }
