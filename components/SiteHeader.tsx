@@ -235,6 +235,37 @@ export function SiteHeader() {
     ]);
 
     /* ============================================================
+       CERRAR MENÚ CON ESC
+    ============================================================ */
+
+    useEffect(() => {
+        if (!menuOpen) {
+            return;
+        }
+
+        function handleKeyDown(
+            event: KeyboardEvent
+        ) {
+            if (event.key === "Escape") {
+                setMenuOpen(false);
+                setVisible(true);
+            }
+        }
+
+        window.addEventListener(
+            "keydown",
+            handleKeyDown
+        );
+
+        return () => {
+            window.removeEventListener(
+                "keydown",
+                handleKeyDown
+            );
+        };
+    }, [menuOpen]);
+
+    /* ============================================================
        CERRAR MENÚ CUANDO CAMBIA LA RUTA
     ============================================================ */
 
@@ -251,26 +282,23 @@ export function SiteHeader() {
     ]);
 
     /* ============================================================
+   CERRAR MENÚ MÓVIL
+============================================================ */
+
+    function cerrarMenu() {
+        setMenuOpen(false);
+        setVisible(true);
+    }
+
+
+    /* ============================================================
        IR A COMPRAR
     ============================================================ */
 
     function irAComprar() {
-        setMenuOpen(
-            false
-        );
+        cerrarMenu();
 
-        setVisible(
-            true
-        );
-
-        /*
-         * Si estamos fuera del Home,
-         * regresamos directamente
-         * a la sección de compra.
-         */
-        if (
-            !esHome
-        ) {
+        if (!esHome) {
             window.location.href =
                 "/#comprar-baruk-card";
 
@@ -282,11 +310,8 @@ export function SiteHeader() {
                 "comprar-baruk-card"
             )
             ?.scrollIntoView({
-                behavior:
-                    "smooth",
-
-                block:
-                    "start",
+                behavior: "smooth",
+                block: "start",
             });
     }
 
@@ -471,7 +496,8 @@ export function SiteHeader() {
                         {regOpen ===
                             true && (
                                 <Link
-                                    href="/socio-comercial"
+                                    href="/mi-cuenta/afiliado"
+                                    onClick={cerrarMenu}
                                     className={
                                         desktopLinkClass
                                     }
@@ -522,31 +548,32 @@ export function SiteHeader() {
 
                         <Link
                             href="/mi-cuenta"
+                            onClick={cerrarMenu}
                             className="
-                                group
-                                relative
+        flex
+        w-full
+        items-center
+        justify-between
 
-                                flex
-                                min-h-[42px]
-                                items-center
+        border-b
+        border-slate-100
 
-                                rounded-xl
+        py-4
 
-                                px-3.5
+        text-sm
+        font-black
+        text-[#171717]
 
-                                text-[11px]
-                                font-black
+        transition-colors
 
-                                text-[#5d6471]
-
-                                transition-all
-                                duration-300
-
-                                hover:bg-[#C1317F]/5
-                                hover:text-[#C1317F]
-                            "
+        hover:text-[#C1317F]
+    "
                         >
                             Mi cuenta
+
+                            <span className="text-[#C1317F]">
+                                →
+                            </span>
                         </Link>
 
                         {/* COMPRAR */}
@@ -817,7 +844,7 @@ export function SiteHeader() {
                         {regOpen ===
                             true && (
                                 <Link
-                                    href="/socio-comercial"
+                                    href="/mi-cuenta/afiliado"
                                     className="
                                         flex
                                         w-full
