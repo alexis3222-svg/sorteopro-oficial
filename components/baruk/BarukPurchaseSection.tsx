@@ -659,7 +659,7 @@ export default function BarukPurchaseSection({
                 className="
                     mx-auto
                     w-full
-                    max-w-6xl
+                    max-w-7xl
                     px-5
                     sm:px-6
                 "
@@ -837,40 +837,7 @@ export default function BarukPurchaseSection({
             lg:min-h-[400px]
         "
                         >
-                            {/* =============================================
-            BADGE
-        ============================================= */}
 
-                            <div
-                                className="
-                absolute
-                left-4
-                top-4
-                z-40
-
-                rounded-full
-
-                border
-                border-white/80
-
-                bg-white/95
-
-                px-3
-                py-1.5
-
-                text-[8px]
-                font-black
-                uppercase
-                tracking-[0.12em]
-                text-[#171717]
-
-                shadow-[0_5px_16px_rgba(0,0,0,0.08)]
-
-                backdrop-blur-sm
-            "
-                            >
-                                Pack de {cantidad}
-                            </div>
 
                             {/* =============================================
             TARJETA TRASERA IZQUIERDA
