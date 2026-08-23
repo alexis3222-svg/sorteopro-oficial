@@ -170,39 +170,207 @@ export async function procesarPedidoPagado(
          * existentes sin volver a crear nada.
          */
 
-        if (pedido.cards_processing_status === "completed") {
-            const { data: existingCards, error: existingCardsError } =
-                await supabaseAdmin
-                    .from("baruk_cards")
-                    .select(`
-            id,
-            numeros_asignados!inner(numero)
-          `)
-                    .eq("pedido_id", pedidoId);
+        if (
+            pedido.cards_processing_status ===
+            "completed"
+        ) {
 
-            if (existingCardsError) {
+            const {
+                data:
+                existingCards,
+
+                error:
+                existingCardsError,
+            } =
+                await supabaseAdmin
+                    .from(
+                        "baruk_cards"
+                    )
+                    .select(`
+                id,
+                numeros_asignados!inner(numero)
+            `)
+                    .eq(
+                        "pedido_id",
+                        pedidoId
+                    );
+
+
+            if (
+                existingCardsError
+            ) {
+
                 return {
                     ok: false,
                     pedidoId,
                     code: "INTERNAL",
+
                     error:
                         "No se pudieron consultar las tarjetas existentes",
                 };
             }
 
-            const numeros = (existingCards ?? [])
-                .map((card: any) =>
-                    Number(card.numeros_asignados?.numero),
+
+            const numeros =
+                (
+                    existingCards ??
+                    []
                 )
-                .filter((numero) => Number.isFinite(numero));
+                    .map(
+                        (card: any) =>
+                            Number(
+                                card
+                                    .numeros_asignados
+                                    ?.numero
+                            )
+                    )
+                    .filter(
+                        (
+                            numero
+                        ) =>
+                            Number.isFinite(
+                                numero
+                            )
+                    );
+
+
+            /*
+             * ========================================================
+             * RECUPERAR REGALO YA PROCESADO
+             * ========================================================
+             */
+
+            let existingGiftId:
+                string | null =
+                null;
+
+
+            if (
+                pedido.tipo_compra ===
+                "gift"
+            ) {
+
+                const {
+                    data:
+                    existingGift,
+
+                    error:
+                    existingGiftError,
+                } =
+                    await supabaseAdmin
+                        .from(
+                            "baruk_gifts"
+                        )
+                        .select(`
+                    id,
+                    estado,
+                    whatsapp_status
+                `)
+                        .eq(
+                            "pedido_id",
+                            pedidoId
+                        )
+                        .maybeSingle();
+
+
+                if (
+                    existingGiftError
+                ) {
+
+                    console.error(
+                        `[WhatsApp] No se pudo recuperar el regalo del pedido ${pedidoId}:`,
+                        existingGiftError
+                    );
+
+                } else if (
+                    existingGift
+                ) {
+
+                    existingGiftId =
+                        existingGift.id;
+
+
+                    /*
+                     * El pedido ya está procesado.
+                     *
+                     * Si WhatsApp todavía no salió,
+                     * reintentamos únicamente la
+                     * notificación.
+                     */
+
+                    if (
+                        existingGift.estado ===
+                        "paid" &&
+                        existingGift
+                            .whatsapp_status !==
+                        "sent"
+                    ) {
+
+                        try {
+
+                            const notification =
+                                await notificarRegaloPagado(
+                                    existingGift.id
+                                );
+
+
+                            if (
+                                !notification.ok
+                            ) {
+
+                                console.error(
+                                    `[WhatsApp] No se pudo reintentar la notificación del regalo ${existingGift.id}:`,
+                                    notification.error
+                                );
+
+                            } else if (
+                                notification
+                                    .alreadySent
+                            ) {
+
+                                console.log(
+                                    `[WhatsApp] El regalo ${existingGift.id} ya había sido notificado.`
+                                );
+
+                            } else {
+
+                                console.log(
+                                    `[WhatsApp] Regalo ${existingGift.id} notificado en reintento.`
+                                );
+                            }
+
+                        } catch (
+                        notificationError:
+                            unknown
+                        ) {
+
+                            console.error(
+                                `[WhatsApp] Error reintentando el regalo ${existingGift.id}:`,
+                                notificationError
+                            );
+                        }
+                    }
+                }
+            }
+
 
             return {
                 ok: true,
+
                 pedidoId,
-                alreadyProcessed: true,
+
+                alreadyProcessed:
+                    true,
+
                 numeros,
-                cardsCreated: existingCards?.length ?? 0,
-                giftId: null,
+
+                cardsCreated:
+                    existingCards
+                        ?.length ??
+                    0,
+
+                giftId:
+                    existingGiftId,
             };
         }
 
