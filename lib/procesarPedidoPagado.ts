@@ -2,9 +2,7 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
 import { entregarPremioTarjetasDigitales } from "@/lib/entregarPremioTarjetasDigitales";
 import { registrarReclamoPremio } from "@/lib/registrarReclamoPremio";
-import {
-    notificarRegaloPagado,
-} from "@/lib/notificarRegaloPagado";
+import { notificarRegaloPagado } from "@/lib/notificarRegaloPagado";
 
 type ProcesarPedidoPagadoResultado =
     | {
@@ -744,8 +742,9 @@ export async function procesarPedidoPagado(
         }
 
         /*
+  * ========================================================
   * 10. MARCAR REGALO COMO PAGADO
-  *     Y NOTIFICAR AL DESTINATARIO
+  * ========================================================
   */
 
         if (giftId) {
@@ -776,43 +775,6 @@ export async function procesarPedidoPagado(
                     "No se pudo actualizar el regalo:",
                     giftUpdateError
                 );
-
-            } else {
-
-                /*
-                 * El regalo y sus Experience Pass
-                 * ya existen correctamente.
-                 *
-                 * Intentamos enviar el acceso.
-                 *
-                 * IMPORTANTE:
-                 * un fallo de correo NO invalida
-                 * el pedido ni elimina las tarjetas.
-                 */
-
-                const notification =
-                    await notificarRegaloPagado(
-                        giftId
-                    );
-
-
-                if (
-                    !notification.ok
-                ) {
-
-                    console.error(
-                        `Regalo ${giftId} pagado pero no notificado:`,
-                        notification.error
-                    );
-
-                } else {
-
-                    console.log(
-                        notification.alreadySent
-                            ? `Regalo ${giftId}: correo ya enviado anteriormente.`
-                            : `Regalo ${giftId}: correo enviado correctamente.`
-                    );
-                }
             }
         }
 
@@ -844,6 +806,77 @@ export async function procesarPedidoPagado(
                 error:
                     "Las tarjetas se crearon, pero el pedido no pudo marcarse como completado",
             };
+        }
+
+        /*
+         * ========================================================
+         * 12. NOTIFICAR REGALO POR WHATSAPP
+         * ========================================================
+         *
+         * A este punto:
+         *
+         * - el pago ya fue confirmado;
+         * - las Experience Pass ya existen;
+         * - los extras ya fueron procesados;
+         * - el regalo está marcado como paid;
+         * - el pedido está marcado como completed.
+         *
+         * Un fallo de WhatsApp NO debe afectar
+         * la compra ni las tarjetas creadas.
+         */
+
+        if (giftId) {
+
+            try {
+
+                const notification =
+                    await notificarRegaloPagado(
+                        giftId
+                    );
+
+
+                if (
+                    !notification.ok
+                ) {
+
+                    console.error(
+                        `[WhatsApp] El regalo ${giftId} fue procesado, pero no pudo notificarse:`,
+                        notification.error
+                    );
+
+                } else if (
+                    notification.alreadySent
+                ) {
+
+                    console.log(
+                        `[WhatsApp] El regalo ${giftId} ya había sido notificado anteriormente.`
+                    );
+
+                } else {
+
+                    console.log(
+                        `[WhatsApp] Regalo ${giftId} notificado correctamente.`
+                    );
+                }
+
+            } catch (
+            notificationError:
+                unknown
+            ) {
+
+                /*
+                 * El pedido YA está procesado.
+                 *
+                 * Nunca debemos convertir una compra válida
+                 * en fallida solamente porque WhatsApp
+                 * no pudo enviar la notificación.
+                 */
+
+                console.error(
+                    `[WhatsApp] Error inesperado notificando el regalo ${giftId}:`,
+                    notificationError
+                );
+            }
         }
 
         return {
