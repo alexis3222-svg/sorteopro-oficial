@@ -4,7 +4,7 @@
 const pasos = [
     {
         numero: "01",
-        titulo: "Elige tus Experience Pass",
+        titulo: "Elige tus Tarjetas de la Suerte",
         descripcion:
             "Selecciona cuántas quieres comprar para ti o para regalar.",
         icono: "card",
@@ -22,7 +22,7 @@ const pasos = [
         numero: "03",
         titulo: "Revela y descubre",
         descripcion:
-            "Descubre tu número y conoce si tu Experience Pass contiene una F1 Sphere o un premio instantáneo.",
+            "Descubre tu número y conoce si tu Tarjeta contiene una F1 Sphere o un premio instantáneo.",
         icono: "spark",
         color: "orange",
     },

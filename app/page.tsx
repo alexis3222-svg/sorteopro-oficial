@@ -80,9 +80,6 @@ export default function HomePage() {
   const [destinatarioTelefono, setDestinatarioTelefono] =
     useState("");
 
-  const [destinatarioCorreo, setDestinatarioCorreo] =
-    useState("");
-
   const [mensajeRegalo, setMensajeRegalo] =
     useState("");
 
@@ -187,7 +184,7 @@ export default function HomePage() {
     trackAddToCart({
       content_name:
         sorteo?.titulo ??
-        "Baruk Card",
+        "Tarjeta de la Suerte",
 
       content_category:
         "baruk_card",
@@ -222,7 +219,7 @@ export default function HomePage() {
     /*
      * El resumen de cantidad y total
      * ya aparece en la ficha de producto
-     * Baruk Card del Home.
+     * Tarjetas de la Suerte del Home.
      *
      * Por eso abrimos directamente
      * Datos y método de pago.
@@ -243,7 +240,7 @@ export default function HomePage() {
   const handleCerrarModal = () => {
     setIsModalOpen(false);
 
-    // Dejamos 5 Baruk Cards seleccionadas
+    // Dejamos 5 Tarjetas de la Suerte seleccionadas
     // en el configurador principal.
     setSelectedCantidad(5);
 
@@ -261,7 +258,6 @@ export default function HomePage() {
     // Datos del destinatario.
     setDestinatarioNombre("");
     setDestinatarioTelefono("");
-    setDestinatarioCorreo("");
     setMensajeRegalo("");
 
     // Método de pago.
@@ -493,11 +489,6 @@ export default function HomePage() {
               destinatarioNombre:
                 destinatarioNombre.trim(),
 
-              destinatarioCorreo:
-                destinatarioCorreo
-                  .trim()
-                  .toLowerCase(),
-
               destinatarioTelefono:
                 destinatarioTelefono.trim(),
 
@@ -600,24 +591,6 @@ export default function HomePage() {
         return;
       }
 
-      if (!destinatarioCorreo.trim()) {
-        setOrderError(
-          "Ingresa el correo electrónico de la persona que recibirá el regalo."
-        );
-        return;
-      }
-
-      const correoDestinatarioValido =
-        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(
-          destinatarioCorreo.trim()
-        );
-
-      if (!correoDestinatarioValido) {
-        setOrderError(
-          "Ingresa un correo electrónico válido para el destinatario."
-        );
-        return;
-      }
     }
 
     if (selectedCantidad == null) {
@@ -948,7 +921,7 @@ export default function HomePage() {
   };
 
   // 🔍 Buscar números asignados por correo
-  // Compra normal + Experience Pass recibidas como regalo
+  // Compra normal + Tarjetas de la Suerte recibidas como regalo
   const handleBuscarNumeros = async (
     e: FormEvent<HTMLFormElement>
   ) => {
@@ -965,7 +938,7 @@ export default function HomePage() {
 
     if (!correo) {
       setErrorBusqueda(
-        "Ingresa el correo asociado a tus Experience Pass."
+        "Ingresa el correo asociado a tu cuenta Baruk593."
       );
 
       return;
@@ -1066,7 +1039,7 @@ export default function HomePage() {
         );
 
         setErrorBusqueda(
-          "No se pudieron consultar tus Experience Pass recibidas como regalo."
+          "No se pudieron consultar tus Tarjetas de la Suerte recibidas como regalo."
         );
 
         return;
@@ -1156,7 +1129,7 @@ export default function HomePage() {
           );
 
           setErrorBusqueda(
-            "No se pudieron validar tus Experience Pass recibidas."
+            "No se pudieron validar tus Tarjetas de la Suerte recibidas."
           );
 
           return;
@@ -1218,7 +1191,7 @@ export default function HomePage() {
       ) {
 
         setErrorBusqueda(
-          "No encontramos participaciones pagadas asociadas a este correo."
+          "No encontramos participaciones asociadas a este correo."
         );
 
         return;
@@ -1277,7 +1250,7 @@ export default function HomePage() {
       ) {
 
         setErrorBusqueda(
-          "Aún no hay números asignados. Si acabas de recibir o comprar tus Experience Pass, espera unos momentos."
+          "Aún no hay números asignados. Si acabas de recibir o comprar tus Tarjetas de la Suerte, espera unos momentos."
         );
 
         return;
@@ -1350,7 +1323,7 @@ export default function HomePage() {
       />
 
       {/* =====================================================
-    COMPRAR BARUK CARDS
+    COMPRAR TARJETAS DE LA SUERTE
 ===================================================== */}
 
       <BarukPurchaseSection
@@ -1379,14 +1352,6 @@ export default function HomePage() {
 
         onDestinatarioNombreChange={
           setDestinatarioNombre
-        }
-
-        destinatarioCorreo={
-          destinatarioCorreo
-        }
-
-        onDestinatarioCorreoChange={
-          setDestinatarioCorreo
         }
 
         destinatarioTelefono={
@@ -1577,7 +1542,7 @@ export default function HomePage() {
               text-white/55
             "
                 >
-                  Ingresa el correo utilizado en tu compra para consultar
+                  Ingresa el correo asociado a tu cuenta Baruk593 para consultar
                   tus números de participación.
                 </p>
 
@@ -1635,7 +1600,7 @@ export default function HomePage() {
               text-slate-400
             "
                 >
-                  Correo de compra
+                  Correo de tu cuenta
                 </p>
 
                 <h3
@@ -1660,7 +1625,7 @@ export default function HomePage() {
               text-slate-400
             "
                 >
-                  Usa el mismo correo registrado cuando realizaste tu compra.
+                  Usa el correo asociado a tu cuenta Baruk593.
                 </p>
 
               </div>
@@ -1995,7 +1960,7 @@ export default function HomePage() {
                 text-[#C1317F]
               "
                   >
-                    Experience Pass
+                    Tarjetas de la Suerte
                   </p>
 
                   <h3
@@ -2032,7 +1997,7 @@ export default function HomePage() {
 
                     <div className="flex items-center justify-between">
                       <span className="text-sm text-slate-500">
-                        Experience Pass
+                        Tarjetas de la Suerte
                       </span>
 
                       <span className="text-sm font-black text-[#171717]">
@@ -2104,11 +2069,12 @@ export default function HomePage() {
                         </p>
 
                         <p className="mt-1 text-[11px] leading-5 text-slate-500">
-                          Las Experience Pass serán vinculadas al destinatario.
+                          Las Tarjetas de la Suerte serán enviadas por WhatsApp
+                          y pertenecerán al destinatario.
                         </p>
 
                         <p className="mt-1 break-all text-[11px] font-bold text-[#C1317F]">
-                          {destinatarioCorreo}
+                          {destinatarioTelefono}
                         </p>
                       </div>
 
@@ -2205,7 +2171,7 @@ export default function HomePage() {
                       </p>
 
                       <p className="mt-1 text-sm font-black text-[#171717]">
-                        {selectedCantidad} Experience Pass
+                        {selectedCantidad} Tarjetas de la Suerte
                       </p>
                     </div>
 
@@ -2971,7 +2937,7 @@ export default function HomePage() {
                     </p>
 
                     <p className="mt-1 text-xs font-bold text-white">
-                      x{selectedCantidad} Experience Pass
+                      x{selectedCantidad} Tarjetas de la Suerte
                     </p>
                   </div>
 

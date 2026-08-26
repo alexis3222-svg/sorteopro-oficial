@@ -1,4 +1,8 @@
 "use client";
+import {
+    useEffect,
+    useState,
+} from "react";
 
 type TipoCompra =
     | "self"
@@ -34,13 +38,6 @@ type BarukPurchaseSectionProps = {
         value: string
     ) => void;
 
-    destinatarioCorreo:
-    string;
-
-    onDestinatarioCorreoChange:
-    (
-        value: string
-    ) => void;
 
     destinatarioTelefono:
     string;
@@ -358,7 +355,7 @@ function ExperiencePassPreview({
                         text-white/30
                     "
                 >
-                    PASS / 593
+                    BARUK / 593
                 </span>
             </div>
 
@@ -385,7 +382,7 @@ function ExperiencePassPreview({
                         text-white/45
                     "
                 >
-                    Experience Pass
+                    Tarjeta de la Suerte
                 </p>
 
                 {/* POWER */}
@@ -608,6 +605,88 @@ function ExperiencePassPreview({
     );
 }
 
+type ContactPickerContact = {
+    name?: string[];
+    tel?: string[];
+};
+
+type NavigatorWithContacts =
+    Navigator & {
+        contacts?: {
+            select: (
+                properties: string[],
+                options?: {
+                    multiple?: boolean;
+                }
+            ) => Promise<
+                ContactPickerContact[]
+            >;
+        };
+    };
+
+
+function normalizarTelefonoContacto(
+    value: string
+) {
+    let digits =
+        value.replace(
+            /\D/g,
+            ""
+        );
+
+    /*
+     * +593 98 060 0237
+     * 593980600237
+     *
+     * ↓
+     *
+     * 0980600237
+     */
+    if (
+        digits.startsWith(
+            "593"
+        )
+    ) {
+        digits =
+            digits.slice(
+                3
+            );
+
+        if (
+            digits.startsWith(
+                "0"
+            )
+        ) {
+            digits =
+                digits.slice(
+                    1
+                );
+        }
+
+        return `0${digits}`;
+    }
+
+
+    /*
+     * 980600237
+     *
+     * ↓
+     *
+     * 0980600237
+     */
+    if (
+        digits.length === 9 &&
+        digits.startsWith(
+            "9"
+        )
+    ) {
+        return `0${digits}`;
+    }
+
+
+    return digits;
+}
+
 /* ============================================================
    COMPONENTE
 ============================================================ */
@@ -625,9 +704,6 @@ export default function BarukPurchaseSection({
     destinatarioNombre,
     onDestinatarioNombreChange,
 
-    destinatarioCorreo,
-    onDestinatarioCorreoChange,
-
     destinatarioTelefono,
     onDestinatarioTelefonoChange,
 
@@ -643,6 +719,166 @@ export default function BarukPurchaseSection({
     const total =
         cantidad *
         precioUnidad;
+
+    const [
+        contactPickerSupported,
+        setContactPickerSupported,
+    ] =
+        useState(false);
+
+    const [
+        contactPickerError,
+        setContactPickerError,
+    ] =
+        useState<string | null>(
+            null
+        );
+
+
+    useEffect(() => {
+
+        const nav =
+            navigator as NavigatorWithContacts;
+
+        setContactPickerSupported(
+            Boolean(
+                nav.contacts &&
+                typeof nav.contacts
+                    .select ===
+                "function"
+            )
+        );
+
+    }, []);
+
+
+    async function handleBuscarContacto() {
+
+        setContactPickerError(
+            null
+        );
+
+
+        try {
+
+            const nav =
+                navigator as NavigatorWithContacts;
+
+
+            if (
+                !nav.contacts ||
+                typeof nav.contacts
+                    .select !==
+                "function"
+            ) {
+
+                setContactPickerError(
+                    "Tu dispositivo no permite seleccionar contactos desde el navegador."
+                );
+
+                return;
+            }
+
+
+            const contacts =
+                await nav.contacts.select(
+                    [
+                        "name",
+                        "tel",
+                    ],
+                    {
+                        multiple:
+                            false,
+                    }
+                );
+
+
+            const contact =
+                contacts[0];
+
+
+            if (!contact) {
+                return;
+            }
+
+
+            const nombre =
+                contact.name?.[0]
+                    ?.trim() ??
+                "";
+
+
+            const telefonoOriginal =
+                contact.tel?.[0]
+                    ?.trim() ??
+                "";
+
+
+            const telefono =
+                normalizarTelefonoContacto(
+                    telefonoOriginal
+                );
+
+
+            if (
+                nombre
+            ) {
+
+                onDestinatarioNombreChange(
+                    nombre
+                );
+            }
+
+
+            if (
+                telefono
+            ) {
+
+                onDestinatarioTelefonoChange(
+                    telefono
+                );
+            }
+
+
+            if (
+                !telefono
+            ) {
+
+                setContactPickerError(
+                    "El contacto seleccionado no tiene un número de teléfono."
+                );
+            }
+
+
+        } catch (
+        error: unknown
+        ) {
+
+            /*
+             * Si simplemente cerró la agenda
+             * sin escoger a nadie, no mostramos
+             * un error molesto.
+             */
+            if (
+                error instanceof DOMException &&
+                error.name ===
+                "AbortError"
+            ) {
+                return;
+            }
+
+
+            console.error(
+                "Contact Picker:",
+                error
+            );
+
+
+            setContactPickerError(
+                "No se pudo seleccionar el contacto. Puedes ingresar el número manualmente."
+            );
+        }
+    }
 
     return (
         <section
@@ -1590,122 +1826,198 @@ export default function BarukPurchaseSection({
                                             />
                                         </div>
 
-                                        {/* CORREO */}
-
-                                        <div>
-                                            <label
-                                                className="
-                                                text-[10px]
-                                                font-black
-                                                text-slate-500
-                                            "
-                                            >
-                                                Correo
-                                            </label>
-
-                                            <input
-                                                type="email"
-                                                value={
-                                                    destinatarioCorreo
-                                                }
-                                                onChange={(
-                                                    e
-                                                ) =>
-                                                    onDestinatarioCorreoChange(
-                                                        e
-                                                            .target
-                                                            .value
-                                                    )
-                                                }
-                                                placeholder="correo@ejemplo.com"
-                                                className="
-                                                mt-1.5
-
-                                                min-h-[44px]
-                                                w-full
-
-                                                rounded-xl
-
-                                                border
-                                                border-slate-200
-
-                                                bg-white
-
-                                                px-3
-
-                                                text-xs
-                                                text-[#171717]
-
-                                                outline-none
-
-                                                transition
-
-                                                placeholder:text-slate-300
-
-                                                focus:border-[#C1317F]
-                                                focus:ring-4
-                                                focus:ring-[#C1317F]/[0.07]
-                                            "
-                                            />
-                                        </div>
-
                                         {/* WHATSAPP */}
 
-                                        <div>
-                                            <label
+                                        <div className="sm:col-span-2">
+
+                                            <div
                                                 className="
-                                                text-[10px]
-                                                font-black
-                                                text-slate-500
-                                            "
+            flex
+            items-center
+            justify-between
+            gap-2
+        "
                                             >
-                                                WhatsApp
-                                            </label>
 
-                                            <input
-                                                type="tel"
-                                                value={
-                                                    destinatarioTelefono
-                                                }
-                                                onChange={(
-                                                    e
-                                                ) =>
-                                                    onDestinatarioTelefonoChange(
-                                                        e
-                                                            .target
-                                                            .value
-                                                    )
-                                                }
-                                                placeholder="09xxxxxxxx"
+                                                <label
+                                                    className="
+                text-[10px]
+                font-black
+                text-slate-500
+            "
+                                                >
+                                                    WhatsApp
+                                                </label>
+
+
+                                                {contactPickerSupported && (
+
+                                                    <span
+                                                        className="
+                    text-[8px]
+                    font-bold
+                    text-[#C1317F]
+                "
+                                                    >
+                                                        Puedes elegir de tus contactos
+                                                    </span>
+
+                                                )}
+
+                                            </div>
+
+
+                                            <div
                                                 className="
-                                                mt-1.5
+            mt-1.5
+            flex
+            gap-2
+        "
+                                            >
 
-                                                min-h-[44px]
-                                                w-full
+                                                <input
+                                                    type="tel"
+                                                    inputMode="numeric"
+                                                    autoComplete="tel"
+                                                    value={destinatarioTelefono}
+                                                    onChange={(e) =>
+                                                        onDestinatarioTelefonoChange(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    placeholder="09xxxxxxxx"
+                                                    maxLength={10}
+                                                    className="
+        min-h-[44px]
+        min-w-0
+        flex-1
+        rounded-xl
+        border
+        border-slate-200
+        bg-white
+        px-3
+        text-xs
+        text-[#171717]
+        outline-none
+        transition
+        placeholder:text-slate-300
+        focus:border-[#C1317F]
+        focus:ring-4
+        focus:ring-[#C1317F]/[0.07]
+    "
+                                                />
 
-                                                rounded-xl
 
-                                                border
-                                                border-slate-200
+                                                {contactPickerSupported && (
 
-                                                bg-white
+                                                    <button
+                                                        type="button"
 
-                                                px-3
+                                                        onClick={
+                                                            handleBuscarContacto
+                                                        }
 
-                                                text-xs
-                                                text-[#171717]
+                                                        className="
+                    inline-flex
+                    min-h-[44px]
+                    shrink-0
+                    items-center
+                    justify-center
+                    gap-1.5
 
-                                                outline-none
+                    rounded-xl
 
-                                                transition
+                    border
+                    border-[#C1317F]/20
 
-                                                placeholder:text-slate-300
+                    bg-[#C1317F]/[0.06]
 
-                                                focus:border-[#C1317F]
-                                                focus:ring-4
-                                                focus:ring-[#C1317F]/[0.07]
-                                            "
-                                            />
+                    px-3
+
+                    text-[10px]
+                    font-black
+                    text-[#C1317F]
+
+                    transition-all
+
+                    hover:border-[#C1317F]/40
+                    hover:bg-[#C1317F]/10
+                "
+                                                    >
+
+                                                        <svg
+                                                            viewBox="0 0 24 24"
+                                                            fill="none"
+                                                            className="h-4 w-4"
+                                                            aria-hidden="true"
+                                                        >
+
+                                                            <circle
+                                                                cx="9"
+                                                                cy="8"
+                                                                r="3"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.7"
+                                                            />
+
+                                                            <path
+                                                                d="M3.5 19c.6-3.6 2.7-5.4 5.5-5.4s4.9 1.8 5.5 5.4"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.7"
+                                                                strokeLinecap="round"
+                                                            />
+
+                                                            <path
+                                                                d="M18 8v6M15 11h6"
+                                                                stroke="currentColor"
+                                                                strokeWidth="1.7"
+                                                                strokeLinecap="round"
+                                                            />
+
+                                                        </svg>
+
+
+                                                        Contactos
+
+                                                    </button>
+
+                                                )}
+
+                                            </div>
+
+
+                                            {contactPickerSupported && (
+
+                                                <p
+                                                    className="
+                mt-1.5
+                text-[8px]
+                leading-4
+                text-slate-400
+            "
+                                                >
+                                                    Baruk593 solo recibirá el contacto que tú selecciones.
+                                                </p>
+
+                                            )}
+
+
+                                            {contactPickerError && (
+
+                                                <p
+                                                    className="
+                mt-1.5
+                text-[9px]
+                font-semibold
+                leading-4
+                text-amber-600
+            "
+                                                >
+                                                    {contactPickerError}
+                                                </p>
+
+                                            )}
+
                                         </div>
 
                                         {/* MENSAJE */}

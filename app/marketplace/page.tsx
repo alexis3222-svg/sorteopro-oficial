@@ -34,6 +34,11 @@ type MarketplaceListing = {
 
     listedAt: string;
 
+    seller: {
+        displayName: string;
+        isMine: boolean;
+    };
+
     sphere: {
         id: string;
 
@@ -165,12 +170,33 @@ export default function MarketplacePage() {
 
             try {
 
+                const {
+                    data:
+                    sessionData,
+                } =
+                    await supabaseBrowser
+                        .auth
+                        .getSession();
+
+
+                const session =
+                    sessionData.session;
+
+
                 const response =
                     await fetch(
                         "/api/marketplace/spheres",
                         {
                             method:
                                 "GET",
+
+                            headers:
+                                session
+                                    ? {
+                                        Authorization:
+                                            `Bearer ${session.access_token}`,
+                                    }
+                                    : undefined,
 
                             cache:
                                 "no-store",
@@ -1118,40 +1144,42 @@ export default function MarketplacePage() {
                                                     </div>
 
 
-                                                    <div className="text-right">
+                                                    <div className="min-w-0 text-right">
 
                                                         <p
                                                             className="
-                                                                text-[9px]
-                                                                font-black
-                                                                uppercase
-                                                                tracking-[0.14em]
-                                                                text-[#C1317F]
-                                                            "
+            text-[9px]
+            font-black
+            uppercase
+            tracking-[0.14em]
+            text-[#C1317F]
+        "
                                                         >
-                                                            F1 Sphere
+                                                            Vendedor
                                                         </p>
 
-                                                        <p
-                                                            className="
-                                                                mt-1
 
-                                                                text-xs
-                                                                font-black
-                                                                text-slate-600
-                                                            "
+                                                        <p
+                                                            className={`
+            mt-1
+            max-w-[105px]
+            truncate
+            text-xs
+            font-black
+
+            ${listing.seller.isMine
+                                                                    ? "text-emerald-600"
+                                                                    : "text-slate-700"
+                                                                }
+        `}
+                                                            title={
+                                                                listing.seller.displayName
+                                                            }
                                                         >
-                                                            #
                                                             {
-                                                                String(
-                                                                    listing
-                                                                        .sphere
-                                                                        .number
-                                                                )
-                                                                    .padStart(
-                                                                        2,
-                                                                        "0"
-                                                                    )
+                                                                listing.seller.isMine
+                                                                    ? "Tu esfera"
+                                                                    : listing.seller.displayName
                                                             }
                                                         </p>
 
@@ -1166,44 +1194,65 @@ export default function MarketplacePage() {
                                                     type="button"
 
                                                     disabled={
+                                                        listing.seller.isMine ||
                                                         buyingListingId ===
                                                         listing.listingId
                                                     }
 
-                                                    onClick={() =>
+                                                    onClick={() => {
+
+                                                        if (
+                                                            listing.seller.isMine
+                                                        ) {
+                                                            return;
+                                                        }
+
                                                         handleBuySphere(
                                                             listing.listingId
-                                                        )
-                                                    }
+                                                        );
+                                                    }}
 
-                                                    className="
+                                                    className={`
         mt-4
-
         w-full
-
         rounded-xl
-
-        bg-[#C1317F]
-
         px-4
         py-3
-
         text-xs
         font-black
-        text-white
-
         transition
 
-        hover:bg-[#ad296f]
+        ${listing.seller.isMine
 
-        disabled:cursor-not-allowed
-        disabled:opacity-50
-    "
+                                                            ? `
+                    cursor-default
+                    border
+                    border-emerald-200
+                    bg-emerald-50
+                    text-emerald-700
+                `
+
+                                                            : `
+                    bg-[#C1317F]
+                    text-white
+                    hover:bg-[#ad296f]
+                    disabled:cursor-not-allowed
+                    disabled:opacity-50
+                `
+                                                        }
+    `}
                                                 >
-                                                    {buyingListingId ===
-                                                        listing.listingId
-                                                        ? "Preparando compra..."
-                                                        : "Comprar F1 Sphere"
+                                                    {
+                                                        listing.seller.isMine
+
+                                                            ? "Tu publicación"
+
+                                                            : buyingListingId ===
+                                                                listing.listingId
+
+                                                                ? "Preparando compra..."
+
+                                                                : "Comprar F1 Sphere"
                                                     }
                                                 </button>
 

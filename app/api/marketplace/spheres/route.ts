@@ -1,13 +1,20 @@
 // app/api/marketplace/spheres/route.ts
 
 import {
+    NextRequest,
     NextResponse,
 } from "next/server";
 
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+    supabaseAdmin,
+} from "@/lib/supabaseAdmin";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+export const runtime =
+    "nodejs";
+
+export const dynamic =
+    "force-dynamic";
+
 
 const CURRENT_COLLECTION_KEY =
     "f1-2026";
@@ -15,13 +22,161 @@ const CURRENT_COLLECTION_KEY =
 const CURRENT_COLLECTION_SEASON =
     2026;
 
+
+/* ============================================================
+   USUARIO QUE ESTÁ VIENDO EL MARKETPLACE
+   LA SESIÓN ES OPCIONAL
+============================================================ */
+
+async function getViewerUserId(
+    req: NextRequest
+) {
+
+    const authorization =
+        req.headers.get(
+            "authorization"
+        );
+
+
+    if (
+        !authorization ||
+        !authorization.startsWith(
+            "Bearer "
+        )
+    ) {
+        return null;
+    }
+
+
+    const accessToken =
+        authorization
+            .replace(
+                "Bearer ",
+                ""
+            )
+            .trim();
+
+
+    if (!accessToken) {
+        return null;
+    }
+
+
+    const {
+        data,
+        error,
+    } =
+        await supabaseAdmin
+            .auth
+            .getUser(
+                accessToken
+            );
+
+
+    if (
+        error ||
+        !data.user
+    ) {
+        return null;
+    }
+
+
+    return data.user.id;
+}
+
+
+/* ============================================================
+   NOMBRE PÚBLICO DEL VENDEDOR
+
+   No mostramos:
+   - correo
+   - teléfono
+   - UUID
+   - datos bancarios
+
+   Solamente el primer nombre disponible.
+============================================================ */
+
+function getPublicSellerName(
+    user:
+        | {
+            user_metadata?: Record<
+                string,
+                unknown
+            >;
+        }
+        | null
+        | undefined
+) {
+
+    if (!user) {
+        return "Coleccionista";
+    }
+
+
+    const metadata =
+        user.user_metadata ??
+        {};
+
+
+    const possibleName =
+        String(
+            metadata.full_name ??
+            metadata.name ??
+            metadata.display_name ??
+            metadata.first_name ??
+            ""
+        )
+            .trim();
+
+
+    if (!possibleName) {
+        return "Coleccionista";
+    }
+
+
+    /*
+     * Mostramos solamente el
+     * primer nombre públicamente.
+     */
+    return (
+        possibleName
+            .split(
+                /\s+/
+            )[0] ??
+        "Coleccionista"
+    );
+}
+
+
 /* ============================================================
    GET
    MARKETPLACE PÚBLICO DE F1 SPHERES
 ============================================================ */
 
-export async function GET() {
+export async function GET(
+    req: NextRequest
+) {
+
     try {
+
+        /*
+         * Si existe sesión podremos
+         * identificar publicaciones propias.
+         *
+         * El Marketplace continúa siendo
+         * público para usuarios sin sesión.
+         */
+
+        const viewerUserId =
+            await getViewerUserId(
+                req
+            );
+
+
+        /* =====================================================
+           LIBERAR RESERVAS VENCIDAS
+        ===================================================== */
 
         const {
             error:
@@ -34,11 +189,17 @@ export async function GET() {
 
 
         if (cleanupError) {
+
             console.error(
                 "Error liberando reservas Marketplace:",
                 cleanupError
             );
         }
+
+
+        /* =====================================================
+           PUBLICACIONES ACTIVAS
+        ===================================================== */
 
         const {
             data:
@@ -67,9 +228,11 @@ export async function GET() {
                 .order(
                     "created_at",
                     {
-                        ascending: false,
+                        ascending:
+                            false,
                     }
                 );
+
 
         if (listingsError) {
 
@@ -78,35 +241,46 @@ export async function GET() {
                 listingsError
             );
 
+
             return NextResponse.json(
                 {
-                    ok: false,
+                    ok:
+                        false,
+
                     error:
                         "No se pudo cargar el Marketplace",
                 },
                 {
-                    status: 500,
+                    status:
+                        500,
                 }
             );
         }
 
-        const listings =
-            listingsData ?? [];
 
-        /*
-         * Si todavía no hay publicaciones,
-         * devolvemos Marketplace vacío.
-         */
-        if (listings.length === 0) {
+        const listings =
+            listingsData ??
+            [];
+
+
+        if (
+            listings.length ===
+            0
+        ) {
 
             return NextResponse.json({
-                ok: true,
+                ok:
+                    true,
+
                 collectionKey:
                     CURRENT_COLLECTION_KEY,
+
                 season:
                     CURRENT_COLLECTION_SEASON,
+
                 total:
                     0,
+
                 listings:
                     [],
             });
@@ -114,7 +288,7 @@ export async function GET() {
 
 
         /* =====================================================
-           OBTENER INSTANCIAS PUBLICADAS
+           INSTANCIAS PUBLICADAS
         ===================================================== */
 
         const instanceIds =
@@ -164,21 +338,26 @@ export async function GET() {
                 instancesError
             );
 
+
             return NextResponse.json(
                 {
-                    ok: false,
+                    ok:
+                        false,
+
                     error:
                         "No se pudieron cargar las F1 Spheres publicadas",
                 },
                 {
-                    status: 500,
+                    status:
+                        500,
                 }
             );
         }
 
 
         const instances =
-            instancesData ?? [];
+            instancesData ??
+            [];
 
 
         const instancesById =
@@ -197,7 +376,7 @@ export async function GET() {
 
 
         /* =====================================================
-           OBTENER CATÁLOGO DE ESFERAS
+           CATÁLOGO DE ESFERAS
         ===================================================== */
 
         const sphereIds =
@@ -216,16 +395,24 @@ export async function GET() {
             );
 
 
-        if (sphereIds.length === 0) {
+        if (
+            sphereIds.length ===
+            0
+        ) {
 
             return NextResponse.json({
-                ok: true,
+                ok:
+                    true,
+
                 collectionKey:
                     CURRENT_COLLECTION_KEY,
+
                 season:
                     CURRENT_COLLECTION_SEASON,
+
                 total:
                     0,
+
                 listings:
                     [],
             });
@@ -279,21 +466,26 @@ export async function GET() {
                 spheresError
             );
 
+
             return NextResponse.json(
                 {
-                    ok: false,
+                    ok:
+                        false,
+
                     error:
                         "No se pudo cargar el catálogo F1",
                 },
                 {
-                    status: 500,
+                    status:
+                        500,
                 }
             );
         }
 
 
         const spheres =
-            spheresData ?? [];
+            spheresData ??
+            [];
 
 
         const spheresById =
@@ -312,7 +504,110 @@ export async function GET() {
 
 
         /* =====================================================
-           ARMAR RESPUESTA
+           VENDEDORES ÚNICOS
+        ===================================================== */
+
+        const sellerUserIds =
+            Array.from(
+                new Set(
+                    listings
+                        .map(
+                            (
+                                listing
+                            ) =>
+                                String(
+                                    listing
+                                        .seller_user_id ??
+                                    ""
+                                )
+                                    .trim()
+                        )
+                        .filter(
+                            Boolean
+                        )
+                )
+            );
+
+
+        /*
+         * Solamente obtenemos metadatos
+         * públicos para formar el nombre.
+         *
+         * No enviamos el correo ni el UUID
+         * al navegador.
+         */
+
+        const sellerNameEntries =
+            await Promise.all(
+                sellerUserIds.map(
+                    async (
+                        sellerUserId
+                    ) => {
+
+                        try {
+
+                            const {
+                                data,
+                                error,
+                            } =
+                                await supabaseAdmin
+                                    .auth
+                                    .admin
+                                    .getUserById(
+                                        sellerUserId
+                                    );
+
+
+                            if (
+                                error ||
+                                !data.user
+                            ) {
+
+                                return [
+                                    sellerUserId,
+                                    "Coleccionista",
+                                ] as const;
+                            }
+
+
+                            return [
+                                sellerUserId,
+
+                                getPublicSellerName(
+                                    data.user
+                                ),
+                            ] as const;
+
+
+                        } catch (
+                        error
+                        ) {
+
+                            console.error(
+                                "No se pudo obtener nombre público del vendedor:",
+                                sellerUserId,
+                                error
+                            );
+
+
+                            return [
+                                sellerUserId,
+                                "Coleccionista",
+                            ] as const;
+                        }
+                    }
+                )
+            );
+
+
+        const sellerNamesById =
+            new Map(
+                sellerNameEntries
+            );
+
+
+        /* =====================================================
+           ARMAR MARKETPLACE
         ===================================================== */
 
         const marketplaceListings =
@@ -330,6 +625,7 @@ export async function GET() {
                                 )
                             );
 
+
                         if (!instance) {
                             return null;
                         }
@@ -343,9 +639,37 @@ export async function GET() {
                                 )
                             );
 
+
                         if (!sphere) {
                             return null;
                         }
+
+
+                        const sellerUserId =
+                            String(
+                                listing
+                                    .seller_user_id ??
+                                ""
+                            );
+
+
+                        const isMine =
+                            Boolean(
+                                viewerUserId &&
+                                sellerUserId ===
+                                viewerUserId
+                            );
+
+
+                        const sellerDisplayName =
+                            isMine
+                                ? "Tu esfera"
+                                : (
+                                    sellerNamesById.get(
+                                        sellerUserId
+                                    ) ??
+                                    "Coleccionista"
+                                );
 
 
                         return {
@@ -356,10 +680,15 @@ export async function GET() {
                             instanceId:
                                 instance.id,
 
-                            /*
-                             * No exponemos datos personales
-                             * del vendedor.
-                             */
+
+                            seller: {
+
+                                displayName:
+                                    sellerDisplayName,
+
+                                isMine,
+                            },
+
 
                             price:
                                 Number(
@@ -441,7 +770,8 @@ export async function GET() {
 
         return NextResponse.json({
 
-            ok: true,
+            ok:
+                true,
 
             collectionKey:
                 CURRENT_COLLECTION_KEY,
@@ -467,18 +797,20 @@ export async function GET() {
             error
         );
 
+
         return NextResponse.json(
             {
-                ok: false,
+                ok:
+                    false,
 
                 error:
-                    error instanceof
-                        Error
+                    error instanceof Error
                         ? error.message
                         : "Error interno del Marketplace",
             },
             {
-                status: 500,
+                status:
+                    500,
             }
         );
     }

@@ -1,91 +1,380 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+// app/api/admin/affiliate/socios/route.ts
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-);
+import {
+    supabaseAdmin,
+} from "@/lib/supabaseAdmin";
 
-function debugUnauthorized(req: NextRequest) {
-    const cookieVal = req.cookies.get("admin_session")?.value || "";
-    const headerSecret = (req.headers.get("x-admin-secret") || "").trim();
-    const expected = (
-        process.env.ADMIN_SECRET ||
-        process.env.NEXT_PUBLIC_ADMIN_SECRET ||
-        ""
-    ).trim();
+import {
+    ADMIN_COOKIE,
+    verifyAdminSessionToken,
+} from "@/lib/adminSession";
 
-    return NextResponse.json(
-        {
-            ok: false,
-            error: "No autorizado",
-            debug: {
-                cookie_admin_session: cookieVal ? cookieVal : "(missing)",
-                has_header_x_admin_secret: headerSecret.length > 0,
-                expected_configured: expected.length > 0,
-                sent_len: headerSecret.length,
-                expected_len: expected.length,
-            },
-        },
-        { status: 401 }
+
+export const runtime =
+    "nodejs";
+
+export const dynamic =
+    "force-dynamic";
+
+
+/* ============================================================
+   VALIDAR SESIÓN ADMINISTRATIVA
+============================================================ */
+
+async function isAdmin(
+    req: NextRequest
+): Promise<boolean> {
+
+    const token =
+        req.cookies
+            .get(
+                ADMIN_COOKIE
+            )
+            ?.value ??
+        null;
+
+
+    return await verifyAdminSessionToken(
+        token
     );
 }
 
-function isAdmin(req: NextRequest) {
-    // 1) cookie
-    const c = req.cookies.get("admin_session")?.value;
-    if (c === "1") return true;
 
-    // 2) header
-    const sent = (req.headers.get("x-admin-secret") || "").trim();
-    const expected = (
-        process.env.ADMIN_SECRET ||
-        process.env.NEXT_PUBLIC_ADMIN_SECRET ||
-        ""
-    ).trim();
+/* ============================================================
+   GET
+   LISTADO DE SOCIOS COMERCIALES
+============================================================ */
 
-    if (expected && sent && sent === expected) return true;
+export async function GET(
+    req: NextRequest
+) {
 
-    return false;
-}
+    try {
 
-export async function GET(req: NextRequest) {
-    if (!isAdmin(req)) {
-        // ✅ temporal: retorna debug para ver por qué falla
-        return debugUnauthorized(req);
+        /* =====================================================
+           1. VALIDAR ADMIN
+        ===================================================== */
+
+        const authorized =
+            await isAdmin(
+                req
+            );
+
+
+        if (
+            !authorized
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "No autorizado",
+                },
+                {
+                    status:
+                        401,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           2. FILTRO
+        ===================================================== */
+
+        const status =
+            (
+                req.nextUrl
+                    .searchParams
+                    .get(
+                        "status"
+                    ) ??
+                "all"
+            )
+                .trim()
+                .toLowerCase();
+
+
+        const allowedStatuses =
+            new Set([
+                "all",
+                "active",
+                "suspended",
+            ]);
+
+
+        const normalizedStatus =
+            allowedStatuses.has(
+                status
+            )
+                ? status
+                : "all";
+
+
+        /* =====================================================
+           3. CONSULTA DE SOCIOS
+        ===================================================== */
+
+        let query =
+            supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .select(`
+                    id,
+                    username,
+                    display_name,
+                    code,
+                    whatsapp,
+                    email,
+                    status,
+                    is_active,
+                    commission_rate,
+                    created_at
+                `)
+                .eq(
+                    "kind",
+                    "socio"
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending:
+                            false,
+                    }
+                );
+
+
+        if (
+            normalizedStatus ===
+            "active"
+        ) {
+
+            query =
+                query.eq(
+                    "status",
+                    "active"
+                );
+        }
+
+
+        if (
+            normalizedStatus ===
+            "suspended"
+        ) {
+
+            query =
+                query.eq(
+                    "status",
+                    "suspended"
+                );
+        }
+
+
+        const {
+            data:
+            affiliates,
+
+            error:
+            affiliatesError,
+        } =
+            await query;
+
+
+        if (
+            affiliatesError
+        ) {
+
+            console.error(
+                "Error cargando socios:",
+                affiliatesError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        affiliatesError.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           4. CONTADORES GLOBALES
+        ===================================================== */
+
+        const [
+            totalResult,
+            activeResult,
+            suspendedResult,
+        ] =
+            await Promise.all([
+
+                supabaseAdmin
+                    .from(
+                        "affiliates"
+                    )
+                    .select(
+                        "id",
+                        {
+                            count:
+                                "exact",
+
+                            head:
+                                true,
+                        }
+                    )
+                    .eq(
+                        "kind",
+                        "socio"
+                    ),
+
+
+                supabaseAdmin
+                    .from(
+                        "affiliates"
+                    )
+                    .select(
+                        "id",
+                        {
+                            count:
+                                "exact",
+
+                            head:
+                                true,
+                        }
+                    )
+                    .eq(
+                        "kind",
+                        "socio"
+                    )
+                    .eq(
+                        "status",
+                        "active"
+                    ),
+
+
+                supabaseAdmin
+                    .from(
+                        "affiliates"
+                    )
+                    .select(
+                        "id",
+                        {
+                            count:
+                                "exact",
+
+                            head:
+                                true,
+                        }
+                    )
+                    .eq(
+                        "kind",
+                        "socio"
+                    )
+                    .eq(
+                        "status",
+                        "suspended"
+                    ),
+            ]);
+
+
+        if (
+            totalResult.error ||
+            activeResult.error ||
+            suspendedResult.error
+        ) {
+
+            console.error(
+                "Error cargando contadores de socios:",
+                {
+                    total:
+                        totalResult.error,
+
+                    active:
+                        activeResult.error,
+
+                    suspended:
+                        suspendedResult.error,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           5. RESPUESTA
+        ===================================================== */
+
+        return NextResponse.json({
+
+            ok:
+                true,
+
+            affiliates:
+                affiliates ??
+                [],
+
+            counts: {
+
+                total:
+                    totalResult.count ??
+                    0,
+
+                active:
+                    activeResult.count ??
+                    0,
+
+                suspended:
+                    suspendedResult.count ??
+                    0,
+            },
+        });
+
+
+    } catch (
+    error:
+        unknown
+    ) {
+
+        console.error(
+            "admin affiliate socios GET:",
+            error
+        );
+
+
+        return NextResponse.json(
+            {
+                ok:
+                    false,
+
+                error:
+                    error instanceof
+                        Error
+
+                        ? error.message
+
+                        : "Error interno",
+            },
+            {
+                status:
+                    500,
+            }
+        );
     }
-
-    const url = new URL(req.url);
-    const status = (url.searchParams.get("status") || "all").toLowerCase();
-
-    let q = supabaseAdmin
-        .from("affiliates")
-        .select("id, username, display_name, code, whatsapp, status, created_at")
-        .eq("kind", "socio")
-        .order("created_at", { ascending: false });
-
-    if (status === "active") q = q.eq("status", "active");
-    if (status === "suspended") q = q.eq("status", "suspended");
-
-    const { data, error } = await q;
-    if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
-    }
-
-    const [{ count: total }, { count: active }, { count: suspended }] =
-        await Promise.all([
-            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("kind", "socio"),
-            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("kind", "socio").eq("status", "active"),
-            supabaseAdmin.from("affiliates").select("id", { count: "exact", head: true }).eq("kind", "socio").eq("status", "suspended"),
-        ]);
-
-    return NextResponse.json({
-        ok: true,
-        affiliates: data || [],
-        counts: { total: total || 0, active: active || 0, suspended: suspended || 0 },
-    });
 }

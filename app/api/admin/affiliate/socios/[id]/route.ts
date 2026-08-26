@@ -1,113 +1,606 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
+// app/api/admin/affiliate/socios/[id]/route.ts
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-);
+import {
+    supabaseAdmin,
+} from "@/lib/supabaseAdmin";
 
-function isAdmin(req: NextRequest) {
-    // ✅ cookie (estable)
-    const c = req.cookies.get("admin_session")?.value;
-    if (c === "1") return true;
+import {
+    ADMIN_COOKIE,
+    verifyAdminSessionToken,
+} from "@/lib/adminSession";
 
-    // ✅ header opcional (por compatibilidad)
-    const sent = (req.headers.get("x-admin-secret") || "").trim();
-    const expected = (
-        process.env.ADMIN_SECRET ||
-        process.env.NEXT_PUBLIC_ADMIN_SECRET ||
-        ""
-    ).trim();
 
-    if (expected && sent && sent === expected) return true;
+export const runtime =
+    "nodejs";
 
-    return false;
+export const dynamic =
+    "force-dynamic";
+
+
+type RouteContext = {
+    params: Promise<{
+        id: string;
+    }>;
+};
+
+
+/* ============================================================
+   VALIDAR SESIÓN ADMINISTRATIVA
+============================================================ */
+
+async function isAdmin(
+    req: NextRequest
+): Promise<boolean> {
+
+    const token =
+        req.cookies
+            .get(
+                ADMIN_COOKIE
+            )
+            ?.value ??
+        null;
+
+
+    return await verifyAdminSessionToken(
+        token
+    );
 }
 
-// ✅ GET: detalle socio + pedidos (ventas)
+
+/* ============================================================
+   GET
+   DETALLE DEL SOCIO + VENTAS HISTÓRICAS
+============================================================ */
+
 export async function GET(
     req: NextRequest,
-    ctx: { params: Promise<{ id: string }> }
+    ctx: RouteContext
 ) {
-    if (!isAdmin(req)) {
-        return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
-    }
 
-    const { id } = await ctx.params;
-    if (!id) {
-        return NextResponse.json({ ok: false, error: "Falta id" }, { status: 400 });
-    }
+    try {
 
-    // 1) socio (solo kind = socio)
-    const { data: socio, error: e1 } = await supabaseAdmin
-        .from("affiliates")
-        .select("id, username, display_name, code, whatsapp, status, is_active, created_at, kind")
-        .eq("id", id)
-        .eq("kind", "socio")
-        .single();
+        /* =====================================================
+           1. VALIDAR ADMIN
+        ===================================================== */
 
-    if (e1) {
-        return NextResponse.json({ ok: false, error: e1.message }, { status: 500 });
-    }
-    if (!socio) {
-        return NextResponse.json({ ok: false, error: "Socio no encontrado" }, { status: 404 });
-    }
+        const authorized =
+            await isAdmin(
+                req
+            );
 
-    // 2) pedidos del socio
-    // ⚠️ Si tu campo total tiene otro nombre, cámbialo aquí (pero por tus capturas es "total")
-    const { data: pedidos, error: e2 } = await supabaseAdmin
-        .from("pedidos")
-        .select("id, created_at, aprobado_modo, aprobado_at, total, affiliate_code")
-        .eq("affiliate_id", id)
-        .order("created_at", { ascending: false });
 
-    if (e2) {
-        return NextResponse.json({ ok: false, error: e2.message }, { status: 500 });
-    }
+        if (
+            !authorized
+        ) {
 
-    return NextResponse.json({ ok: true, socio, pedidos: pedidos ?? [] });
-}
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
 
-// ✅ PATCH: activar/suspender
-export async function PATCH(
-    req: NextRequest,
-    ctx: { params: Promise<{ id: string }> }
-) {
-    if (!isAdmin(req)) {
-        return NextResponse.json({ ok: false, error: "No autorizado" }, { status: 401 });
-    }
+                    error:
+                        "No autorizado",
+                },
+                {
+                    status:
+                        401,
+                }
+            );
+        }
 
-    const { id } = await ctx.params;
-    if (!id) {
-        return NextResponse.json({ ok: false, error: "Falta id" }, { status: 400 });
-    }
 
-    const body = await req.json().catch(() => ({}));
-    const nextStatus = String(body?.status || "").toLowerCase();
+        /* =====================================================
+           2. ID
+        ===================================================== */
 
-    if (nextStatus !== "active" && nextStatus !== "suspended") {
+        const {
+            id,
+        } =
+            await ctx.params;
+
+
+        const socioId =
+            String(
+                id ??
+                ""
+            )
+                .trim();
+
+
+        if (
+            !socioId
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "Falta id",
+                },
+                {
+                    status:
+                        400,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           3. SOCIO
+        ===================================================== */
+
+        const {
+            data:
+            socio,
+
+            error:
+            socioError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .select(`
+                    id,
+                    user_id,
+                    username,
+                    display_name,
+                    code,
+                    whatsapp,
+                    email,
+                    status,
+                    is_active,
+                    commission_rate,
+                    created_at,
+                    kind
+                `)
+                .eq(
+                    "id",
+                    socioId
+                )
+                .eq(
+                    "kind",
+                    "socio"
+                )
+                .maybeSingle();
+
+
+        if (
+            socioError
+        ) {
+
+            console.error(
+                "Error cargando socio:",
+                socioError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        socioError.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        if (
+            !socio
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "Socio no encontrado",
+                },
+                {
+                    status:
+                        404,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           4. VENTAS DEL SOCIO
+
+           FUENTE DE VERDAD:
+           affiliate_sales
+
+           Aquí quedan congelados históricamente:
+           - monto_pedido
+           - porcentaje
+           - comision
+           - status
+           - paid_at
+
+           No recalculamos ventas antiguas con el porcentaje
+           actual del socio.
+        ===================================================== */
+
+        const {
+            data:
+            ventas,
+
+            error:
+            ventasError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliate_sales"
+                )
+                .select(`
+                    id,
+                    affiliate_id,
+                    pedido_id,
+                    sorteo_id,
+                    monto_pedido,
+                    porcentaje,
+                    comision,
+                    status,
+                    created_at,
+                    paid_at,
+                    reference
+                `)
+                .eq(
+                    "affiliate_id",
+                    socioId
+                )
+                .order(
+                    "paid_at",
+                    {
+                        ascending:
+                            false,
+                        nullsFirst:
+                            false,
+                    }
+                );
+
+
+        if (
+            ventasError
+        ) {
+
+            console.error(
+                "Error cargando ventas del socio:",
+                ventasError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        ventasError.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           5. RESPUESTA
+        ===================================================== */
+
+        return NextResponse.json({
+
+            ok:
+                true,
+
+            socio,
+
+            ventas:
+                ventas ??
+                [],
+        });
+
+
+    } catch (
+    error:
+        unknown
+    ) {
+
+        console.error(
+            "admin affiliate socio GET:",
+            error
+        );
+
+
         return NextResponse.json(
-            { ok: false, error: "status inválido (active|suspended)" },
-            { status: 400 }
+            {
+                ok:
+                    false,
+
+                error:
+                    error instanceof
+                        Error
+
+                        ? error.message
+
+                        : "Error interno",
+            },
+            {
+                status:
+                    500,
+            }
         );
     }
+}
 
-    // ✅ Actualiza SOLO socios
-    const { data, error } = await supabaseAdmin
-        .from("affiliates")
-        .update({ status: nextStatus })
-        .eq("id", id)
-        .eq("kind", "socio")
-        .select("id, status")
-        .single();
 
-    if (error) {
-        return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+/* ============================================================
+   PATCH
+   ACTIVAR / SUSPENDER SOCIO
+============================================================ */
+
+export async function PATCH(
+    req: NextRequest,
+    ctx: RouteContext
+) {
+
+    try {
+
+        /* =====================================================
+           1. VALIDAR ADMIN
+        ===================================================== */
+
+        const authorized =
+            await isAdmin(
+                req
+            );
+
+
+        if (
+            !authorized
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "No autorizado",
+                },
+                {
+                    status:
+                        401,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           2. ID
+        ===================================================== */
+
+        const {
+            id,
+        } =
+            await ctx.params;
+
+
+        const socioId =
+            String(
+                id ??
+                ""
+            )
+                .trim();
+
+
+        if (
+            !socioId
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "Falta id",
+                },
+                {
+                    status:
+                        400,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           3. ESTADO
+        ===================================================== */
+
+        const body =
+            await req
+                .json()
+                .catch(
+                    () => ({})
+                );
+
+
+        const nextStatus =
+            String(
+                body?.status ??
+                ""
+            )
+                .trim()
+                .toLowerCase();
+
+
+        if (
+            nextStatus !==
+            "active" &&
+            nextStatus !==
+            "suspended"
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "status inválido (active|suspended)",
+                },
+                {
+                    status:
+                        400,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           4. ACTUALIZAR SOCIO
+        ===================================================== */
+
+        const {
+            data:
+            affiliate,
+
+            error:
+            updateError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .update({
+
+                    status:
+                        nextStatus,
+
+                    is_active:
+                        nextStatus ===
+                        "active",
+                })
+                .eq(
+                    "id",
+                    socioId
+                )
+                .eq(
+                    "kind",
+                    "socio"
+                )
+                .select(`
+                    id,
+                    status,
+                    is_active
+                `)
+                .maybeSingle();
+
+
+        if (
+            updateError
+        ) {
+
+            console.error(
+                "Error actualizando socio:",
+                updateError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        updateError.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        if (
+            !affiliate
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "Socio no encontrado",
+                },
+                {
+                    status:
+                        404,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           5. RESPUESTA
+        ===================================================== */
+
+        return NextResponse.json({
+
+            ok:
+                true,
+
+            affiliate,
+        });
+
+
+    } catch (
+    error:
+        unknown
+    ) {
+
+        console.error(
+            "admin affiliate socio PATCH:",
+            error
+        );
+
+
+        return NextResponse.json(
+            {
+                ok:
+                    false,
+
+                error:
+                    error instanceof
+                        Error
+
+                        ? error.message
+
+                        : "Error interno",
+            },
+            {
+                status:
+                    500,
+            }
+        );
     }
-
-    return NextResponse.json({ ok: true, affiliate: data });
 }

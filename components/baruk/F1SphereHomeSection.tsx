@@ -471,7 +471,7 @@ export default function F1SphereHomeSection() {
                                 sm:text-[15px]
                             "
                         >
-                            Cada Experience Pass puede esconder una F1 Sphere.
+                            Cada Tarjeta puede esconder una F1 Sphere.
                             Completa las 11 escuderías diferentes y reclama el
                             premio de la colección.
                         </p>

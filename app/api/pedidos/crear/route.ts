@@ -10,7 +10,6 @@ type TipoCompra = "self" | "gift";
 
 interface GiftInput {
     destinatarioNombre: string;
-    destinatarioCorreo: string;
     destinatarioTelefono: string;
     mensaje?: string;
 }
@@ -29,6 +28,23 @@ function normalizePhone(value: unknown): string | null {
         .replace(/[^\d+]/g, "");
 
     return phone || null;
+}
+
+function normalizeEcuadorWhatsApp(value: unknown): string | null {
+    const digits = String(value ?? "")
+        .replace(/\D/g, "");
+
+    // 0991234567 -> +593991234567
+    if (/^09\d{8}$/.test(digits)) {
+        return `+593${digits.slice(1)}`;
+    }
+
+    // 593991234567 -> +593991234567
+    if (/^5939\d{8}$/.test(digits)) {
+        return `+${digits}`;
+    }
+
+    return null;
 }
 
 function normalizeText(value: unknown): string | null {
@@ -55,16 +71,8 @@ function getGiftInput(body: Record<string, unknown>): GiftInput {
                 body.destinatario_nombre,
             ) ?? "",
 
-        destinatarioCorreo:
-            normalizeEmail(
-                gift.destinatarioCorreo ??
-                gift.destinatario_correo ??
-                body.destinatarioCorreo ??
-                body.destinatario_correo,
-            ) ?? "",
-
         destinatarioTelefono:
-            normalizePhone(
+            normalizeEcuadorWhatsApp(
                 gift.destinatarioTelefono ??
                 gift.destinatario_telefono ??
                 body.destinatarioTelefono ??
@@ -247,17 +255,6 @@ export async function POST(req: NextRequest) {
                         ok: false,
                         error:
                             "Falta el nombre del destinatario",
-                    },
-                    { status: 400 },
-                );
-            }
-
-            if (!giftInput.destinatarioCorreo) {
-                return NextResponse.json(
-                    {
-                        ok: false,
-                        error:
-                            "Falta el correo del destinatario",
                     },
                     { status: 400 },
                 );
@@ -450,7 +447,7 @@ export async function POST(req: NextRequest) {
                 id: string;
                 estado: string;
                 destinatario_nombre: string;
-                destinatario_correo: string;
+                destinatario_correo: string | null;
                 destinatario_telefono: string;
             }
             | null = null;
@@ -472,8 +469,9 @@ export async function POST(req: NextRequest) {
                         destinatario_nombre:
                             giftInput.destinatarioNombre,
 
-                        destinatario_correo:
-                            giftInput.destinatarioCorreo,
+                        // Se completa cuando el destinatario
+                        // reclama el regalo e ingresa con Google.
+                        destinatario_correo: null,
 
                         destinatario_telefono:
                             giftInput.destinatarioTelefono,

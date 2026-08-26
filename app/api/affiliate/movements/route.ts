@@ -1,70 +1,316 @@
 // app/api/affiliate/movements/route.ts
-import { NextResponse } from "next/server";
-import { cookies } from "next/headers";
-import { createClient } from "@supabase/supabase-js";
 
-export const runtime = "nodejs";
-export const dynamic = "force-dynamic";
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
 
-const supabaseAdmin = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!,
-    { auth: { persistSession: false } }
-);
+import {
+    supabaseAdmin,
+} from "@/lib/supabaseAdmin";
 
-async function getAffiliateIdFromSession() {
-    const cookieStore = await cookies();
 
-    // Ajusta aquí si tu cookie se llama diferente
-    const token =
-        cookieStore.get("affiliate_session")?.value ||
-        cookieStore.get("affiliate_token")?.value ||
-        cookieStore.get("affiliate")?.value ||
-        "";
+export const runtime =
+    "nodejs";
 
-    if (!token) return null;
+export const dynamic =
+    "force-dynamic";
 
-    const { data, error } = await supabaseAdmin
-        .from("affiliate_sessions")
-        .select("affiliate_id, expires_at, revoked_at")
-        .eq("token", token)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
 
-    if (error || !data?.affiliate_id) return null;
+/* ============================================================
+   OBTENER AFILIADO DESDE MI CUENTA
+   SUPABASE AUTH
+============================================================ */
 
-    // Si tienes expires_at / revoked_at, validamos
-    const revoked = !!data.revoked_at;
-    const expired = data.expires_at ? new Date(data.expires_at) <= new Date() : false;
-    if (revoked || expired) return null;
+async function getAffiliateFromSession(
+    req: NextRequest
+) {
 
-    return data.affiliate_id as string;
+    const authorization =
+        req.headers.get(
+            "authorization"
+        );
+
+
+    if (
+        !authorization ||
+        !authorization.startsWith(
+            "Bearer "
+        )
+    ) {
+
+        return {
+            affiliateId:
+                null,
+
+            error:
+                "Debes iniciar sesión en Mi Cuenta",
+        };
+    }
+
+
+    const accessToken =
+        authorization
+            .replace(
+                "Bearer ",
+                ""
+            )
+            .trim();
+
+
+    if (
+        !accessToken
+    ) {
+
+        return {
+            affiliateId:
+                null,
+
+            error:
+                "La sesión no es válida",
+        };
+    }
+
+
+    const {
+        data:
+        userData,
+
+        error:
+        userError,
+    } =
+        await supabaseAdmin
+            .auth
+            .getUser(
+                accessToken
+            );
+
+
+    if (
+        userError ||
+        !userData.user
+    ) {
+
+        return {
+            affiliateId:
+                null,
+
+            error:
+                "Tu sesión ha expirado",
+        };
+    }
+
+
+    const {
+        data:
+        affiliate,
+
+        error:
+        affiliateError,
+    } =
+        await supabaseAdmin
+            .from(
+                "affiliates"
+            )
+            .select(`
+                id,
+                status,
+                is_active
+            `)
+            .eq(
+                "user_id",
+                userData.user.id
+            )
+            .maybeSingle();
+
+
+    if (
+        affiliateError
+    ) {
+
+        throw affiliateError;
+    }
+
+
+    if (
+        !affiliate
+    ) {
+
+        return {
+            affiliateId:
+                null,
+
+            error:
+                "Tu cuenta todavía no es afiliada",
+        };
+    }
+
+
+    if (
+        affiliate.status !==
+        "active" ||
+        affiliate.is_active ===
+        false
+    ) {
+
+        return {
+            affiliateId:
+                null,
+
+            error:
+                "Tu perfil de afiliado no está activo",
+        };
+    }
+
+
+    return {
+        affiliateId:
+            affiliate.id,
+
+        error:
+            null,
+    };
 }
 
-export async function GET() {
+
+/* ============================================================
+   GET
+   HISTORIAL DE COMISIONES
+============================================================ */
+
+export async function GET(
+    req: NextRequest
+) {
+
     try {
-        const affiliateId = await getAffiliateIdFromSession();
-        if (!affiliateId) {
-            return NextResponse.json({ ok: false, error: "UNAUTHORIZED" }, { status: 401 });
+
+        const {
+            affiliateId,
+            error:
+            authError,
+        } =
+            await getAffiliateFromSession(
+                req
+            );
+
+
+        if (
+            !affiliateId
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        authError ??
+                        "No autorizado",
+                },
+                {
+                    status:
+                        401,
+                }
+            );
         }
 
-        const { data, error } = await supabaseAdmin
-            .from("affiliate_commissions")
-            .select("id, pedido_id, base_total, amount, created_at")
-            .eq("affiliate_id", affiliateId)
-            .order("created_at", { ascending: false })
-            .limit(20);
 
-        if (error) {
-            return NextResponse.json({ ok: false, error: error.message }, { status: 500 });
+        const {
+            data,
+            error,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliate_commissions"
+                )
+                .select(`
+                    id,
+                    pedido_id,
+                    base_total,
+                    amount,
+                    created_at
+                `)
+                .eq(
+                    "affiliate_id",
+                    affiliateId
+                )
+                .order(
+                    "created_at",
+                    {
+                        ascending:
+                            false,
+                    }
+                )
+                .limit(
+                    20
+                );
+
+
+        if (
+            error
+        ) {
+
+            console.error(
+                "Error cargando movimientos de afiliado:",
+                error
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        error.message,
+                },
+                {
+                    status:
+                        500,
+                }
+            );
         }
 
-        return NextResponse.json({ ok: true, moves: data ?? [] });
-    } catch (e: any) {
+
+        return NextResponse.json({
+
+            ok:
+                true,
+
+            moves:
+                data ??
+                [],
+        });
+
+
+    } catch (
+    error:
+        unknown
+    ) {
+
+        console.error(
+            "affiliate/movements:",
+            error
+        );
+
+
         return NextResponse.json(
-            { ok: false, error: e?.message || "Error interno" },
-            { status: 500 }
+            {
+                ok:
+                    false,
+
+                error:
+                    error instanceof
+                        Error
+
+                        ? error.message
+
+                        : "Error interno",
+            },
+            {
+                status:
+                    500,
+            }
         );
     }
 }

@@ -15,10 +15,6 @@ type Socio = {
 
 type Filtro = "all" | "active" | "suspended";
 
-// ✅ Fallback: si existe NEXT_PUBLIC_ADMIN_SECRET lo enviamos como header.
-// (OJO: esto expone el secreto en el frontend. Si quieres 100% seguro, usa SOLO cookie persistente.)
-const ADMIN_SECRET = process.env.NEXT_PUBLIC_ADMIN_SECRET || "";
-
 // Convierte a formato wa.me (solo dígitos). Si empieza con 0 y no trae país, intenta Ecuador (593).
 function normalizeWhatsAppToWaMe(input: string) {
     const digits = (input || "").replace(/\D/g, "");
@@ -29,19 +25,6 @@ function normalizeWhatsAppToWaMe(input: string) {
     return digits;
 }
 
-// ✅ headers para GET (sin Content-Type)
-function buildHeadersGET(): HeadersInit | undefined {
-    if (!ADMIN_SECRET) return undefined;
-    return { "x-admin-secret": ADMIN_SECRET };
-}
-
-// ✅ headers para PATCH/POST (con Content-Type)
-function buildHeadersJSON(): HeadersInit {
-    return {
-        "Content-Type": "application/json",
-        ...(ADMIN_SECRET ? { "x-admin-secret": ADMIN_SECRET } : {}),
-    };
-}
 
 export default function AdminSociosPage() {
     const [socios, setSocios] = useState<Socio[]>([]);
@@ -55,12 +38,14 @@ export default function AdminSociosPage() {
         setError(null);
 
         try {
-            const res = await fetch(`/api/admin/affiliate/socios?status=${filtro}`, {
-                method: "GET",
-                credentials: "include",
-                cache: "no-store",
-                headers: buildHeadersGET(),
-            });
+            const res = await fetch(
+                `/api/admin/affiliate/socios?status=${filtro}`,
+                {
+                    method: "GET",
+                    credentials: "include",
+                    cache: "no-store",
+                }
+            );
 
             const json = await res.json().catch(() => null);
 
@@ -129,7 +114,9 @@ export default function AdminSociosPage() {
             const res = await fetch(`/api/admin/affiliate/socios/${socio.id}`, {
                 method: "PATCH",
                 credentials: "include",
-                headers: buildHeadersJSON(),
+                headers: {
+                    "Content-Type": "application/json",
+                },
                 body: JSON.stringify({ status: nextStatus }),
             });
 
@@ -198,14 +185,7 @@ export default function AdminSociosPage() {
                             Abrir página
                         </Link>
 
-                        {/* ✅ Botón naranja arriba a la derecha */}
-                        <Link
-                            href="/admin-tools/reset-afiliado"
-                            className="ml-auto inline-flex items-center justify-center rounded-full bg-orange-500 px-4 py-1.5 text-xs font-extrabold tracking-wide text-black hover:bg-orange-400 transition"
-                            title="Abrir herramienta para resetear contraseña temporal de un afiliado"
-                        >
-                            Reset afiliado
-                        </Link>
+
                     </div>
                 </header>
 
@@ -341,8 +321,8 @@ export default function AdminSociosPage() {
                                                         disabled={savingId === s.id}
                                                         onClick={() => toggleEstado(s)}
                                                         className={`rounded-full px-3 py-1 text-[11px] font-semibold border transition disabled:opacity-60 disabled:cursor-not-allowed ${s.status === "active"
-                                                                ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
-                                                                : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
+                                                            ? "border-red-500/40 text-red-300 hover:bg-red-500/10"
+                                                            : "border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/10"
                                                             }`}
                                                     >
                                                         {savingId === s.id ? "Guardando…" : s.status === "active" ? "Suspender" : "Activar"}

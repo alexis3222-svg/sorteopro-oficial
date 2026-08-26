@@ -6,10 +6,6 @@ import {
 } from "next/server";
 
 import {
-    cookies,
-} from "next/headers";
-
-import {
     supabaseAdmin,
 } from "@/lib/supabaseAdmin";
 
@@ -19,10 +15,6 @@ export const runtime =
 
 export const dynamic =
     "force-dynamic";
-
-
-const LEGACY_COOKIE_NAME =
-    "affiliate_session";
 
 
 /* ============================================================
@@ -227,9 +219,19 @@ async function getAffiliateSalesSummary(
 
 async function buildAffiliateResponse(
     req: NextRequest,
-    affiliate: any,
-    userId:
-        string | null
+    affiliate: {
+        id: string;
+        user_id: string | null;
+        display_name: string | null;
+        code: string;
+        whatsapp: string | null;
+        email: string | null;
+        status: string;
+        is_active: boolean | null;
+        commission_rate: number | string | null;
+        created_at: string | null;
+    },
+    userId: string
 ) {
 
     const siteUrl =
@@ -251,21 +253,9 @@ async function buildAffiliateResponse(
 
 
     const wallet =
-        userId
-            ? await getWallet(
-                userId
-            )
-
-            : {
-                availableBalance:
-                    0,
-
-                pendingBalance:
-                    0,
-
-                updatedAt:
-                    null,
-            };
+        await getWallet(
+            userId
+        );
 
 
     return NextResponse.json({
@@ -275,6 +265,9 @@ async function buildAffiliateResponse(
 
         active:
             true,
+
+        suspended:
+            false,
 
         affiliate: {
 
@@ -328,11 +321,11 @@ async function buildAffiliateResponse(
 
 
 /* ============================================================
-   NUEVO SISTEMA
+   OBTENER USUARIO AUTENTICADO
    SUPABASE AUTH / MI CUENTA
 ============================================================ */
 
-async function getFromBarukAccount(
+async function getAuthenticatedUser(
     req: NextRequest
 ) {
 
@@ -349,7 +342,25 @@ async function getFromBarukAccount(
         )
     ) {
 
-        return null;
+        return {
+            user:
+                null,
+
+            error:
+                NextResponse.json(
+                    {
+                        ok:
+                            false,
+
+                        error:
+                            "Debes iniciar sesión en Mi Cuenta",
+                    },
+                    {
+                        status:
+                            401,
+                    }
+                ),
+        };
     }
 
 
@@ -366,7 +377,25 @@ async function getFromBarukAccount(
         !accessToken
     ) {
 
-        return null;
+        return {
+            user:
+                null,
+
+            error:
+                NextResponse.json(
+                    {
+                        ok:
+                            false,
+
+                        error:
+                            "La sesión no es válida",
+                    },
+                    {
+                        status:
+                            401,
+                    }
+                ),
+        };
     }
 
 
@@ -389,360 +418,42 @@ async function getFromBarukAccount(
         !userData.user
     ) {
 
-        return NextResponse.json(
-            {
-                ok:
-                    false,
-
-                error:
-                    "Tu sesión ha expirado",
-            },
-            {
-                status:
-                    401,
-            }
-        );
-    }
-
-
-    const user =
-        userData.user;
-
-
-    const {
-        data:
-        affiliate,
-
-        error:
-        affiliateError,
-    } =
-        await supabaseAdmin
-            .from(
-                "affiliates"
-            )
-            .select(`
-                id,
-                user_id,
-                display_name,
-                code,
-                whatsapp,
-                email,
-                status,
-                is_active,
-                commission_rate,
-                created_at
-            `)
-            .eq(
-                "user_id",
-                user.id
-            )
-            .maybeSingle();
-
-
-    if (
-        affiliateError
-    ) {
-
-        console.error(
-            "Error consultando afiliado por user_id:",
-            affiliateError
-        );
-
-
-        return NextResponse.json(
-            {
-                ok:
-                    false,
-
-                error:
-                    "No se pudo consultar tu perfil de afiliado",
-            },
-            {
-                status:
-                    500,
-            }
-        );
-    }
-
-
-    /*
-     * MUY IMPORTANTE:
-     *
-     * No ser afiliado NO es un error.
-     *
-     * Mi Cuenta utilizará esta respuesta
-     * para mostrar:
-     *
-     * "Activar mi perfil de afiliado".
-     */
-
-    if (
-        !affiliate
-    ) {
-
-        const wallet =
-            await getWallet(
-                user.id
-            );
-
-
-        return NextResponse.json({
-
-            ok:
-                true,
-
-            active:
-                false,
-
-            affiliate:
+        return {
+            user:
                 null,
 
-            referralUrl:
-                null,
+            error:
+                NextResponse.json(
+                    {
+                        ok:
+                            false,
 
-            sales: {
-
-                totalSales:
-                    0,
-
-                totalGenerated:
-                    0,
-
-                totalCommission:
-                    0,
-            },
-
-            wallet,
-        });
+                        error:
+                            "Tu sesión ha expirado",
+                    },
+                    {
+                        status:
+                            401,
+                    }
+                ),
+        };
     }
 
 
-    if (
-        affiliate.is_active ===
-        false ||
-        affiliate.status !==
-        "active"
-    ) {
-
-        return NextResponse.json({
-
-            ok:
-                true,
-
-            active:
-                false,
-
-            suspended:
-                true,
-
-            affiliate: {
-
-                id:
-                    affiliate.id,
-
-                displayName:
-                    affiliate.display_name,
-
-                code:
-                    affiliate.code,
-
-                status:
-                    affiliate.status,
-            },
-        });
-    }
-
-
-    return buildAffiliateResponse(
-        req,
-        affiliate,
-        user.id
-    );
-}
-
-
-/* ============================================================
-   SISTEMA ANTIGUO
-   COOKIE affiliate_session
-============================================================ */
-
-async function getFromLegacyAffiliateSession(
-    req: NextRequest
-) {
-
-    const cookieStore =
-        await cookies();
-
-
-    const token =
-        cookieStore
-            .get(
-                LEGACY_COOKIE_NAME
-            )
-            ?.value;
-
-
-    if (
-        !token
-    ) {
-
-        return NextResponse.json(
-            {
-                ok:
-                    false,
-
-                error:
-                    "No existe una sesión válida",
-            },
-            {
-                status:
-                    401,
-            }
-        );
-    }
-
-
-    const {
-        data:
-        session,
+    return {
+        user:
+            userData.user,
 
         error:
-        sessionError,
-    } =
-        await supabaseAdmin
-            .from(
-                "affiliate_sessions"
-            )
-            .select(`
-                affiliate_id,
-                expires_at,
-                revoked_at
-            `)
-            .eq(
-                "token",
-                token
-            )
-            .maybeSingle();
-
-
-    if (
-        sessionError ||
-        !session
-    ) {
-
-        return NextResponse.json(
-            {
-                ok:
-                    false,
-            },
-            {
-                status:
-                    401,
-            }
-        );
-    }
-
-
-    const expiresAt =
-        new Date(
-            session.expires_at
-        ).getTime();
-
-
-    if (
-        session.revoked_at !==
-        null ||
-        !Number.isFinite(
-            expiresAt
-        ) ||
-        expiresAt <=
-        Date.now()
-    ) {
-
-        return NextResponse.json(
-            {
-                ok:
-                    false,
-            },
-            {
-                status:
-                    401,
-            }
-        );
-    }
-
-
-    const {
-        data:
-        affiliate,
-
-        error:
-        affiliateError,
-    } =
-        await supabaseAdmin
-            .from(
-                "affiliates"
-            )
-            .select(`
-                id,
-                user_id,
-                username,
-                display_name,
-                code,
-                whatsapp,
-                email,
-                status,
-                is_active,
-                commission_rate,
-                created_at
-            `)
-            .eq(
-                "id",
-                session.affiliate_id
-            )
-            .maybeSingle();
-
-
-    if (
-        affiliateError ||
-        !affiliate ||
-        affiliate.is_active ===
-        false
-    ) {
-
-        return NextResponse.json(
-            {
-                ok:
-                    false,
-            },
-            {
-                status:
-                    401,
-            }
-        );
-    }
-
-
-    /*
-     * Conservamos temporalmente
-     * username para la página antigua.
-     */
-
-    const response =
-        await buildAffiliateResponse(
-            req,
-            affiliate,
-            affiliate.user_id ??
-            null
-        );
-
-
-    return response;
+            null,
+    };
 }
 
 
 /* ============================================================
    GET
+   SISTEMA ÚNICO:
+   SUPABASE AUTH + MI CUENTA
 ============================================================ */
 
 export async function GET(
@@ -752,29 +463,252 @@ export async function GET(
     try {
 
         /* =====================================================
-           1. NUEVA MI CUENTA
+           1. VALIDAR SESIÓN
         ===================================================== */
 
-        const newAccountResponse =
-            await getFromBarukAccount(
+        const {
+            user,
+            error:
+            authError,
+        } =
+            await getAuthenticatedUser(
                 req
             );
 
 
         if (
-            newAccountResponse
+            authError
         ) {
 
-            return newAccountResponse;
+            return authError;
+        }
+
+
+        if (
+            !user
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "No existe una sesión válida",
+                },
+                {
+                    status:
+                        401,
+                }
+            );
         }
 
 
         /* =====================================================
-           2. COMPATIBILIDAD CON /afiliado
+           2. BUSCAR AFILIADO POR user_id
         ===================================================== */
 
-        return await getFromLegacyAffiliateSession(
-            req
+        const {
+            data:
+            affiliate,
+
+            error:
+            affiliateError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .select(`
+                    id,
+                    user_id,
+                    display_name,
+                    code,
+                    whatsapp,
+                    email,
+                    status,
+                    is_active,
+                    commission_rate,
+                    created_at
+                `)
+                .eq(
+                    "user_id",
+                    user.id
+                )
+                .maybeSingle();
+
+
+        if (
+            affiliateError
+        ) {
+
+            console.error(
+                "Error consultando afiliado por user_id:",
+                affiliateError
+            );
+
+
+            return NextResponse.json(
+                {
+                    ok:
+                        false,
+
+                    error:
+                        "No se pudo consultar tu perfil de afiliado",
+                },
+                {
+                    status:
+                        500,
+                }
+            );
+        }
+
+
+        /* =====================================================
+           3. TODAVÍA NO ES AFILIADO
+
+           No es un error.
+           La página mostrará "Activa tu perfil".
+        ===================================================== */
+
+        if (
+            !affiliate
+        ) {
+
+            const wallet =
+                await getWallet(
+                    user.id
+                );
+
+
+            return NextResponse.json({
+
+                ok:
+                    true,
+
+                active:
+                    false,
+
+                suspended:
+                    false,
+
+                affiliate:
+                    null,
+
+                referralUrl:
+                    null,
+
+                sales: {
+
+                    totalSales:
+                        0,
+
+                    totalGenerated:
+                        0,
+
+                    totalCommission:
+                        0,
+                },
+
+                wallet,
+            });
+        }
+
+
+        /* =====================================================
+           4. AFILIADO SUSPENDIDO / INACTIVO
+        ===================================================== */
+
+        if (
+            affiliate.is_active ===
+            false ||
+            affiliate.status !==
+            "active"
+        ) {
+
+            const wallet =
+                await getWallet(
+                    user.id
+                );
+
+
+            return NextResponse.json({
+
+                ok:
+                    true,
+
+                active:
+                    false,
+
+                suspended:
+                    true,
+
+                affiliate: {
+
+                    id:
+                        affiliate.id,
+
+                    userId:
+                        affiliate.user_id,
+
+                    displayName:
+                        affiliate.display_name,
+
+                    code:
+                        affiliate.code,
+
+                    whatsapp:
+                        affiliate.whatsapp,
+
+                    email:
+                        affiliate.email,
+
+                    status:
+                        affiliate.status,
+
+                    isActive:
+                        affiliate.is_active !==
+                        false,
+
+                    commissionRate:
+                        Number(
+                            affiliate
+                                .commission_rate ??
+                            0.10
+                        ),
+
+                    createdAt:
+                        affiliate.created_at,
+                },
+
+                referralUrl:
+                    null,
+
+                sales: {
+
+                    totalSales:
+                        0,
+
+                    totalGenerated:
+                        0,
+
+                    totalCommission:
+                        0,
+                },
+
+                wallet,
+            });
+        }
+
+
+        /* =====================================================
+           5. AFILIADO ACTIVO
+        ===================================================== */
+
+        return await buildAffiliateResponse(
+            req,
+            affiliate,
+            user.id
         );
 
 

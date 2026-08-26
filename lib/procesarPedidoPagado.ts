@@ -31,7 +31,6 @@ interface PedidoProcesable {
     estado: string | null;
     sorteo_id: string | null;
     cantidad_numeros: number | null;
-
     nombre: string | null;
     correo: string | null;
     telefono: string | null;
@@ -56,14 +55,18 @@ interface PedidoProcesable {
 interface GiftOwner {
     id: string;
     destinatario_nombre: string;
-    destinatario_correo: string;
+    destinatario_correo: string | null;
     destinatario_telefono: string;
 }
 
-function normalizeEmail(value: string | null | undefined): string {
-    return String(value ?? "")
+function normalizeEmail(
+    value: string | null | undefined,
+): string | null {
+    const normalized = String(value ?? "")
         .trim()
         .toLowerCase();
+
+    return normalized || null;
 }
 
 function normalizePhone(value: string | null | undefined): string | null {
@@ -162,6 +165,7 @@ export async function procesarPedidoPagado(
                 error: "El pedido no tiene sorteo_id",
             };
         }
+
 
         /*
          * 2. Idempotencia general.
@@ -496,11 +500,47 @@ export async function procesarPedidoPagado(
             giftId = gift.id;
         }
 
-        if (!ownerEmail) {
+        /*
+         * Compra propia:
+         * conserva el correo como dato obligatorio del propietario.
+         */
+        if (
+            tipoCompra === "self" &&
+            !ownerEmail
+        ) {
             const message =
-                "No existe un correo válido para el propietario";
+                "No existe un correo válido para el comprador";
 
-            await markProcessingFailed(pedidoId, message);
+            await markProcessingFailed(
+                pedidoId,
+                message,
+            );
+
+            return {
+                ok: false,
+                pedidoId,
+                code: "OWNER_MISSING",
+                error: message,
+            };
+        }
+
+        /*
+         * Regalo:
+         * el destinatario todavía no necesita correo.
+         * Su WhatsApp identifica temporalmente el regalo hasta
+         * que lo reclame iniciando sesión con Google.
+         */
+        if (
+            tipoCompra === "gift" &&
+            !ownerPhone
+        ) {
+            const message =
+                "No existe un WhatsApp válido para el destinatario";
+
+            await markProcessingFailed(
+                pedidoId,
+                message,
+            );
 
             return {
                 ok: false,
@@ -633,7 +673,7 @@ export async function procesarPedidoPagado(
         /*
  * 9. Asignar el resultado adicional de cada tarjeta.
  *
- * Si el resultado es un premio digital de Baruk Cards:
+ * Si el resultado es un premio digital de Tarjetas de la Suerte:
  * - crea el reclamo;
  * - crea el pedido gratuito;
  * - procesa sus números y tarjetas;
@@ -734,7 +774,7 @@ export async function procesarPedidoPagado(
 
             /*
              * ========================================================
-             * PREMIO DIGITAL: Baruk Cards adicionales
+             * PREMIO DIGITAL: Tarjetas de la Suerte adicionales
              * ========================================================
              */
             if (prizeData.tipo === "digital_cards") {
@@ -984,7 +1024,7 @@ export async function procesarPedidoPagado(
          * A este punto:
          *
          * - el pago ya fue confirmado;
-         * - las Experience Pass ya existen;
+         * - las Tarjetas de la Suerte ya existen;
          * - los extras ya fueron procesados;
          * - el regalo está marcado como paid;
          * - el pedido está marcado como completed.

@@ -968,7 +968,7 @@ export default function MiCuentaPage() {
 
             /*
              * Sincronizamos también
-             * el total de Baruk Cards.
+             * el total de Tarjetas.
              */
             setAccount(
                 (
@@ -1707,6 +1707,50 @@ export default function MiCuentaPage() {
         }
     }
 
+    async function handleGoogleLogin() {
+        setLoading(true);
+        setError(null);
+
+        try {
+            const redirectTo =
+                `${window.location.origin}/mi-cuenta`;
+
+            const {
+                error:
+                googleError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .signInWithOAuth({
+                        provider:
+                            "google",
+
+                        options: {
+                            redirectTo,
+                        },
+                    });
+
+            if (
+                googleError
+            ) {
+                throw googleError;
+            }
+
+        } catch (
+        err: unknown
+        ) {
+
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "No se pudo iniciar sesión con Google."
+            );
+
+            setLoading(
+                false
+            );
+        }
+    }
 
     async function handleSubmit(
         event: FormEvent<HTMLFormElement>
@@ -3160,9 +3204,6 @@ export default function MiCuentaPage() {
                                 >
                                     Mis compras
 
-                                    <span className="ml-2">
-                                        →
-                                    </span>
                                 </a>
 
                                 <a
@@ -3185,12 +3226,9 @@ export default function MiCuentaPage() {
     "
                                 >
                                     {isAffiliate
-                                        ? "Socio"
+                                        ? "Afiliado"
                                         : "Gana con Baruk593"}
 
-                                    <span className="ml-2">
-                                        →
-                                    </span>
                                 </a>
 
                                 <a
@@ -3222,9 +3260,6 @@ export default function MiCuentaPage() {
                                 >
                                     Mi billetera
 
-                                    <span className="ml-2">
-                                        →
-                                    </span>
                                 </a>
 
                                 <button
@@ -4040,7 +4075,7 @@ export default function MiCuentaPage() {
                             )}
 
                         {/* =====================================================
-    MIS TARJETAS EXPERENCE PASS
+    MIS TARJETAS TARJETAS DE LA SUERTE
 ===================================================== */}
 
                         <section
@@ -4070,7 +4105,7 @@ export default function MiCuentaPage() {
             text-[#C1317F]
         "
                                     >
-                                        Experience Pass
+                                        Tarjetas de la Suerte
                                     </p>
 
                                     <h2
@@ -4219,11 +4254,7 @@ export default function MiCuentaPage() {
                                                     : `Activar todas (${cardsSummary.pending})`
                                                 }
 
-                                                {!activatingAll && (
-                                                    <span className="ml-2">
-                                                        →
-                                                    </span>
-                                                )}
+
                                             </button>
                                         )}
 
@@ -4289,7 +4320,7 @@ export default function MiCuentaPage() {
                                             <div className="mx-auto h-8 w-8 animate-spin rounded-full border-4 border-gray-200 border-t-[#ff6600]" />
 
                                             <p className="mt-3 text-sm font-semibold text-gray-400">
-                                                Cargando tus Baruk Cards...
+                                                Cargando tus Tarjetas...
                                             </p>
 
                                         </div>
@@ -4303,7 +4334,7 @@ export default function MiCuentaPage() {
                                             <div className="mx-auto mt-10 max-w-xl rounded-2xl border border-gray-200 bg-gray-50 p-7 text-center">
 
                                                 <p className="font-black text-gray-800">
-                                                    Todavía no tienes Baruk Cards.
+                                                    Todavía no tienes Tarjetas.
                                                 </p>
 
                                                 <p className="mt-2 text-sm text-gray-500">
@@ -5165,7 +5196,7 @@ export default function MiCuentaPage() {
                                         </p>
 
                                         <p className="mt-2 text-sm leading-6 text-gray-500">
-                                            Sigue revelando tus Baruk Cards.
+                                            Sigue revelando tus Tarjetas.
                                             Cuando descubras un premio aparecerá aquí.
                                         </p>
 
@@ -5557,7 +5588,6 @@ export default function MiCuentaPage() {
                             </p>
 
                         </div>
-
 
                         <form
                             onSubmit={
@@ -5951,12 +5981,119 @@ export default function MiCuentaPage() {
                                 text-gray-500
                             "
                         >
-                            Ingresa tu correo para acceder a tus Experience Pass,
-                            F1 Spheres, premios, compras y billetera.
+                            Accede con Google o usa tu correo para ingresar a tus
+                            Tarjetas de la Suerte, F1 Spheres, premios, compras y billetera.
                         </p>
 
                     </div>
 
+
+                    <div className="mt-8">
+
+                        <button
+                            type="button"
+
+                            onClick={
+                                handleGoogleLogin
+                            }
+
+                            disabled={
+                                loading
+                            }
+
+                            className="
+            flex
+            min-h-[52px]
+            w-full
+            items-center
+            justify-center
+            gap-3
+
+            rounded-xl
+
+            border
+            border-gray-200
+
+            bg-white
+
+            px-5
+
+            text-sm
+            font-black
+            text-gray-800
+
+            shadow-sm
+
+            transition-all
+
+            hover:border-gray-300
+            hover:bg-gray-50
+            hover:shadow-md
+
+            disabled:cursor-not-allowed
+            disabled:opacity-60
+        "
+                        >
+
+                            <svg
+                                width="21"
+                                height="21"
+                                viewBox="0 0 24 24"
+                                aria-hidden="true"
+                            >
+
+                                <path
+                                    fill="#4285F4"
+                                    d="M21.6 12.227c0-.709-.064-1.391-.182-2.045H12v3.868h5.382a4.6 4.6 0 0 1-1.995 3.018v2.51h3.232c1.891-1.741 2.981-4.305 2.981-7.351Z"
+                                />
+
+                                <path
+                                    fill="#34A853"
+                                    d="M12 22c2.7 0 4.964-.895 6.619-2.423l-3.232-2.509c-.895.6-2.041.955-3.387.955-2.605 0-4.814-1.759-5.605-4.123H3.055v2.591A10 10 0 0 0 12 22Z"
+                                />
+
+                                <path
+                                    fill="#FBBC05"
+                                    d="M6.395 13.9A6.02 6.02 0 0 1 6.082 12c0-.659.114-1.3.313-1.9V7.509h-3.34A10 10 0 0 0 2 12c0 1.614.386 3.141 1.055 4.491L6.395 13.9Z"
+                                />
+
+                                <path
+                                    fill="#EA4335"
+                                    d="M12 5.977c1.468 0 2.786.505 3.823 1.496l2.868-2.868C16.959 2.991 14.7 2 12 2a10 10 0 0 0-8.945 5.509l3.34 2.591C7.186 7.736 9.395 5.977 12 5.977Z"
+                                />
+
+                            </svg>
+
+
+                            {loading
+                                ? "Conectando..."
+                                : "Continuar con Google"
+                            }
+
+                        </button>
+
+
+                        <div className="my-6 flex items-center gap-4">
+
+                            <div className="h-px flex-1 bg-gray-200" />
+
+                            <span
+                                className="
+                text-[10px]
+                font-black
+                uppercase
+                tracking-[0.18em]
+                text-gray-400
+            "
+                            >
+                                o
+                            </span>
+
+                            <div className="h-px flex-1 bg-gray-200" />
+
+                        </div>
+
+                    </div>
 
                     <form
                         onSubmit={
@@ -5964,7 +6101,7 @@ export default function MiCuentaPage() {
                         }
 
                         className="
-                            mt-8
+                            mt-0
                         "
                     >
 

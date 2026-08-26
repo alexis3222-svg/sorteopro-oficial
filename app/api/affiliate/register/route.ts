@@ -39,6 +39,139 @@ function bad(
 
 
 /* ============================================================
+   GENERAR CÓDIGO DE AFILIADO DESDE EL CORREO
+
+   Ejemplo:
+   alexis3222@hotmail.com
+   -> alexis3222
+
+   Si ya existe:
+   -> alexis3222-2
+   -> alexis3222-3
+============================================================ */
+
+function getAffiliateCodeBase(
+    email: string
+): string {
+
+    const localPart =
+        String(
+            email
+                .split("@")[0] ??
+            ""
+        )
+            .trim()
+            .toLowerCase();
+
+
+    /*
+     * Dejamos únicamente letras y números
+     * para que el código sea fácil de compartir
+     * en enlaces y QR.
+     *
+     * Ejemplos:
+     * juan.perez@gmail.com -> juanperez
+     * maria_lopez@gmail.com -> marialopez
+     */
+    const sanitized =
+        localPart
+            .normalize("NFKD")
+            .replace(
+                /[\u0300-\u036f]/g,
+                ""
+            )
+            .replace(
+                /[^a-z0-9]/g,
+                ""
+            )
+            .slice(
+                0,
+                32
+            );
+
+
+    return sanitized ||
+        "baruk";
+}
+
+
+async function getAvailableAffiliateCode(
+    email: string
+): Promise<string> {
+
+    const base =
+        getAffiliateCodeBase(
+            email
+        );
+
+
+    /*
+     * El primer intento utiliza directamente
+     * el nombre del correo.
+     *
+     * Si ya existe, agregamos -2, -3, etc.
+     */
+    for (
+        let number = 1;
+        number <= 9999;
+        number += 1
+    ) {
+
+        const suffix =
+            number === 1
+                ? ""
+                : `-${number}`;
+
+
+        const candidate =
+            `${base}${suffix}`;
+
+
+        const {
+            data:
+            existing,
+
+            error:
+            existingError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "affiliates"
+                )
+                .select(
+                    "id"
+                )
+                .eq(
+                    "code",
+                    candidate
+                )
+                .maybeSingle();
+
+
+        if (
+            existingError
+        ) {
+
+            throw existingError;
+        }
+
+
+        if (
+            !existing
+        ) {
+
+            return candidate;
+        }
+    }
+
+
+    throw new Error(
+        "No se pudo generar un código de afiliado disponible"
+    );
+}
+
+
+/* ============================================================
    REGISTRO DE AFILIADOS HABILITADO / DESHABILITADO
 ============================================================ */
 
@@ -693,16 +826,23 @@ export async function POST(
            7. CREAR NUEVO PERFIL
         =====================================================
          *
-         * IMPORTANTE:
+         * El código se genera a partir de la parte
+         * anterior al @ del correo de Mi Cuenta.
          *
-         * NO enviamos "code".
+         * Ejemplo:
+         * alexis3222@hotmail.com
+         * -> alexis3222
          *
-         * PostgreSQL utilizará:
-         *
-         * next_affiliate_code()
-         *
-         * para generar un código único.
+         * Si ya existe:
+         * -> alexis3222-2
+         * -> alexis3222-3
          */
+
+        const affiliateCode =
+            await getAvailableAffiliateCode(
+                email
+            );
+
 
         const {
             data:
@@ -719,6 +859,9 @@ export async function POST(
 
                     user_id:
                         user.id,
+
+                    code:
+                        affiliateCode,
 
                     kind:
                         "socio",
@@ -773,19 +916,35 @@ export async function POST(
             );
 
 
+            /*
+             * La restricción UNIQUE de la base de datos
+             * sigue siendo la última protección ante una
+             * activación simultánea con el mismo código.
+             */
+            const duplicateCode =
+                insertError?.code ===
+                "23505";
+
+
             return NextResponse.json(
                 {
                     ok:
                         false,
 
                     error:
-                        insertError
-                            ?.message ??
-                        "No se pudo activar tu perfil de afiliado",
+                        duplicateCode
+                            ? "El código de afiliado acaba de ser utilizado. Intenta activar tu perfil nuevamente."
+                            : (
+                                insertError
+                                    ?.message ??
+                                "No se pudo activar tu perfil de afiliado"
+                            ),
                 },
                 {
                     status:
-                        500,
+                        duplicateCode
+                            ? 409
+                            : 500,
                 }
             );
         }

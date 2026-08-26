@@ -412,10 +412,10 @@ export function SiteHeader() {
                         "
                     >
                         <img
-                            src="/baruknaranja-04.svg"
+                            src="/barukgris-03.svg"
                             alt="Baruk593"
                             className="
-                                h-[31px]
+                                h-[25px]
                                 w-auto
 
                                 transition-transform
@@ -571,9 +571,6 @@ export function SiteHeader() {
                         >
                             Mi cuenta
 
-                            <span className="text-[#C1317F]">
-                                →
-                            </span>
                         </Link>
 
                         {/* COMPRAR */}
@@ -614,18 +611,6 @@ export function SiteHeader() {
                         >
                             Comprar
 
-                            <span
-                                className="
-                                    ml-2
-
-                                    transition-transform
-                                    duration-300
-
-                                    group-hover:translate-x-1
-                                "
-                            >
-                                →
-                            </span>
                         </button>
                     </div>
 

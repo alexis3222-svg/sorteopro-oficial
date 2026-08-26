@@ -255,8 +255,10 @@ export async function notificarRegaloPagado(
                     comprador_nombre,
 
                     destinatario_nombre,
-                    destinatario_correo,
                     destinatario_telefono,
+
+                    mensaje,
+                    token_reclamo,
 
                     whatsapp_status,
                     enviado_at
@@ -472,6 +474,21 @@ export async function notificarRegaloPagado(
             );
 
 
+        const personalMessage =
+            cleanTemplateValue(
+                gift
+                    .mensaje
+            ) ||
+            "¡Que disfrutes mucho tu regalo!";
+
+
+        const claimToken =
+            cleanTemplateValue(
+                gift
+                    .token_reclamo
+            );
+
+
         if (
             !recipientName
         ) {
@@ -507,6 +524,19 @@ export async function notificarRegaloPagado(
 
                 error:
                     "El destinatario no tiene un número de WhatsApp válido.",
+            };
+        }
+
+
+        if (
+            !claimToken
+        ) {
+
+            return {
+                ok: false,
+
+                error:
+                    "El regalo no tiene un token de reclamación válido.",
             };
         }
 
@@ -656,11 +686,13 @@ export async function notificarRegaloPagado(
 
 
         /*
-         * Plantilla:
+         * Plantilla Twilio Call to action:
          *
          * {{1}} destinatario
          * {{2}} comprador
-         * {{3}} cantidad
+         * {{3}} cantidad de Tarjetas de la Suerte
+         * {{4}} mensaje personalizado
+         * {{5}} token único para el botón de reclamación
          */
 
         body.set(
@@ -676,6 +708,12 @@ export async function notificarRegaloPagado(
                     String(
                         cantidad
                     ),
+
+                "4":
+                    personalMessage,
+
+                "5":
+                    claimToken,
             })
         );
 
@@ -855,6 +893,9 @@ export async function notificarRegaloPagado(
                     recipientPhone,
 
                 cantidad,
+
+                hasClaimToken:
+                    true,
             }
         );
 
