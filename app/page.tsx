@@ -2306,7 +2306,9 @@ export default function HomePage() {
                   text-[#C1317F]
                 "
                     >
-                      Compra segura
+                      {tipoCompra === "gift"
+                        ? "Regalo seguro"
+                        : "Compra segura"}
                     </p>
 
                     <h3
@@ -2318,11 +2320,15 @@ export default function HomePage() {
                   text-[#171717]
                 "
                     >
-                      Completa tu compra
+                      {tipoCompra === "gift"
+                        ? "Completa tu regalo"
+                        : "Completa tu compra"}
                     </h3>
 
                     <p className="mt-2 text-xs leading-5 text-slate-500">
-                      Ingresa tus datos y selecciona cómo deseas pagar.
+                      {tipoCompra === "gift"
+                        ? "Ahora ingresa tus datos como comprador y selecciona cómo deseas pagar."
+                        : "Ingresa tus datos y selecciona cómo deseas pagar."}
                     </p>
 
                   </div>
@@ -2343,17 +2349,41 @@ export default function HomePage() {
                 py-3.5
               "
                   >
-                    <div>
+                    <div className="min-w-0 pr-3">
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
-                        Tu compra
+                        {tipoCompra === "gift"
+                          ? "Tu regalo"
+                          : "Tu compra"}
                       </p>
 
                       <p className="mt-1 text-sm font-black text-[#171717]">
                         {selectedCantidad} Tarjetas de la Suerte
                       </p>
+
+                      {tipoCompra === "gift" && (
+                        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1">
+                          <p className="min-w-0 text-[10px] leading-4 text-slate-500">
+                            Para:{" "}
+                            <span className="font-black text-[#171717]">
+                              {destinatarioNombre || "Destinatario"}
+                            </span>
+                          </p>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsModalOpen(false);
+                              setOrderError(null);
+                            }}
+                            className="text-[10px] font-black text-[#C1317F] underline decoration-[#C1317F]/30 underline-offset-2 transition hover:text-[#171717]"
+                          >
+                            Editar
+                          </button>
+                        </div>
+                      )}
                     </div>
 
-                    <div className="text-right">
+                    <div className="shrink-0 text-right">
                       <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">
                         Total
                       </p>
@@ -2395,11 +2425,15 @@ export default function HomePage() {
 
                     <div>
                       <p className="text-sm font-black text-[#171717]">
-                        Tus datos
+                        {tipoCompra === "gift"
+                          ? "Tus datos como comprador"
+                          : "Tus datos"}
                       </p>
 
-                      <p className="text-[11px] text-slate-400">
-                        Información para identificar tu compra.
+                      <p className="text-[11px] leading-4 text-slate-400">
+                        {tipoCompra === "gift"
+                          ? "Estos datos corresponden a quien realiza el pago, no a la persona que recibirá el regalo."
+                          : "Información para identificar tu compra."}
                       </p>
                     </div>
 
@@ -2545,8 +2579,10 @@ export default function HomePage() {
                         Datos de facturación
                       </p>
 
-                      <p className="text-[11px] text-slate-400">
-                        Elige cómo deseas que se emita tu factura.
+                      <p className="text-[11px] leading-4 text-slate-400">
+                        {tipoCompra === "gift"
+                          ? "La factura corresponde a quien realiza la compra, no al destinatario del regalo."
+                          : "Elige cómo deseas que se emita tu factura."}
                       </p>
                     </div>
 
@@ -3243,7 +3279,9 @@ export default function HomePage() {
                         ? `Pagar $${totalPaquete.toFixed(2)} con saldo`
                         : metodoPago === "payphone"
                           ? `Continuar a PayPhone · $${totalPaquete.toFixed(2)}`
-                          : "Registrar pedido"}
+                          : tipoCompra === "gift"
+                            ? "Continuar con el regalo →"
+                            : "Continuar con la compra →"}
                   </button>
 
                   <button
