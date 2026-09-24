@@ -47,6 +47,7 @@ type AffiliateState = {
         totalSales: number;
         totalGenerated: number;
         totalCommission: number;
+        totalCardsSold: number;
     };
 
     wallet: {
@@ -55,6 +56,116 @@ type AffiliateState = {
         updatedAt: string | null;
     };
 };
+
+
+type AffiliateLevelInfo = {
+    name: "Inicial" | "Bronce" | "Plata" | "Oro" | "Élite";
+    emoji: string;
+    start: number;
+    nextGoal: number | null;
+    nextName: "Bronce" | "Plata" | "Oro" | "Élite" | null;
+    nextEmoji: string;
+    nextPercent: number | null;
+};
+
+
+function getAffiliateLevelInfo(
+    cardsSold: number
+): AffiliateLevelInfo {
+
+    if (cardsSold >= 5000) {
+        return {
+            name: "Élite",
+            emoji: "🏆",
+            start: 5000,
+            nextGoal: null,
+            nextName: null,
+            nextEmoji: "",
+            nextPercent: null,
+        };
+    }
+
+    if (cardsSold >= 2500) {
+        return {
+            name: "Oro",
+            emoji: "🥇",
+            start: 2500,
+            nextGoal: 5000,
+            nextName: "Élite",
+            nextEmoji: "🏆",
+            nextPercent: 14,
+        };
+    }
+
+    if (cardsSold >= 1000) {
+        return {
+            name: "Plata",
+            emoji: "🥈",
+            start: 1000,
+            nextGoal: 2500,
+            nextName: "Oro",
+            nextEmoji: "🥇",
+            nextPercent: 13,
+        };
+    }
+
+    if (cardsSold >= 500) {
+        return {
+            name: "Bronce",
+            emoji: "🥉",
+            start: 500,
+            nextGoal: 1000,
+            nextName: "Plata",
+            nextEmoji: "🥈",
+            nextPercent: 12,
+        };
+    }
+
+    return {
+        name: "Inicial",
+        emoji: "🚀",
+        start: 0,
+        nextGoal: 500,
+        nextName: "Bronce",
+        nextEmoji: "🥉",
+        nextPercent: 11,
+    };
+}
+
+
+function getAffiliateMotivation(
+    cardsSold: number,
+    level: AffiliateLevelInfo
+) {
+
+    if (
+        level.nextGoal === null ||
+        level.nextName === null ||
+        level.nextPercent === null
+    ) {
+        return "Llegaste al Nivel Élite. Alcanzaste la comisión máxima de Baruk593: 14 %.";
+    }
+
+    const remaining =
+        Math.max(
+            0,
+            level.nextGoal - cardsSold
+        );
+
+    if (remaining <= 25) {
+        return `🔥 Estás a solo ${remaining} Tarjetas de la Suerte del Nivel ${level.nextName}. Tu ${level.nextPercent} % está muy cerca.`;
+    }
+
+    if (remaining <= 100) {
+        return `🔥 Ya casi llegas al Nivel ${level.nextName}. Solo te faltan ${remaining} Tarjetas de la Suerte para desbloquear ${level.nextPercent} %.`;
+    }
+
+    if (level.name === "Inicial") {
+        return `Tu camino acaba de comenzar. Te faltan ${remaining} Tarjetas de la Suerte para conquistar el Nivel ${level.nextName} ${level.nextEmoji} y subir a ${level.nextPercent} %.`;
+    }
+
+    return `Sigue avanzando. Te faltan ${remaining} Tarjetas de la Suerte para llegar al Nivel ${level.nextName} ${level.nextEmoji} y desbloquear ${level.nextPercent} %.`;
+}
 
 
 export default function MiAfiliadoPage() {
@@ -221,6 +332,13 @@ export default function MiAfiliadoPage() {
                         Number(
                             data.sales
                                 ?.totalCommission ??
+                            0
+                        ),
+
+                    totalCardsSold:
+                        Number(
+                            data.sales
+                                ?.totalCardsSold ??
                             0
                         ),
                 },
@@ -614,7 +732,7 @@ export default function MiAfiliadoPage() {
                         "Baruk593",
 
                     text:
-                        "Descubre Baruk593 y consigue tus Experience Pass.",
+                        "Descubre Baruk593 y consigue tus Tarjetas de la Suerte.",
 
                     url:
                         link,
@@ -657,6 +775,51 @@ export default function MiAfiliadoPage() {
             </main>
         );
     }
+
+
+    /* =========================================================
+       NIVEL DEL AFILIADO
+    ========================================================= */
+
+    const totalCardsSold =
+        affiliateState
+            ?.sales
+            .totalCardsSold ??
+        0;
+
+    const levelInfo =
+        getAffiliateLevelInfo(
+            totalCardsSold
+        );
+
+    const levelProgress =
+        levelInfo.nextGoal === null
+            ? 100
+            : Math.max(
+                0,
+                Math.min(
+                    100,
+                    (
+                        (
+                            totalCardsSold -
+                            levelInfo.start
+                        )
+                        /
+                        Math.max(
+                            1,
+                            levelInfo.nextGoal -
+                            levelInfo.start
+                        )
+                    ) *
+                    100
+                )
+            );
+
+    const motivation =
+        getAffiliateMotivation(
+            totalCardsSold,
+            levelInfo
+        );
 
 
     /* =========================================================
@@ -840,58 +1003,167 @@ export default function MiAfiliadoPage() {
 
                     <>
 
-                        <div className="mt-8 grid grid-cols-2 gap-3 lg:grid-cols-4">
+                        {/* RESUMEN + NIVEL */}
 
-                            <AffiliateStat
-                                label="Código"
-                                value={
-                                    affiliateState
-                                        .affiliate
-                                        ?.code ??
-                                    "-"
-                                }
-                            />
+                        <section className="mt-10">
 
-                            <AffiliateStat
-                                label="Comisión"
-                                value={`${Math.round(
-                                    (
-                                        affiliateState
-                                            .affiliate
-                                            ?.commissionRate ??
-                                        0.10
-                                    ) *
-                                    100
-                                )}%`}
-                            />
+                            <div className="flex flex-col gap-6 border-b border-slate-200 pb-7 lg:flex-row lg:items-end lg:justify-between">
 
-                            <AffiliateStat
-                                label="Ventas"
-                                value={
-                                    String(
-                                        affiliateState
-                                            .sales
-                                            .totalSales
-                                    )
-                                }
-                            />
+                                <div>
 
-                            <AffiliateStat
-                                label="Comisiones"
-                                value={`$${affiliateState
-                                    .sales
-                                    .totalCommission
-                                    .toFixed(
-                                        2
-                                    )}`}
-                            />
+                                    <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
 
-                        </div>
+                                        <span className="text-2xl">
+                                            {levelInfo.emoji}
+                                        </span>
+
+                                        <p className="text-xs font-black uppercase tracking-[0.18em] text-[#C1317F]">
+                                            Nivel {levelInfo.name}
+                                        </p>
+
+                                        <span className="text-slate-300">
+                                            ·
+                                        </span>
+
+                                        <p className="text-sm font-black text-[#171717]">
+                                            {Math.round(
+                                                (
+                                                    affiliateState
+                                                        .affiliate
+                                                        ?.commissionRate ??
+                                                    0.10
+                                                ) *
+                                                100
+                                            )}% de comisión
+                                        </p>
+
+                                    </div>
+
+
+                                    <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">
+                                        {motivation}
+                                    </p>
+
+                                </div>
+
+
+                                <div className="flex flex-wrap gap-x-8 gap-y-4">
+
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                                            Tarjetas vendidas
+                                        </p>
+
+                                        <p className="mt-1 text-2xl font-black text-[#171717]">
+                                            {affiliateState
+                                                .sales
+                                                .totalCardsSold
+                                                .toLocaleString(
+                                                    "es-EC"
+                                                )}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                                            Ventas
+                                        </p>
+
+                                        <p className="mt-1 text-2xl font-black text-[#171717]">
+                                            {affiliateState
+                                                .sales
+                                                .totalSales}
+                                        </p>
+                                    </div>
+
+                                    <div>
+                                        <p className="text-[9px] font-black uppercase tracking-[0.14em] text-slate-400">
+                                            Comisiones
+                                        </p>
+
+                                        <p className="mt-1 text-2xl font-black text-[#171717]">
+                                            $
+                                            {affiliateState
+                                                .sales
+                                                .totalCommission
+                                                .toFixed(
+                                                    2
+                                                )}
+                                        </p>
+                                    </div>
+
+                                </div>
+
+                            </div>
+
+
+                            <div className="mt-5">
+
+                                <div className="flex items-center justify-between gap-4">
+
+                                    <p className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
+                                        Progreso de nivel
+                                    </p>
+
+                                    <p className="text-xs font-black text-[#C1317F]">
+
+                                        {levelInfo.nextGoal !== null
+                                            ? `${affiliateState.sales.totalCardsSold.toLocaleString(
+                                                "es-EC"
+                                            )} / ${levelInfo.nextGoal.toLocaleString(
+                                                "es-EC"
+                                            )}`
+                                            : "Nivel máximo"
+                                        }
+
+                                    </p>
+
+                                </div>
+
+
+                                <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-200">
+
+                                    <div
+                                        className="h-full rounded-full bg-[#C1317F] transition-all duration-700"
+                                        style={{
+                                            width:
+                                                `${levelProgress}%`,
+                                        }}
+                                    />
+
+                                </div>
+
+
+                                {levelInfo.nextGoal !== null &&
+                                    levelInfo.nextName !== null &&
+                                    levelInfo.nextPercent !== null && (
+
+                                        <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+
+                                            <span className="font-bold text-slate-500">
+                                                Próximo:{" "}
+                                                {levelInfo.nextEmoji}{" "}
+                                                Nivel{" "}
+                                                {levelInfo.nextName}
+                                            </span>
+
+                                            <span className="font-black text-[#ff6600]">
+                                                Desbloquea{" "}
+                                                {levelInfo.nextPercent}%
+                                            </span>
+
+                                        </div>
+
+                                    )}
+
+                            </div>
+
+                        </section>
 
 
                         {/* ENLACE */}
 
-                        <section className="mt-6 rounded-3xl border border-slate-200 bg-white p-6 md:p-8">
+                        <section className="mt-9 border-b border-slate-200 pb-8">
 
                             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-[#C1317F]">
                                 Tu enlace personal
@@ -980,15 +1252,15 @@ export default function MiAfiliadoPage() {
 
                         {/* BILLETERA */}
 
-                        <section className="mt-6 flex flex-col gap-5 rounded-3xl bg-[#171717] p-7 text-white sm:flex-row sm:items-center sm:justify-between">
+                        <section className="mt-8 flex flex-col gap-5 border-t border-slate-200 pt-7 sm:flex-row sm:items-end sm:justify-between">
 
                             <div>
 
-                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-white/50">
+                                <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-400">
                                     Mi Billetera Baruk593
                                 </p>
 
-                                <p className="mt-2 text-4xl font-black">
+                                <p className="mt-2 text-4xl font-black text-[#171717]">
                                     $
                                     {affiliateState
                                         .wallet
@@ -998,7 +1270,7 @@ export default function MiAfiliadoPage() {
                                         )}
                                 </p>
 
-                                <p className="mt-2 text-xs text-white/50">
+                                <p className="mt-2 text-xs text-slate-400">
                                     Saldo disponible
                                 </p>
 
@@ -1008,7 +1280,7 @@ export default function MiAfiliadoPage() {
                             <Link
                                 href="/mi-cuenta/billetera"
 
-                                className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-white px-5 text-sm font-black text-[#171717]"
+                                className="inline-flex min-h-[46px] items-center justify-center rounded-xl bg-[#171717] px-5 text-sm font-black text-white transition hover:bg-[#C1317F]"
                             >
                                 Ver mi billetera →
                             </Link>
@@ -1022,30 +1294,5 @@ export default function MiAfiliadoPage() {
             </div>
 
         </main>
-    );
-}
-
-
-function AffiliateStat({
-    label,
-    value,
-}: {
-    label: string;
-    value: string;
-}) {
-
-    return (
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5">
-
-            <p className="text-[9px] font-black uppercase tracking-[0.12em] text-slate-400">
-                {label}
-            </p>
-
-            <p className="mt-2 truncate text-xl font-black text-[#171717]">
-                {value}
-            </p>
-
-        </div>
     );
 }

@@ -8,6 +8,24 @@ export const dynamic = "force-dynamic";
 
 type TipoCompra = "self" | "gift";
 
+type FacturacionModo =
+    | "consumer_final"
+    | "identified";
+
+type FacturacionIdentificacionTipo =
+    | "CEDULA"
+    | "RUC"
+    | "PASSPORT";
+
+interface FacturacionInput {
+    tipo: FacturacionModo;
+    identificationType: FacturacionIdentificacionTipo | null;
+    identification: string | null;
+    legalName: string | null;
+    address: string | null;
+    email: string | null;
+}
+
 interface GiftInput {
     destinatarioNombre: string;
     destinatarioTelefono: string;
@@ -54,6 +72,78 @@ function normalizeText(value: unknown): string | null {
 
 function parseTipoCompra(value: unknown): TipoCompra {
     return value === "gift" ? "gift" : "self";
+}
+
+function isValidEmail(value: string | null): boolean {
+    return Boolean(
+        value &&
+        /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value),
+    );
+}
+
+function parseFacturacionInput(
+    body: Record<string, unknown>,
+    buyerEmail: string | null,
+): FacturacionInput {
+    const raw =
+        body.facturacion &&
+            typeof body.facturacion === "object"
+            ? (body.facturacion as Record<string, unknown>)
+            : {};
+
+    const tipo: FacturacionModo =
+        raw.tipo === "identified" ||
+            body.facturacion_tipo === "identified"
+            ? "identified"
+            : "consumer_final";
+
+    const identificationTypeRaw = String(
+        raw.identificationType ??
+        raw.identification_type ??
+        body.facturacion_identificacion_tipo ??
+        "",
+    )
+        .trim()
+        .toUpperCase();
+
+    const identificationType: FacturacionIdentificacionTipo | null =
+        identificationTypeRaw === "RUC" ||
+            identificationTypeRaw === "CEDULA" ||
+            identificationTypeRaw === "PASSPORT"
+            ? identificationTypeRaw
+            : null;
+
+    const identification = normalizeText(
+        raw.identification ??
+        body.facturacion_identificacion,
+    );
+
+    const legalName = normalizeText(
+        raw.legalName ??
+        raw.legal_name ??
+        body.facturacion_razon_social,
+    );
+
+    const address = normalizeText(
+        raw.address ??
+        raw.direccion ??
+        body.facturacion_direccion,
+    );
+
+    const email = normalizeEmail(
+        raw.email ??
+        body.facturacion_correo ??
+        buyerEmail,
+    );
+
+    return {
+        tipo,
+        identificationType,
+        identification,
+        legalName,
+        address,
+        email,
+    };
 }
 
 function getGiftInput(body: Record<string, unknown>): GiftInput {
@@ -139,6 +229,11 @@ export async function POST(req: NextRequest) {
         const tipoCompra = parseTipoCompra(
             body.tipoCompra ??
             body.tipo_compra,
+        );
+
+        const facturacion = parseFacturacionInput(
+            body,
+            correo,
         );
 
         const cardDesignId =
@@ -237,6 +332,136 @@ export async function POST(req: NextRequest) {
                 },
                 { status: 400 },
             );
+        }
+
+        if (!isValidEmail(correo)) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error: "El correo del comprador no es válido",
+                },
+                { status: 400 },
+            );
+        }
+
+        /*
+         * Datos de facturación.
+         *
+         * El backend no confía solo en la interfaz: si el total
+         * supera USD 50, exige identificación del adquirente.
+         */
+
+        if (
+            total > 50 &&
+            facturacion.tipo !== "identified"
+        ) {
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "Por el valor de la compra debes ingresar los datos para la factura",
+                },
+                { status: 400 },
+            );
+        }
+
+        if (facturacion.tipo === "identified") {
+            if (!facturacion.identificationType) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Selecciona el tipo de identificación para la factura",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (!facturacion.identification) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Falta la identificación para la factura",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (
+                facturacion.identificationType === "CEDULA" &&
+                !/^\d{10}$/.test(facturacion.identification)
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "La cédula debe tener 10 dígitos",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (
+                facturacion.identificationType === "RUC" &&
+                !/^\d{13}$/.test(facturacion.identification)
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "El RUC debe tener 13 dígitos",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (
+                facturacion.identificationType === "PASSPORT" &&
+                facturacion.identification.length < 3
+            ) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "El pasaporte ingresado no es válido",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (!facturacion.legalName) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Falta el nombre o razón social para la factura",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (!facturacion.address) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "Falta la dirección para la factura",
+                    },
+                    { status: 400 },
+                );
+            }
+
+            if (!isValidEmail(facturacion.email)) {
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            "El correo para la factura no es válido",
+                    },
+                    { status: 400 },
+                );
+            }
         }
 
         /*
@@ -384,6 +609,32 @@ export async function POST(req: NextRequest) {
 
             tipo_compra: tipoCompra,
             card_design_id: cardDesignId,
+
+            facturacion_tipo:
+                facturacion.tipo,
+
+            facturacion_identificacion_tipo:
+                facturacion.tipo === "identified"
+                    ? facturacion.identificationType
+                    : null,
+
+            facturacion_identificacion:
+                facturacion.tipo === "identified"
+                    ? facturacion.identification
+                    : null,
+
+            facturacion_razon_social:
+                facturacion.tipo === "identified"
+                    ? facturacion.legalName
+                    : null,
+
+            facturacion_direccion:
+                facturacion.tipo === "identified"
+                    ? facturacion.address
+                    : null,
+
+            facturacion_correo:
+                facturacion.email ?? correo,
 
             cards_processing_status: "pending",
             cards_processed_at: null,

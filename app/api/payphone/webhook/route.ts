@@ -313,7 +313,7 @@ async function reverseWithPayPhone(
 
 
 /* ============================================================
-   BARUK CARDS
+   TARJETAS DE LA SUERTE
    FLUJO EXISTENTE
 ============================================================ */
 
@@ -708,7 +708,7 @@ async function processCardsPayment(
 
 
     /* ========================================================
-       7. PROCESAR EXPERIENCE PASS
+       7. PROCESAR TARJETAS
     ======================================================== */
 
     const processing =
@@ -1681,7 +1681,7 @@ async function processPayment(
      * SHOP-BS-2026-001001
      *
      * Las transacciones antiguas siguen
-     * entrando al flujo de Baruk Cards.
+     * entrando al flujo de Tarjetas.
      */
 
     /*
@@ -1715,8 +1715,8 @@ async function processPayment(
 
 
     /*
-     * EXPERIENCE PASS / BARUK CARDS
-     */
+ * TARJETAS DE LA SUERTE
+ */
     return processCardsPayment(
         id,
         clientTxId
@@ -1873,7 +1873,7 @@ export async function GET(
 
 
     /* ========================================================
-   EXPERIENCE PASS / BARUK CARDS
+  TARJETAS DE LA SUERTE
 ======================================================== */
 
     if (

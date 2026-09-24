@@ -27,6 +27,15 @@ type MetodoPago =
   | "payphone"
   | "wallet";
 
+type FacturacionModo =
+  | "consumer_final"
+  | "identified";
+
+type FacturacionIdentificacionTipo =
+  | "CEDULA"
+  | "RUC"
+  | "PASSPORT";
+
 type NumeroAsignado = {
   numero: string | number;
 };
@@ -73,6 +82,25 @@ export default function HomePage() {
   const [correoCliente, setCorreoCliente] = useState("");
   const [tipoCompra, setTipoCompra] =
     useState<TipoCompra>("self");
+
+  // Datos de facturación.
+  const [facturacionModo, setFacturacionModo] =
+    useState<FacturacionModo>("consumer_final");
+
+  const [facturacionIdentificacionTipo, setFacturacionIdentificacionTipo] =
+    useState<FacturacionIdentificacionTipo>("CEDULA");
+
+  const [facturacionIdentificacion, setFacturacionIdentificacion] =
+    useState("");
+
+  const [facturacionRazonSocial, setFacturacionRazonSocial] =
+    useState("");
+
+  const [facturacionCorreo, setFacturacionCorreo] =
+    useState("");
+
+  const [facturacionDireccion, setFacturacionDireccion] =
+    useState("");
 
   const [destinatarioNombre, setDestinatarioNombre] =
     useState("");
@@ -255,6 +283,14 @@ export default function HomePage() {
     // Tipo de compra.
     setTipoCompra("self");
 
+    // Datos de facturación.
+    setFacturacionModo("consumer_final");
+    setFacturacionIdentificacionTipo("CEDULA");
+    setFacturacionIdentificacion("");
+    setFacturacionRazonSocial("");
+    setFacturacionCorreo("");
+    setFacturacionDireccion("");
+
     // Datos del destinatario.
     setDestinatarioNombre("");
     setDestinatarioTelefono("");
@@ -274,6 +310,37 @@ export default function HomePage() {
 
   const totalPaquete =
     selectedCantidad != null ? selectedCantidad * precioUnidad : 0;
+
+  /*
+   * Por ahora mantenemos el umbral definido para el checkout:
+   * hasta $50 puede emitirse como consumidor final; sobre $50
+   * solicitamos identificación del adquirente.
+   *
+   * El backend vuelve a validar esta regla.
+   */
+  const requiereDatosFacturacion =
+    totalPaquete > 50;
+
+  const facturaConDatos =
+    requiereDatosFacturacion ||
+    facturacionModo === "identified";
+
+  function seleccionarFacturaConDatos() {
+    setFacturacionModo("identified");
+    setOrderError(null);
+
+    if (!facturacionRazonSocial.trim()) {
+      setFacturacionRazonSocial(
+        nombreCliente.trim()
+      );
+    }
+
+    if (!facturacionCorreo.trim()) {
+      setFacturacionCorreo(
+        correoCliente.trim().toLowerCase()
+      );
+    }
+  }
 
   /* ============================================================
      SELECCIONAR BILLETERA BARUK593
@@ -472,6 +539,37 @@ export default function HomePage() {
 
         /*
          * ============================================
+         * DATOS DE FACTURACIÓN
+         * ============================================
+         */
+
+        facturacion: facturaConDatos
+          ? {
+            tipo: "identified",
+            identificationType:
+              facturacionIdentificacionTipo,
+            identification:
+              facturacionIdentificacion.trim(),
+            legalName:
+              facturacionRazonSocial.trim(),
+            address:
+              facturacionDireccion.trim(),
+            email:
+              (facturacionCorreo.trim() || correoCliente.trim())
+                .toLowerCase(),
+          }
+          : {
+            tipo: "consumer_final",
+            identificationType: null,
+            identification: null,
+            legalName: null,
+            address: null,
+            email:
+              correoCliente.trim().toLowerCase(),
+          },
+
+        /*
+         * ============================================
          * COMPRA NORMAL / REGALO
          * ============================================
          */
@@ -556,6 +654,86 @@ export default function HomePage() {
     if (!correoValido) {
       setOrderError("Ingresa un correo electrónico válido.");
       return;
+    }
+
+    /*
+     * =====================================================
+     * VALIDACIONES DE FACTURACIÓN
+     * =====================================================
+     */
+
+    if (requiereDatosFacturacion && !facturaConDatos) {
+      setOrderError(
+        "Por el valor de la compra debes ingresar los datos para la factura."
+      );
+      return;
+    }
+
+    if (facturaConDatos) {
+      const identificacion =
+        facturacionIdentificacion.trim().toUpperCase();
+
+      if (!identificacion) {
+        setOrderError(
+          "Ingresa la cédula, RUC o pasaporte para la factura."
+        );
+        return;
+      }
+
+      if (
+        facturacionIdentificacionTipo === "CEDULA" &&
+        !/^\d{10}$/.test(identificacion)
+      ) {
+        setOrderError(
+          "La cédula debe tener 10 dígitos."
+        );
+        return;
+      }
+
+      if (
+        facturacionIdentificacionTipo === "RUC" &&
+        !/^\d{13}$/.test(identificacion)
+      ) {
+        setOrderError(
+          "El RUC debe tener 13 dígitos."
+        );
+        return;
+      }
+
+      if (
+        facturacionIdentificacionTipo === "PASSPORT" &&
+        identificacion.length < 3
+      ) {
+        setOrderError(
+          "Ingresa un pasaporte válido."
+        );
+        return;
+      }
+
+      if (!facturacionRazonSocial.trim()) {
+        setOrderError(
+          "Ingresa el nombre o razón social para la factura."
+        );
+        return;
+      }
+
+      if (!facturacionDireccion.trim()) {
+        setOrderError(
+          "Ingresa la dirección para la factura."
+        );
+        return;
+      }
+
+      const emailFactura =
+        (facturacionCorreo.trim() || correoCliente.trim())
+          .toLowerCase();
+
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailFactura)) {
+        setOrderError(
+          "Ingresa un correo válido para la factura."
+        );
+        return;
+      }
     }
 
     /*
@@ -2338,6 +2516,240 @@ export default function HomePage() {
                 <div className="h-px bg-slate-100" />
 
                 {/* =================================================
+              DATOS DE FACTURACIÓN
+          ================================================= */}
+
+                <div className="px-6 py-5 md:px-7">
+
+                  <div className="mb-4 flex items-center gap-3">
+
+                    <div
+                      className="
+                  flex
+                  h-8
+                  w-8
+                  items-center
+                  justify-center
+                  rounded-xl
+                  bg-[#171717]
+                  text-xs
+                  font-black
+                  text-white
+                "
+                    >
+                      2
+                    </div>
+
+                    <div>
+                      <p className="text-sm font-black text-[#171717]">
+                        Datos de facturación
+                      </p>
+
+                      <p className="text-[11px] text-slate-400">
+                        Elige cómo deseas que se emita tu factura.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  {requiereDatosFacturacion && (
+                    <p className="mb-3 text-[10px] font-bold leading-5 text-amber-700">
+                      Por el valor de esta compra se requieren los datos del adquirente.
+                    </p>
+                  )}
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <label
+                      className={`
+                  flex
+                  min-h-[48px]
+                  items-center
+                  gap-2
+                  rounded-xl
+                  border
+                  px-3
+                  text-[11px]
+                  font-black
+                  transition
+                  ${!facturaConDatos
+                          ? "border-[#C1317F] bg-[#C1317F]/[0.05] text-[#C1317F]"
+                          : "border-slate-200 bg-white text-slate-600"
+                        }
+                  ${requiereDatosFacturacion
+                          ? "cursor-not-allowed opacity-45"
+                          : "cursor-pointer"
+                        }
+                `}
+                    >
+                      <input
+                        type="radio"
+                        name="facturacion_modo"
+                        checked={!facturaConDatos}
+                        disabled={requiereDatosFacturacion}
+                        onChange={() => {
+                          setFacturacionModo("consumer_final");
+                          setOrderError(null);
+                        }}
+                        className="h-4 w-4 accent-[#C1317F]"
+                      />
+                      Consumidor final
+                    </label>
+
+                    <label
+                      className={`
+                  flex
+                  min-h-[48px]
+                  cursor-pointer
+                  items-center
+                  gap-2
+                  rounded-xl
+                  border
+                  px-3
+                  text-[11px]
+                  font-black
+                  transition
+                  ${facturaConDatos
+                          ? "border-[#C1317F] bg-[#C1317F]/[0.05] text-[#C1317F]"
+                          : "border-slate-200 bg-white text-slate-600"
+                        }
+                `}
+                    >
+                      <input
+                        type="radio"
+                        name="facturacion_modo"
+                        checked={facturaConDatos}
+                        onChange={seleccionarFacturaConDatos}
+                        className="h-4 w-4 accent-[#C1317F]"
+                      />
+                      Factura con mis datos
+                    </label>
+                  </div>
+
+                  {facturaConDatos && (
+                    <div className="mt-4 space-y-3">
+
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                            Tipo de identificación
+                          </label>
+
+                          <select
+                            value={facturacionIdentificacionTipo}
+                            onChange={(e) => {
+                              setFacturacionIdentificacionTipo(
+                                e.target.value as FacturacionIdentificacionTipo
+                              );
+                              setFacturacionIdentificacion("");
+                            }}
+                            className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-[#fafafa] px-3 text-sm text-[#171717] outline-none transition focus:border-[#C1317F] focus:bg-white"
+                          >
+                            <option value="CEDULA">Cédula</option>
+                            <option value="RUC">RUC</option>
+                            <option value="PASSPORT">Pasaporte</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                            Identificación
+                          </label>
+
+                          <input
+                            type="text"
+                            inputMode={
+                              facturacionIdentificacionTipo === "PASSPORT"
+                                ? "text"
+                                : "numeric"
+                            }
+                            value={facturacionIdentificacion}
+                            onChange={(e) =>
+                              setFacturacionIdentificacion(
+                                facturacionIdentificacionTipo === "PASSPORT"
+                                  ? e.target.value.toUpperCase()
+                                  : e.target.value.replace(/\D/g, "")
+                              )
+                            }
+                            maxLength={
+                              facturacionIdentificacionTipo === "RUC"
+                                ? 13
+                                : facturacionIdentificacionTipo === "CEDULA"
+                                  ? 10
+                                  : 20
+                            }
+                            placeholder={
+                              facturacionIdentificacionTipo === "RUC"
+                                ? "13 dígitos"
+                                : facturacionIdentificacionTipo === "CEDULA"
+                                  ? "10 dígitos"
+                                  : "Número de pasaporte"
+                            }
+                            className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-[#fafafa] px-4 text-sm text-[#171717] outline-none transition placeholder:text-slate-300 focus:border-[#C1317F] focus:bg-white"
+                          />
+                        </div>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                          Nombres / Razón social
+                        </label>
+
+                        <input
+                          type="text"
+                          value={facturacionRazonSocial}
+                          onChange={(e) =>
+                            setFacturacionRazonSocial(e.target.value)
+                          }
+                          placeholder="Nombre completo o razón social"
+                          className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-[#fafafa] px-4 text-sm text-[#171717] outline-none transition placeholder:text-slate-300 focus:border-[#C1317F] focus:bg-white"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                          Dirección
+                        </label>
+
+                        <input
+                          type="text"
+                          value={facturacionDireccion}
+                          onChange={(e) =>
+                            setFacturacionDireccion(e.target.value)
+                          }
+                          placeholder="Ej: El Reventador, Sucumbíos"
+                          autoComplete="street-address"
+                          className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-[#fafafa] px-4 text-sm text-[#171717] outline-none transition placeholder:text-slate-300 focus:border-[#C1317F] focus:bg-white"
+                        />
+
+                        <p className="mt-1 text-[9px] leading-4 text-slate-400">
+                          Esta dirección aparecerá en tu factura.
+                        </p>
+                      </div>
+
+                      <div>
+                        <label className="mb-1.5 block text-[11px] font-bold text-slate-600">
+                          Correo para la factura
+                        </label>
+
+                        <input
+                          type="email"
+                          value={facturacionCorreo}
+                          onChange={(e) =>
+                            setFacturacionCorreo(e.target.value)
+                          }
+                          placeholder={correoCliente || "correo@ejemplo.com"}
+                          className="min-h-[48px] w-full rounded-xl border border-slate-200 bg-[#fafafa] px-4 text-sm text-[#171717] outline-none transition placeholder:text-slate-300 focus:border-[#C1317F] focus:bg-white"
+                        />
+                      </div>
+
+                    </div>
+                  )}
+
+                </div>
+
+                <div className="h-px bg-slate-100" />
+
+                {/* =================================================
               MÉTODO DE PAGO
           ================================================= */}
 
@@ -2359,7 +2771,7 @@ export default function HomePage() {
                   text-white
                 "
                     >
-                      2
+                      3
                     </div>
 
                     <div>
@@ -2986,7 +3398,7 @@ export default function HomePage() {
                       </span>
 
                       <span className="text-xs font-black text-[#171717]">
-                        Ahorros
+                        Corriente
                       </span>
                     </div>
 
@@ -2996,20 +3408,42 @@ export default function HomePage() {
                       </span>
 
                       <span className="text-xs font-black text-[#171717]">
-                        0048055945
+                        0010254450
                       </span>
                     </div>
 
                     <div className="h-px bg-slate-200" />
 
-                    <div>
-                      <span className="text-xs text-slate-400">
-                        Titular
-                      </span>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-xs text-slate-400">
+                          Titular
+                        </span>
 
-                      <p className="mt-1 text-xs font-black text-[#171717]">
-                        Alexis Amaguay Vásquez · Baruk593
-                      </p>
+                        <p className="mt-1 text-xs font-black text-[#171717]">
+                          ECUABARUK COMPANY S.A.S.
+                        </p>
+                      </div>
+
+                      <div className="flex justify-between gap-4">
+                        <span className="text-xs text-slate-400">
+                          RUC
+                        </span>
+
+                        <span className="text-xs font-black text-[#171717]">
+                          2191775511001
+                        </span>
+                      </div>
+
+                      <div className="flex items-start justify-between gap-4">
+                        <span className="text-xs text-slate-400">
+                          Correo
+                        </span>
+
+                        <span className="break-all text-right text-xs font-black text-[#171717]">
+                          administracion@baruk593.com
+                        </span>
+                      </div>
                     </div>
 
                   </div>
@@ -3018,7 +3452,9 @@ export default function HomePage() {
                 {/* WHATSAPP */}
 
                 <a
-                  href="https://wa.me/593990575984"
+                  href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_COMPROBANTES || "593986261763"}?text=${encodeURIComponent(
+                    `Hola Baruk593, adjunto el comprobante de mi transferencia por $${totalPaquete.toFixed(2)} correspondiente a ${selectedCantidad} Tarjetas de la Suerte.`
+                  )}`}
                   target="_blank"
                   rel="noreferrer"
                   className="

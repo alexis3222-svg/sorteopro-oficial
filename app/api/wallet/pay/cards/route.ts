@@ -390,7 +390,7 @@ export async function POST(
 
 
         /* =====================================================
-           4. PROCESAR EXPERIENCE PASS
+           4. PROCESAR TARJETAS
 
            Reutilizamos exactamente el motor que ya utiliza
            PayPhone después de confirmar un pago.
@@ -442,7 +442,7 @@ export async function POST(
                     payment,
 
                     error:
-                        "El pago fue confirmado, pero las Experience Pass todavía están terminando de procesarse.",
+                        "El pago fue confirmado, pero las Tarjetas todavía están terminando de procesarse.",
 
                     code:
                         "CARDS_PROCESSING_PENDING",

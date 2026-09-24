@@ -570,13 +570,13 @@ export async function GET(
             );
 
         /* =====================================================
-           5. CARGAR EXPERIENCE PASS DEL USUARIO
+           5. CARGAR TARJETAS DEL USUARIO
         ===================================================== */
 
         /*
          * Seguimos cargándolas para:
          *
-         * - total de Experience Pass
+         * - total de Tarjetas
          * - total reveladas
          * - premios instantáneos
          *
@@ -610,7 +610,7 @@ export async function GET(
         if (cardsError) {
 
             console.error(
-                "Error consultando Experience Pass:",
+                "Error consultando Tarjetas:",
                 cardsError
             );
 
@@ -619,7 +619,7 @@ export async function GET(
                     ok: false,
 
                     error:
-                        "No se pudieron consultar tus Experience Pass",
+                        "No se pudieron consultar tus Tarjetas",
                 },
                 {
                     status: 500,
@@ -634,7 +634,7 @@ export async function GET(
             ) as BarukCardRow[];
 
         /* =====================================================
-           6. EXPERIENCE PASS VÁLIDAS
+           6. TARJETAS VÁLIDAS
         ===================================================== */
 
         const validCards =
@@ -754,14 +754,14 @@ export async function GET(
             ) as SphereInstanceRow[];
 
         /* =====================================================
-           9. OBTENER EXPERIENCE PASS DE ORIGEN
+           9. OBTENER TARJETAS DE ORIGEN
         ===================================================== */
 
         /*
          * Una F1 Sphere se crea cuando se asigna
          * el extra, pero NO debemos mostrarla
          * antes de que el usuario revele
-         * la Experience Pass.
+         * la Tarjetas.
          *
          * Por eso comprobamos revealed = true
          * en la tarjeta que originó la esfera.
@@ -824,7 +824,7 @@ export async function GET(
             ) {
 
                 console.error(
-                    "Error consultando Experience Pass de origen:",
+                    "Error consultando Tarjetas de origen:",
                     originCardsError
                 );
 
@@ -894,7 +894,7 @@ export async function GET(
 
                     /*
                      * No mostramos la esfera
-                     * hasta revelar su Experience Pass.
+                     * hasta revelar su tarjetas.
                      */
                     if (
                         !originCard ||

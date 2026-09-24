@@ -145,7 +145,7 @@ export async function GET(
 
         if (cardsError) {
             console.error(
-                "Error consultando Baruk Cards:",
+                "Error consultando Tarjetas:",
                 cardsError
             );
 
@@ -153,7 +153,7 @@ export async function GET(
                 {
                     ok: false,
                     error:
-                        "No se pudieron consultar tus Baruk Cards",
+                        "No se pudieron consultar tus Tarjetas",
                 },
                 {
                     status: 500,
@@ -217,7 +217,7 @@ export async function GET(
                     error instanceof
                         Error
                         ? error.message
-                        : "Error interno al consultar tus Baruk Cards",
+                        : "Error interno al consultar tus Tarjetas",
             },
             {
                 status: 500,

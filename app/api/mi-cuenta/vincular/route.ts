@@ -166,7 +166,7 @@ export async function POST(
 
 
         /* =====================================================
-           2. VINCULAR EXPERIENCE PASS
+           2. VINCULAR TARJETAS
         ===================================================== */
 
         /*
@@ -228,7 +228,7 @@ export async function POST(
                     ok: false,
 
                     error:
-                        "No se pudieron vincular las Experience Pass",
+                        "No se pudieron vincular las Tarjetas",
                 },
                 {
                     status: 500,
@@ -397,7 +397,7 @@ export async function POST(
 
         /*
          * Las esferas pueden haber sido asignadas
-         * cuando la Experience Pass todavía no
+         * cuando la Tarjeta todavía no
          * tenía owner_user_id.
          *
          * Vinculamos SOLAMENTE las instancias

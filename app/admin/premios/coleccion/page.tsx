@@ -1192,7 +1192,7 @@ export default function AdminCollectionRewardPage() {
                                                 )
                                             }
 
-                                            placeholder="Ej.: iPhone 17 Pro Max 256 GB"
+                                            placeholder="Ej.: iPhone 18 Pro Max 256 GB"
 
                                             className="
                                                 mt-2

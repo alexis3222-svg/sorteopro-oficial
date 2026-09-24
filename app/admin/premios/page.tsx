@@ -201,7 +201,7 @@ function getPrizeTypeLabel(
 ) {
     switch (type) {
         case "digital_cards":
-            return "Baruk Cards";
+            return "Tarjetas";
 
         case "cash":
             return "Efectivo";
@@ -952,7 +952,7 @@ export default function AdminPremiosPage() {
 
                         <p className="mt-3 max-w-2xl text-sm leading-6 text-slate-400">
                             Gestiona los premios instantáneos obtenidos
-                            mediante Baruk Cards y los premios especiales
+                            mediante Tarjetas y los premios especiales
                             por completar la F1 Sphere Collection de 11 escuderías.                        </p>
                     </div>
 
@@ -1169,7 +1169,7 @@ export default function AdminPremiosPage() {
                                     <div className="flex items-center justify-between gap-3">
                                         <div>
                                             <p className="text-xs font-bold uppercase tracking-[0.2em] text-orange-400">
-                                                Baruk Cards
+                                                Tarjetas
                                             </p>
 
                                             <h2 className="mt-1 text-xl font-black text-white">
@@ -1325,7 +1325,7 @@ export default function AdminPremiosPage() {
                                                                                             .prize
                                                                                             .cardQuantity
                                                                                     }{" "}
-                                                                                    Baruk Cards
+                                                                                    Tarjetas
                                                                                 </strong>
                                                                             </p>
 

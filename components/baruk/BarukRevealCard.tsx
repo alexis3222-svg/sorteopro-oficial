@@ -650,7 +650,7 @@ export default function BarukRevealCard({
 
                 /*
                  * Obtener exclusivamente el resultado
-                 * de ESTA Experience Pass.
+                 * de ESTA Tarjeta.
                  */
 
                 const cardResult =
@@ -974,8 +974,8 @@ export default function BarukRevealCard({
                     }
                     aria-label={
                         revealed
-                            ? "Experience Pass Baruk593 activado"
-                            : "Activar Experience Pass Baruk593"
+                            ? "Tarjeta de la Suerte Baruk593 activada"
+                            : "Activar Tarjeta de la Suerte Baruk593"
                     }
                 >
 
@@ -1038,7 +1038,7 @@ export default function BarukRevealCard({
                                 </div>
 
                                 <div className="baruk-pass-id">
-                                    PASS /{" "}
+                                    TARJETA /{" "}
                                     {passCode}
                                 </div>
 
@@ -1049,7 +1049,7 @@ export default function BarukRevealCard({
                             <div className="baruk-pass-center">
 
                                 <p className="baruk-experience-label">
-                                    EXPERIENCE PASS
+                                    TARJETA DE LA SUERTE
                                 </p>
 
                                 <div className="baruk-power">
@@ -1253,7 +1253,7 @@ export default function BarukRevealCard({
                                 <div className="baruk-footer-wordmark">
                                     BARUK593
                                     <i />
-                                    EXPERIENCE
+                                    SUERTE
                                 </div>
 
                             </footer>
@@ -1286,7 +1286,7 @@ export default function BarukRevealCard({
                     ? "Acceso activado. Tu resultado quedó guardado en Baruk593."
 
                     : loading
-                        ? "Encendiendo tu Experience Pass..."
+                        ? "Encendiendo tu Tarjeta de la Suerte..."
 
                         : "Presiona la tarjeta para activar tu acceso."}
 

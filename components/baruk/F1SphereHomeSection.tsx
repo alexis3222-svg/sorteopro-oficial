@@ -1,4 +1,4 @@
-"use client";
+
 
 import {
     useEffect,
@@ -79,7 +79,7 @@ type CollectionResponse = {
  */
 
 const IPHONE_IMAGE =
-    "/f1/iphone-17-pro-max-orange.png";
+    "/f1/iphone-18-pro-max-orange.png";
 
 
 export default function F1SphereHomeSection() {
@@ -93,22 +93,6 @@ export default function F1SphereHomeSection() {
         >(
             []
         );
-
-
-    const [
-        reward,
-        setReward,
-    ] =
-        useState<Reward>({
-            name:
-                "iPhone 17 Pro Max 256 GB",
-
-            description:
-                "Completa las 11 F1 Spheres diferentes y reclama el premio de la colección.",
-
-            requiredSpheres:
-                11,
-        });
 
 
     const [
@@ -176,14 +160,6 @@ export default function F1SphereHomeSection() {
                         );
 
 
-                        if (
-                            data.reward
-                        ) {
-
-                            setReward(
-                                data.reward
-                            );
-                        }
                     }
 
 
@@ -240,105 +216,6 @@ export default function F1SphereHomeSection() {
                 lg:py-20
             "
         >
-
-            {/* =================================================
-                FONDO DECORATIVO
-            ================================================= */}
-
-            <div
-                className="
-                    pointer-events-none
-                    absolute
-                    inset-0
-                    overflow-hidden
-                "
-            >
-
-                <div
-                    className="
-                        absolute
-                        right-[-120px]
-                        top-[120px]
-                        h-[380px]
-                        w-[380px]
-                        rounded-full
-                        bg-[#ff6600]/[0.055]
-                        blur-[90px]
-                    "
-                />
-
-
-                <div
-                    className="
-                        absolute
-                        right-[8%]
-                        top-[20%]
-                        h-[260px]
-                        w-[260px]
-                        rounded-full
-                        bg-[#C1317F]/[0.04]
-                        blur-[80px]
-                    "
-                />
-
-
-                {/* LÍNEAS DINÁMICAS */}
-
-                <div
-                    className="
-                        absolute
-                        right-[-8%]
-                        top-[38%]
-                        hidden
-                        h-[2px]
-                        w-[46%]
-                        -rotate-[20deg]
-                        bg-gradient-to-r
-                        from-transparent
-                        via-[#ff6600]/60
-                        to-transparent
-                        lg:block
-                    "
-                />
-
-
-                <div
-                    className="
-                        absolute
-                        right-[-3%]
-                        top-[48%]
-                        hidden
-                        h-px
-                        w-[43%]
-                        -rotate-[20deg]
-                        bg-gradient-to-r
-                        from-transparent
-                        via-[#C1317F]/45
-                        to-transparent
-                        lg:block
-                    "
-                />
-
-
-                <div
-                    className="
-                        absolute
-                        right-[1%]
-                        top-[57%]
-                        hidden
-                        h-px
-                        w-[37%]
-                        -rotate-[20deg]
-                        bg-gradient-to-r
-                        from-transparent
-                        via-[#ff6600]/30
-                        to-transparent
-                        lg:block
-                    "
-                />
-
-            </div>
-
 
             <div
                 className="
@@ -457,7 +334,7 @@ export default function F1SphereHomeSection() {
                                 md:text-[58px]
                             "
                         >
-                            iPhone 17 Pro Max
+                            iPhone 18 Pro Max
                         </p>
 
 
@@ -471,7 +348,7 @@ export default function F1SphereHomeSection() {
                                 sm:text-[15px]
                             "
                         >
-                            Cada Tarjeta puede esconder una F1 Sphere.
+                            Cada Tarjeta puede esconder una esfera de la F1.
                             Completa las 11 escuderías diferentes y reclama el
                             premio de la colección.
                         </p>
@@ -871,7 +748,7 @@ export default function F1SphereHomeSection() {
 
 
                     {/* =================================================
-                        DERECHA — IPHONE SIN TARJETA/FONDO
+                        DERECHA — IPHONE LIMPIO
                     ================================================= */}
 
                     <div
@@ -888,25 +765,6 @@ export default function F1SphereHomeSection() {
                         "
                     >
 
-                        {/* BRILLO DETRÁS */}
-
-                        <div
-                            className="
-                                pointer-events-none
-                                absolute
-                                left-1/2
-                                top-1/2
-                                h-[65%]
-                                w-[65%]
-                                -translate-x-1/2
-                                -translate-y-1/2
-                                rounded-full
-                                bg-[#ff6600]/10
-                                blur-[65px]
-                            "
-                        />
-
-
                         {/* IPHONE */}
 
                         <img
@@ -915,7 +773,7 @@ export default function F1SphereHomeSection() {
                             }
 
                             alt={
-                                "iPhone 17 Pro Max naranja, premio F1 Sphere Collection"
+                                "iPhone 18 Pro Max, premio F1 Sphere Collection"
                             }
 
                             draggable={
@@ -944,157 +802,6 @@ export default function F1SphereHomeSection() {
                         />
 
 
-                        {/* =================================================
-                            INFO PREMIO
-                        ================================================= */}
-
-                        <div
-                            className="
-                                absolute
-                                bottom-2
-                                left-1/2
-                                z-20
-                                flex
-                                w-[min(100%,360px)]
-                                -translate-x-1/2
-                                items-center
-                                justify-between
-                                gap-4
-
-                                rounded-[18px]
-                                border
-                                border-slate-200/80
-                                bg-white/90
-                                px-4
-                                py-3
-                                shadow-[0_14px_40px_rgba(0,0,0,0.08)]
-                                backdrop-blur
-
-                                lg:bottom-6
-                            "
-                        >
-
-                            <div
-                                className="
-                                    flex
-                                    items-center
-                                    gap-3
-                                "
-                            >
-
-                                <div
-                                    className="
-                                        flex
-                                        h-10
-                                        w-10
-                                        shrink-0
-                                        items-center
-                                        justify-center
-                                        rounded-xl
-                                        bg-[#ff6600]/10
-                                        text-[#ff6600]
-                                    "
-                                >
-
-                                    <svg
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        className="h-5 w-5"
-                                    >
-
-                                        <path
-                                            d="M8 4h8v3a4 4 0 0 1-8 0V4Z"
-                                            stroke="currentColor"
-                                            strokeWidth="1.7"
-                                        />
-
-                                        <path
-                                            d="M8 6H5v1a4 4 0 0 0 4 4M16 6h3v1a4 4 0 0 1-4 4M12 11v5M9 20h6M10 16h4"
-                                            stroke="currentColor"
-                                            strokeWidth="1.7"
-                                            strokeLinecap="round"
-                                        />
-
-                                    </svg>
-
-                                </div>
-
-
-                                <div
-                                    className="
-                                        min-w-0
-                                    "
-                                >
-
-                                    <p
-                                        className="
-                                            text-[9px]
-                                            font-black
-                                            uppercase
-                                            tracking-[0.13em]
-                                            text-slate-400
-                                        "
-                                    >
-                                        Premio de colección
-                                    </p>
-
-
-                                    <p
-                                        className="
-                                            mt-0.5
-                                            truncate
-                                            text-xs
-                                            font-black
-                                            text-[#171717]
-                                        "
-                                    >
-                                        {
-                                            reward.name
-                                        }
-                                    </p>
-
-                                </div>
-
-                            </div>
-
-
-                            <div
-                                className="
-                                    shrink-0
-                                    border-l
-                                    border-slate-200
-                                    pl-4
-                                    text-right
-                                "
-                            >
-
-                                <p
-                                    className="
-                                        text-xl
-                                        font-black
-                                        tracking-[-0.04em]
-                                        text-[#ff6600]
-                                    "
-                                >
-                                    11
-                                </p>
-
-
-                                <p
-                                    className="
-                                        text-[8px]
-                                        font-bold
-                                        uppercase
-                                        tracking-[0.08em]
-                                        text-slate-400
-                                    "
-                                >
-                                    únicas
-                                </p>
-
-                            </div>
-
-                        </div>
 
                     </div>
 

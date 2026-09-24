@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
 import BarukRevealCard from "@/components/baruk/BarukRevealCard";
+import { supabaseBrowser } from "@/lib/supabaseClient";
 
 type Pedido = {
     id: number;
@@ -54,11 +55,19 @@ type MiCompraResponse = {
 export default function MiCompraClient() {
     const searchParams = useSearchParams();
 
+    const pedidoId =
+        searchParams.get("pedido") ||
+        "";
+
     const tx =
         searchParams.get("tx") ||
         searchParams.get("clientTransactionId") ||
         searchParams.get("id") ||
         "";
+
+    const purchaseIdentifier =
+        pedidoId ||
+        tx;
 
     const [loading, setLoading] = useState(true);
 
@@ -72,7 +81,7 @@ export default function MiCompraClient() {
         useState<string | null>(null);
 
     useEffect(() => {
-        if (!tx) {
+        if (!purchaseIdentifier) {
             setLoading(false);
             return;
         }
@@ -84,15 +93,66 @@ export default function MiCompraClient() {
                 setLoading(true);
                 setError(null);
 
-                const response = await fetch(
-                    `/api/mi-compra?tx=${encodeURIComponent(
-                        tx
-                    )}`,
-                    {
-                        method: "GET",
-                        cache: "no-store",
+                const headers:
+                    Record<string, string> =
+                    {};
+
+                let apiUrl =
+                    "";
+
+                /*
+                 * Desde "Mis compras" usamos pedido_id.
+                 * Ese modo requiere la sesión del usuario
+                 * para comprobar que el pedido le pertenece.
+                 *
+                 * El flujo PayPhone conserva ?tx=...
+                 * exactamente como antes.
+                 */
+                if (pedidoId) {
+                    const {
+                        data: sessionData,
+                        error: sessionError,
+                    } =
+                        await supabaseBrowser
+                            .auth
+                            .getSession();
+
+                    if (sessionError) {
+                        throw sessionError;
                     }
-                );
+
+                    const session =
+                        sessionData.session;
+
+                    if (!session) {
+                        throw new Error(
+                            "Debes iniciar sesión para consultar este pedido."
+                        );
+                    }
+
+                    headers.Authorization =
+                        `Bearer ${session.access_token}`;
+
+                    apiUrl =
+                        `/api/mi-compra?pedido=${encodeURIComponent(
+                            pedidoId
+                        )}`;
+                } else {
+                    apiUrl =
+                        `/api/mi-compra?tx=${encodeURIComponent(
+                            tx
+                        )}`;
+                }
+
+                const response =
+                    await fetch(
+                        apiUrl,
+                        {
+                            method: "GET",
+                            headers,
+                            cache: "no-store",
+                        }
+                    );
 
                 const data =
                     (await response.json()) as MiCompraResponse;
@@ -139,12 +199,16 @@ export default function MiCompraClient() {
         return () => {
             cancelled = true;
         };
-    }, [tx]);
+    }, [
+        pedidoId,
+        tx,
+        purchaseIdentifier,
+    ]);
 
     /*
      * No existe identificador en la URL.
      */
-    if (!tx) {
+    if (!purchaseIdentifier) {
         return (
             <div className="flex items-center justify-center px-4 pt-32 pb-12">
                 <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-lg">
@@ -176,7 +240,7 @@ export default function MiCompraClient() {
             <div className="flex items-center justify-center px-4 pt-32 pb-12">
                 <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-md">
                     <p className="text-sm text-gray-700">
-                        Cargando tus Baruk Cards...
+                        Cargando tus Tarjetas de la Suerte...
                     </p>
                 </div>
             </div>
@@ -200,7 +264,9 @@ export default function MiCompraClient() {
                     </p>
 
                     <p className="mt-3 break-all rounded bg-gray-100 px-3 py-2 font-mono text-xs">
-                        {tx}
+                        {pedidoId
+                            ? `Pedido #${pedidoId}`
+                            : tx}
                     </p>
 
                     <a
@@ -254,7 +320,7 @@ export default function MiCompraClient() {
                                 </p>
 
                                 <h1 className="mt-2 text-3xl font-extrabold text-gray-900 md:text-4xl">
-                                    Tus Baruk Cards
+                                    Tus Tarjetas de la Suerte
                                 </h1>
 
                                 <p className="mt-2 max-w-2xl text-sm text-gray-500">
@@ -297,7 +363,7 @@ export default function MiCompraClient() {
 
                             <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-gray-400">
-                                    Baruk Cards
+                                    Tarjetas de la Suerte
                                 </p>
 
                                 <p className="mt-1 text-2xl font-black text-[#ff6600]">
@@ -358,8 +424,8 @@ export default function MiCompraClient() {
                         </h2>
 
                         <p className="mt-2 text-sm text-gray-500">
-                            Haz clic sobre cada Baruk
-                            Card para conocer tu
+                            Haz clic sobre cada Tarjeta
+                            para conocer tu
                             resultado.
                         </p>
                     </div>
@@ -384,7 +450,7 @@ export default function MiCompraClient() {
                             <div className="mx-auto max-w-xl rounded-2xl border border-blue-200 bg-blue-50 p-5 text-center">
                                 <p className="font-bold text-blue-800">
                                     Estamos preparando
-                                    tus Baruk Cards.
+                                    tus Tarjetas de la Suerte.
                                 </p>
 
                                 <p className="mt-1 text-sm text-blue-700">
@@ -415,7 +481,7 @@ export default function MiCompraClient() {
                                         className="flex flex-col items-center"
                                     >
                                         <div className="mb-3 inline-flex items-center rounded-full border border-gray-200 bg-white px-4 py-2 text-xs font-bold text-gray-500 shadow-sm">
-                                            Baruk Card{" "}
+                                            Tarjeta de la Suerte{" "}
                                             {index + 1} de{" "}
                                             {cards.length}
                                         </div>

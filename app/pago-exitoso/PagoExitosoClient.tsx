@@ -523,7 +523,7 @@ export default function PagoExitosoClient() {
 
 
                     setSoftMsg(
-                        "Preparando tus Experience Pass…"
+                        "Preparando tus Tarjetas de la Suerte…"
                     );
 
 
@@ -631,7 +631,7 @@ export default function PagoExitosoClient() {
                 content_name:
                     sorteo
                         ?.titulo ??
-                    "Compra Experience Pass Baruk593",
+                    "Compra Tarjeta de la Suerte",
 
                 content_category:
                     "sorteo",
@@ -818,7 +818,7 @@ export default function PagoExitosoClient() {
                                     >
                                         {
                                             isGift
-                                                ? "El pago fue confirmado y las Experience Pass fueron asignadas al destinatario."
+                                                ? "El pago fue confirmado y las Tarjetas fueron asignadas al destinatario."
                                                 : "Tu compra fue procesada correctamente."
                                         }
                                     </p>
@@ -908,7 +908,7 @@ export default function PagoExitosoClient() {
                 hover:opacity-90
             "
                                     >
-                                        Revelar mis Experience Pass
+                                        Revelar mis Tarjetas
                                     </button>
 
                                 ) : (
@@ -1217,7 +1217,7 @@ export default function PagoExitosoClient() {
 
                         {/* =================================================
                             DERECHA
-                            EXPERIENCE PASS
+                            TARJETAS DE LA SUERTE
                         ================================================= */}
 
                         <div
@@ -1253,7 +1253,7 @@ export default function PagoExitosoClient() {
                                         {
                                             isGift
                                                 ? "Tu regalo Baruk593"
-                                                : "Tus Experience Pass"
+                                                : "Tus Tarjetas"
                                         }
                                     </div>
 
@@ -1283,9 +1283,9 @@ export default function PagoExitosoClient() {
 
                                                 : isGift
 
-                                                    ? "Experience Pass asignadas al destinatario"
+                                                    ? "Tarjetas asignadas al destinatario"
 
-                                                    : "Experience Pass listas para revelar"
+                                                    : "Tarjetas de la Suerte listas para revelar"
                                         }
                                     </h3>
 
@@ -1300,8 +1300,8 @@ export default function PagoExitosoClient() {
                                     >
                                         {
                                             isGift
-                                                ? "Los números permanecerán ocultos hasta que el destinatario revele sus Experience Pass desde su propia cuenta."
-                                                : "Tus números permanecen ocultos hasta que reveles cada Experience Pass en Mi Cuenta."
+                                                ? "Los números permanecerán ocultos hasta que el destinatario revele sus Tarjetas desde su propia cuenta."
+                                                : "Tus números permanecen ocultos hasta que reveles cada Tarjeta en Mi Cuenta."
                                         }
                                     </p>
 
@@ -1413,8 +1413,8 @@ export default function PagoExitosoClient() {
                                 >
                                     {
                                         isGift
-                                            ? "Los números permanecerán ocultos hasta que el destinatario revele sus Experience Pass desde su propia cuenta."
-                                            : "Tus números permanecen ocultos hasta que reveles cada Experience Pass en Mi Cuenta."
+                                            ? "Los números permanecerán ocultos hasta que el destinatario revele sus Tarjetas desde su propia cuenta."
+                                            : "Tus números permanecen ocultos hasta que reveles cada Tarjeta de la Suerte en Mi Cuenta."
                                     }
                                 </p>
 
@@ -1430,8 +1430,8 @@ export default function PagoExitosoClient() {
                                 >
                                     {
                                         isGift
-                                            ? "Si alguna Experience Pass contiene una F1 Sphere o un premio instantáneo, también pertenecerá al destinatario."
-                                            : "Además de tu número para el sorteo, una Experience Pass puede sorprenderte con una F1 Sphere o un premio instantáneo."
+                                            ? "Si alguna Tarjeta de la Suerte contiene una F1 Sphere o un premio instantáneo, también pertenecerá al destinatario."
+                                            : "Además de tu número para el sorteo, una Tarjeta de la Suerte puede sorprenderte con una F1 Sphere o un premio instantáneo."
                                     }
                                 </p>
 
@@ -1472,8 +1472,8 @@ export default function PagoExitosoClient() {
                                     >
                                         {
                                             loading
-                                                ? "Preparando Experience Pass…"
-                                                : "Revelar mis Experience Pass"
+                                                ? "Preparando Tarjetas de la Suerte…"
+                                                : "Revelar mis Tarjetas de la Suerte"
                                         }
                                     </button>
 
@@ -1512,7 +1512,7 @@ export default function PagoExitosoClient() {
             "
                                         >
                                             Tú realizaste la compra, pero el destinatario
-                                            es el propietario de estas Experience Pass y
+                                            es el propietario de estas Tarjetas y
                                             será quien pueda revelarlas.
                                         </p>
 
@@ -1551,10 +1551,10 @@ export default function PagoExitosoClient() {
                                         asignacionCompleta
 
                                             ? isGift
-                                                ? "Experience Pass asignadas al destinatario"
-                                                : "Experience Pass asignadas correctamente"
+                                                ? "Tarjetas de la Suerte asignadas al destinatario"
+                                                : "Tarjetas de la Suerte asignadas correctamente"
 
-                                            : "Preparando Experience Pass"
+                                            : "Preparando Tarjetas"
                                     }
                                 />
 
@@ -1581,7 +1581,7 @@ export default function PagoExitosoClient() {
                                 {
                                     isGift
                                         ? "El destinatario podrá descubrir y consultar sus números desde su propia cuenta Baruk593."
-                                        : "No necesitas guardar una captura de tus números. Podrás consultarlos después de revelar tus Experience Pass desde Mi Cuenta."
+                                        : "No necesitas guardar una captura de tus números. Podrás consultarlos después de revelar tus Tarjetas de la Suerte desde Mi Cuenta."
                                 }
                             </p>
 

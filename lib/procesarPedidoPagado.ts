@@ -3,6 +3,9 @@ import { asignarNumerosPorPedidoId } from "@/lib/asignarNumeros";
 import { entregarPremioTarjetasDigitales } from "@/lib/entregarPremioTarjetasDigitales";
 import { registrarReclamoPremio } from "@/lib/registrarReclamoPremio";
 import { notificarRegaloPagado } from "@/lib/notificarRegaloPagado";
+import {
+    emitirFacturaPedidoPrueba,
+} from "@/lib/emitirFacturaPedido";
 
 type ProcesarPedidoPagadoResultado =
     | {
@@ -93,6 +96,96 @@ async function markProcessingFailed(
         console.error(
             "No se pudo marcar procesamiento como fallido:",
             error,
+        );
+    }
+}
+
+async function intentarFacturarPedidoPrueba(
+    pedidoId: number,
+): Promise<void> {
+
+    /*
+     * Mientras Baruk593 siga en pruebas,
+     * únicamente intentamos facturar si existe
+     * una API key sandbox de Factuplan.
+     *
+     * Esto evita afectar producción accidentalmente.
+     */
+    const factuplanApiKey =
+        process.env
+            .FACTUPLAN_API_KEY
+            ?.trim() ??
+        "";
+
+    if (
+        !factuplanApiKey.startsWith(
+            "ak_test_"
+        )
+    ) {
+        return;
+    }
+
+    try {
+
+        const invoice =
+            await emitirFacturaPedidoPrueba(
+                pedidoId
+            );
+
+        if (
+            !invoice.ok
+        ) {
+
+            console.error(
+                `[Factuplan] Pedido ${pedidoId} procesado, pero no pudo facturarse:`,
+                invoice.error,
+                invoice.code,
+                invoice.details
+            );
+
+            return;
+        }
+
+        if (
+            invoice.skipped
+        ) {
+
+            console.log(
+                `[Factuplan] Pedido ${pedidoId} sin factura: ${invoice.reason}`
+            );
+
+            return;
+        }
+
+        if (
+            invoice.alreadyExists
+        ) {
+
+            console.log(
+                `[Factuplan] Pedido ${pedidoId} ya tenía factura ${invoice.sequential ?? invoice.receiptId}.`
+            );
+
+            return;
+        }
+
+        console.log(
+            `[Factuplan] Factura de prueba creada para pedido ${pedidoId}: ${invoice.sequential ?? invoice.receiptId} · ${invoice.status}`
+        );
+
+    } catch (
+    invoiceError:
+        unknown
+    ) {
+
+        /*
+         * MUY IMPORTANTE:
+         *
+         * Una falla de facturación nunca debe convertir
+         * una compra pagada en fallida ni eliminar tarjetas.
+         */
+        console.error(
+            `[Factuplan] Error inesperado facturando pedido ${pedidoId}:`,
+            invoiceError
         );
     }
 }
@@ -356,6 +449,23 @@ export async function procesarPedidoPagado(
                     }
                 }
             }
+
+
+            /*
+             * ========================================================
+             * REINTENTAR FACTURACIÓN SI EL PEDIDO YA ESTABA COMPLETO
+             * ========================================================
+             *
+             * Las tarjetas ya existen y no se vuelven a crear.
+             * Si Factuplan falló anteriormente, esta llamada recupera
+             * o reintenta únicamente la facturación.
+             *
+             * Un fallo de Factuplan NO cambia el estado del pedido.
+             */
+
+            await intentarFacturarPedidoPrueba(
+                pedidoId
+            );
 
 
             return {
@@ -1018,7 +1128,26 @@ export async function procesarPedidoPagado(
 
         /*
          * ========================================================
-         * 12. NOTIFICAR REGALO POR WHATSAPP
+         * 12. FACTURACIÓN ELECTRÓNICA DE PRUEBA
+         * ========================================================
+         *
+         * El pedido y sus Tarjetas de la Suerte ya están
+         * completamente procesados.
+         *
+         * Si Factuplan falla:
+         * - NO se marca el pedido como fallido;
+         * - NO se eliminan tarjetas;
+         * - NO se afecta el pago;
+         * - podrá reintentarse posteriormente.
+         */
+
+        await intentarFacturarPedidoPrueba(
+            pedidoId
+        );
+
+        /*
+         * ========================================================
+         * 13. NOTIFICAR REGALO POR WHATSAPP
          * ========================================================
          *
          * A este punto:

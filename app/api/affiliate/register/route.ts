@@ -724,11 +724,6 @@ export async function POST(
                         user_id:
                             user.id,
 
-                        /*
-                         * Ya no usamos autenticación
-                         * independiente de afiliados.
-                         */
-
                         username:
                             null,
 
@@ -750,9 +745,6 @@ export async function POST(
 
                         is_active:
                             true,
-
-                        commission_rate:
-                            0.10,
                     })
                     .eq(
                         "id",

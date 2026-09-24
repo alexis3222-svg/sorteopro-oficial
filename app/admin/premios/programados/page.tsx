@@ -184,7 +184,7 @@ function getPrizeTypeLabel(
             return "Experiencia";
 
         case "digital_cards":
-            return "Experience Pass";
+            return "Tarjetas de la Suerte";
 
         case "discount":
             return "Beneficio";
@@ -1419,7 +1419,7 @@ export default function AdminProgrammedPrizesPage() {
                                     ) && (
 
                                         <p className="mt-2 text-xs font-black text-orange-300">
-                                            Experience Pass Nº{" "}
+                                            Tarjetas Nº{" "}
                                             {formatNumber(
                                                 Number(
                                                     numberValue
@@ -1756,7 +1756,7 @@ export default function AdminProgrammedPrizesPage() {
                                                 <div>
 
                                                     <p className="text-[10px] font-black uppercase tracking-[0.18em] text-orange-400">
-                                                        Experience Pass Nº
+                                                        Tarjetas Nº
                                                     </p>
 
 

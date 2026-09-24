@@ -154,7 +154,7 @@ export async function GET() {
 
         let reward = {
             name:
-                "iPhone 17 Pro Max 256 GB",
+                "iPhone 18 Pro Max 256 GB",
 
             description:
                 "Completa las 11 F1 Spheres diferentes y reclama el premio de la colección.",

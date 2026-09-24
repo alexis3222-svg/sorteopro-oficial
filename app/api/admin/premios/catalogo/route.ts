@@ -861,7 +861,7 @@ export async function POST(
                     ok: false,
 
                     error:
-                        "Indica cuántas Experience Pass entrega este premio",
+                        "Indica cuántas Tarjetas entrega este premio",
                 },
                 {
                     status: 400,

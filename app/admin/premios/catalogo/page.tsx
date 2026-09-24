@@ -160,7 +160,7 @@ function typeLabel(
             return "Digital";
 
         case "digital_cards":
-            return "Experience Pass";
+            return "Tarjetas de la Suerte";
 
         default:
             return type;
@@ -677,7 +677,7 @@ export default function AdminPrizeCatalogPage() {
         ) {
 
             setError(
-                "Indica cuántas Experience Pass entrega el premio."
+                "Indica cuántas Tarjetas entrega el premio."
             );
 
             return;
@@ -1403,7 +1403,7 @@ export default function AdminPrizeCatalogPage() {
                                     </option>
 
                                     <option value="digital_cards">
-                                        Experience Pass
+                                        Tarjetas Gratis
                                     </option>
 
                                 </select>
@@ -1688,7 +1688,7 @@ export default function AdminPrizeCatalogPage() {
                                     <div>
 
                                         <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                            Experience Pass entregadas
+                                            Tarjetas entregadas
                                         </label>
 
 
@@ -1836,7 +1836,7 @@ export default function AdminPrizeCatalogPage() {
                                         )
                                     }
 
-                                    placeholder="Ej.: El equipo Baruk593 coordinará la entrega."
+                                    placeholder="Ej.: El equipo de Baruk593 coordinará la entrega."
 
                                     className="
                                         mt-2
@@ -1883,7 +1883,7 @@ export default function AdminPrizeCatalogPage() {
                                 </p>
 
                                 <p className="mt-1 text-xs text-slate-500">
-                                    Si está inactivo no podrá asignarse a nuevas Experience Pass.
+                                    Si está inactivo no podrá asignarse a nuevas Tarjetas.
                                 </p>
 
                             </div>
@@ -2331,7 +2331,7 @@ export default function AdminPrizeCatalogPage() {
                                                 >
                                                     Entrega {
                                                         prize.cardQuantity
-                                                    } Experience Pass
+                                                    } Tarjetas
                                                 </p>
 
                                             )}

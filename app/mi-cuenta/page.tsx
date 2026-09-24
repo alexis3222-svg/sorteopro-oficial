@@ -332,6 +332,53 @@ type PurchasesSummary = {
     totalCardsPurchased: number;
 };
 
+function getNewestPurchaseId(
+    items: AccountCard[]
+): number | null {
+    const withPurchase =
+        items.filter(
+            (
+                card
+            ) =>
+                card.pedido_id !==
+                null
+        );
+
+    if (
+        withPurchase.length ===
+        0
+    ) {
+        return null;
+    }
+
+    const newest =
+        withPurchase.reduce(
+            (
+                latest,
+                current
+            ) => {
+                const latestTime =
+                    new Date(
+                        latest.created_at
+                    ).getTime();
+
+                const currentTime =
+                    new Date(
+                        current.created_at
+                    ).getTime();
+
+                return currentTime >
+                    latestTime
+                    ? current
+                    : latest;
+            }
+        );
+
+    return newest.pedido_id ??
+        null;
+}
+
+
 type SphereInventoryItem = {
     instanceId: string;
 
@@ -522,6 +569,21 @@ export default function MiCuentaPage() {
     ] =
         useState<string[]>(
             []
+        );
+
+    /*
+     * Compra que se está mostrando/revelando.
+     *
+     * Por defecto se selecciona la compra
+     * más reciente para no mezclar sus tarjetas
+     * con compras anteriores.
+     */
+    const [
+        focusedPurchaseId,
+        setFocusedPurchaseId,
+    ] =
+        useState<number | null>(
+            null
         );
 
     const [
@@ -863,12 +925,49 @@ export default function MiCuentaPage() {
             ) {
                 throw new Error(
                     data?.error ??
-                    "No se pudieron cargar tus Baruk Cards"
+                    "No se pudieron cargar tus Tarjetas de la Suerte"
                 );
             }
 
+            const loadedCards:
+                AccountCard[] =
+                data.cards ??
+                [];
+
             setCards(
-                data.cards ?? []
+                loadedCards
+            );
+
+            setFocusedPurchaseId(
+                (
+                    current
+                ) => {
+                    /*
+                     * Si ya estamos viendo una compra válida,
+                     * la conservamos.
+                     */
+                    if (
+                        current !==
+                        null &&
+                        loadedCards.some(
+                            (
+                                card
+                            ) =>
+                                card.pedido_id ===
+                                current
+                        )
+                    ) {
+                        return current;
+                    }
+
+                    /*
+                     * Si no hay una compra seleccionada,
+                     * enfocamos automáticamente la más reciente.
+                     */
+                    return getNewestPurchaseId(
+                        loadedCards
+                    );
+                }
             );
 
             setCardsSummary({
@@ -1579,6 +1678,18 @@ export default function MiCuentaPage() {
                             );
 
                             setCards([]);
+
+                            setFocusedPurchaseId(
+                                null
+                            );
+
+                            setSessionRevealedCardIds(
+                                []
+                            );
+
+                            setShowAllCards(
+                                false
+                            );
 
                             setShowCards(false);
                             setCardsLoaded(false);
@@ -2328,6 +2439,30 @@ export default function MiCuentaPage() {
     ) {
 
         /*
+         * La tarjeta revelada define la compra
+         * que debe permanecer enfocada.
+         */
+        const revealedCard =
+            cards.find(
+                (
+                    card
+                ) =>
+                    card.id ===
+                    cardId
+            );
+
+        if (
+            revealedCard?.pedido_id !==
+            null &&
+            revealedCard?.pedido_id !==
+            undefined
+        ) {
+            setFocusedPurchaseId(
+                revealedCard.pedido_id
+            );
+        }
+
+        /*
          * La tarjeta que acabamos de revelar
          * permanecerá visible para que el usuario
          * pueda ver tranquilamente el resultado.
@@ -2489,11 +2624,61 @@ export default function MiCuentaPage() {
 
     async function handleActivateAll() {
         if (
-            activatingAll ||
-            cardsSummary.pending <= 0
+            activatingAll
         ) {
             return;
         }
+
+        /*
+         * "Revelar todas" trabaja únicamente
+         * sobre UNA compra.
+         *
+         * Si ya existe una compra enfocada,
+         * usamos esa. Si no, usamos la compra
+         * pendiente más reciente.
+         */
+        const targetPurchaseId =
+            focusedPurchaseId ??
+            getNewestPurchaseId(
+                cards.filter(
+                    (
+                        card
+                    ) =>
+                        !card.revealed
+                )
+            );
+
+        if (
+            targetPurchaseId ===
+            null
+        ) {
+            setError(
+                "No se pudo identificar la compra que deseas revelar."
+            );
+
+            return;
+        }
+
+        const pendientes =
+            cards.filter(
+                (
+                    card
+                ) =>
+                    !card.revealed &&
+                    card.pedido_id ===
+                    targetPurchaseId
+            );
+
+        if (
+            pendientes.length ===
+            0
+        ) {
+            return;
+        }
+
+        setFocusedPurchaseId(
+            targetPurchaseId
+        );
 
         setActivatingAll(
             true
@@ -2532,21 +2717,6 @@ export default function MiCuentaPage() {
                 );
             }
 
-            const pendientes =
-                cards.filter(
-                    (
-                        card
-                    ) =>
-                        !card.revealed
-                );
-
-            if (
-                pendientes.length ===
-                0
-            ) {
-                return;
-            }
-
             setActivatingProgress({
                 current: 0,
                 total:
@@ -2559,9 +2729,9 @@ export default function MiCuentaPage() {
             }[] = [];
 
             /*
-             * Activamos una por una para evitar
-             * lanzar 20, 30 o 50 solicitudes
-             * simultáneamente.
+             * Revelamos una por una únicamente
+             * las tarjetas pendientes de la compra
+             * que el usuario está viendo.
              */
             for (
                 let index = 0;
@@ -2607,7 +2777,7 @@ export default function MiCuentaPage() {
                 ) {
                     throw new Error(
                         data?.error ??
-                        "No se pudo activar una de tus tarjetas."
+                        "No se pudo revelar una de tus tarjetas."
                     );
                 }
 
@@ -2631,11 +2801,6 @@ export default function MiCuentaPage() {
                 });
             }
 
-            /*
-             * Actualizamos las tarjetas
-             * inmediatamente en pantalla.
-             */
-
             const activadasMap =
                 new Map(
                     activadas.map(
@@ -2647,6 +2812,33 @@ export default function MiCuentaPage() {
                             ]
                     )
                 );
+
+            /*
+             * IMPORTANTE:
+             * También registramos las tarjetas
+             * reveladas en lote como reveladas
+             * durante esta sesión.
+             *
+             * Esto evita que desaparezcan de la
+             * pantalla inmediatamente después
+             * de pulsar "Revelar restantes".
+             */
+            setSessionRevealedCardIds(
+                (
+                    current
+                ) =>
+                    Array.from(
+                        new Set([
+                            ...current,
+                            ...activadas.map(
+                                (
+                                    item
+                                ) =>
+                                    item.id
+                            ),
+                        ])
+                    )
+            );
 
             setCards(
                 (
@@ -2684,10 +2876,6 @@ export default function MiCuentaPage() {
                     )
             );
 
-            /*
-             * Actualizamos resumen.
-             */
-
             setCardsSummary(
                 (
                     current
@@ -2708,11 +2896,13 @@ export default function MiCuentaPage() {
             );
 
             /*
-             * Después de activar todas,
-             * volvemos a consultar colección,
-             * premios y compras.
+             * Actualizamos únicamente los módulos
+             * relacionados con los resultados.
+             *
+             * NO recargamos loadCards(), para que
+             * la compra recién revelada permanezca
+             * claramente separada en pantalla.
              */
-
             await Promise.all([
                 loadCollection(
                     session.access_token
@@ -2737,15 +2927,15 @@ export default function MiCuentaPage() {
             setError(
                 err instanceof Error
                     ? err.message
-                    : "No se pudieron activar todas las tarjetas."
+                    : "No se pudieron revelar las tarjetas de esta compra."
             );
 
             /*
-             * Volvemos a consultar las tarjetas,
-             * por si algunas sí alcanzaron a
-             * activarse antes del error.
+             * Si ocurrió un error a mitad del proceso,
+             * volvemos a consultar las tarjetas para
+             * sincronizar las que sí alcanzaron a
+             * revelarse.
              */
-
             try {
                 const {
                     data:
@@ -2779,6 +2969,7 @@ export default function MiCuentaPage() {
             });
         }
     }
+
 
     async function handleListSphere(
         instanceId: string
@@ -3054,6 +3245,18 @@ export default function MiCuentaPage() {
 
         setCards([]);
 
+        setFocusedPurchaseId(
+            null
+        );
+
+        setSessionRevealedCardIds(
+            []
+        );
+
+        setShowAllCards(
+            false
+        );
+
         setShowCards(false);
         setCardsLoaded(false);
 
@@ -3132,20 +3335,55 @@ export default function MiCuentaPage() {
         const summary =
             collection?.summary;
 
+        const focusedPurchaseCards =
+            focusedPurchaseId !==
+                null
+
+                ? cards.filter(
+                    (
+                        card
+                    ) =>
+                        card.pedido_id ===
+                        focusedPurchaseId
+                )
+
+                : [];
+
+        const focusedPurchasePending =
+            focusedPurchaseCards.filter(
+                (
+                    card
+                ) =>
+                    !card.revealed
+            ).length;
+
+        /*
+         * Vista normal:
+         * mostramos únicamente la compra más reciente
+         * o la compra que el usuario está revelando.
+         *
+         * "Ver todas" sigue permitiendo consultar
+         * el historial completo de tarjetas.
+         */
         const visibleCards =
             showAllCards
 
                 ? cards
 
-                : cards.filter(
-                    (
-                        card
-                    ) =>
-                        !card.revealed ||
-                        sessionRevealedCardIds.includes(
-                            card.id
-                        )
-                );
+                : focusedPurchaseCards.length >
+                    0
+
+                    ? focusedPurchaseCards
+
+                    : cards.filter(
+                        (
+                            card
+                        ) =>
+                            !card.revealed ||
+                            sessionRevealedCardIds.includes(
+                                card.id
+                            )
+                    );
 
         return (
             <main className="min-h-screen w-full bg-white px-4 pb-20 pt-24 sm:px-6 lg:px-8 xl:px-10">
@@ -4075,7 +4313,7 @@ export default function MiCuentaPage() {
                             )}
 
                         {/* =====================================================
-    MIS TARJETAS TARJETAS DE LA SUERTE
+    MIS TARJETAS DE LA SUERTE
 ===================================================== */}
 
                         <section
@@ -4096,17 +4334,6 @@ export default function MiCuentaPage() {
                             >
                                 <div>
 
-                                    <p
-                                        className="
-            text-xs
-            font-black
-            uppercase
-            tracking-[0.22em]
-            text-[#C1317F]
-        "
-                                    >
-                                        Tarjetas de la Suerte
-                                    </p>
 
                                     <h2
                                         className="
@@ -4132,9 +4359,23 @@ export default function MiCuentaPage() {
             text-gray-500
         "
                                     >
-                                        Activa tus tarjetas y descubre
+                                        Revela tus tarjetas y descubre
                                         tus números, esferas o premios.
                                     </p>
+
+                                    {!showAllCards &&
+                                        focusedPurchaseId !==
+                                        null && (
+                                            <p className="mt-3 inline-flex rounded-full bg-[#C1317F]/5 px-3 py-1.5 text-[11px] font-black text-[#C1317F]">
+                                                Compra #
+                                                {focusedPurchaseId}
+                                                {" · "}
+                                                {
+                                                    focusedPurchaseCards.length
+                                                }{" "}
+                                                Tarjetas de la Suerte
+                                            </p>
+                                        )}
 
                                 </div>
 
@@ -4185,8 +4426,11 @@ export default function MiCuentaPage() {
                                         {loadingCards
                                             ? "Cargando..."
                                             : showAllCards
-                                                ? `Ver solo por revelar (${cardsSummary.pending})`
-                                                : `Ver todas las Experience Pass (${cardsSummary.total})`
+                                                ? focusedPurchaseCards.length >
+                                                    0
+                                                    ? `Ver compra reciente (${focusedPurchaseCards.length})`
+                                                    : "Ocultar tarjetas anteriores"
+                                                : `Ver todas las Tarjetas de la Suerte (${cardsSummary.total})`
                                         }
 
                                         {!loadingCards && (
@@ -4200,11 +4444,12 @@ export default function MiCuentaPage() {
                                     </button>
 
 
-                                    {/* ACTIVAR TODAS */}
+                                    {/* REVELAR RESTANTES DE ESTA COMPRA */}
 
                                     {showCards &&
                                         cardsLoaded &&
-                                        cardsSummary.pending >
+                                        !showAllCards &&
+                                        focusedPurchasePending >
                                         0 && (
 
                                             <button
@@ -4250,8 +4495,8 @@ export default function MiCuentaPage() {
                 "
                                             >
                                                 {activatingAll
-                                                    ? `Activando ${activatingProgress.current}/${activatingProgress.total}`
-                                                    : `Activar todas (${cardsSummary.pending})`
+                                                    ? `Revelando ${activatingProgress.current}/${activatingProgress.total}`
+                                                    : `Revelar restantes (${focusedPurchasePending})`
                                                 }
 
 
@@ -5255,7 +5500,7 @@ export default function MiCuentaPage() {
                                                             ?.type ===
                                                             "digital_cards"
 
-                                                            ? "Baruk Cards"
+                                                            ? "Tarjetas de la Suerte"
 
                                                             : item.prize
                                                                 ?.type ===
@@ -5354,7 +5599,7 @@ export default function MiCuentaPage() {
                                                                                 item.prize
                                                                                     .cardQuantity
                                                                             }{" "}
-                                                                            Baruk Cards
+                                                                            Tarjetas de la Suerte
                                                                         </p>
 
                                                                     </div>

@@ -169,7 +169,7 @@ function IconLightning() {
 }
 
 /* ============================================================
-   EXPERIENCE PASS - PREVIEW
+   TARJETAS - PREVIEW
 ============================================================ */
 
 function ExperiencePassPreview({
@@ -1038,7 +1038,7 @@ export default function BarukPurchaseSection({
                     "
                 >
                     {/* =================================================
-    EXPERIENCE PASS / PACK DE TARJETAS
+    TARJETAS / PACK DE TARJETAS
 ================================================= */}
 
                     <div>

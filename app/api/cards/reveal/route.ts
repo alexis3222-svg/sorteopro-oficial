@@ -183,7 +183,7 @@ export async function POST(
         ) {
             if (cardError) {
                 console.error(
-                    "Error leyendo Baruk Card:",
+                    "Error leyendo Tarjetas:",
                     cardError
                 );
             }
@@ -534,7 +534,7 @@ export async function POST(
          *
          * Puede:
          *
-         * - revelar la Experience Pass;
+         * - revelar la Tarjetas;
          * - actualizar premio programado;
          * - garantizar prize_claim;
          * - acreditar premio CASH;
@@ -636,7 +636,7 @@ export async function POST(
                 {
                     ok: false,
                     error:
-                        "No se pudo completar el revelado de la Experience Pass",
+                        "No se pudo completar el revelado de las Tarjetas",
                 },
                 {
                     status: 500,
