@@ -8,6 +8,10 @@ import {
     useState,
 } from "react";
 
+import type {
+    ChangeEvent,
+} from "react";
+
 import Link from "next/link";
 
 import {
@@ -283,6 +287,155 @@ export default function AdminPrizeCatalogPage() {
         );
 
 
+    const [
+        imageFile,
+        setImageFile,
+    ] =
+        useState<File | null>(
+            null
+        );
+
+
+    const [
+        imagePreview,
+        setImagePreview,
+    ] =
+        useState<string | null>(
+            null
+        );
+
+
+    const [
+        removeImage,
+        setRemoveImage,
+    ] =
+        useState(
+            false
+        );
+
+
+    const [
+        imageError,
+        setImageError,
+    ] =
+        useState(
+            false
+        );
+
+
+    const imageShown =
+        imagePreview ??
+        (
+            !removeImage
+                ? form.imageUrl
+                : ""
+        );
+
+
+    useEffect(
+        () => {
+
+            return () => {
+
+                if (
+                    imagePreview
+                ) {
+
+                    URL.revokeObjectURL(
+                        imagePreview
+                    );
+                }
+            };
+
+        },
+        [
+            imagePreview,
+        ]
+    );
+
+
+    function selectImage(
+        event:
+            ChangeEvent<HTMLInputElement>
+    ) {
+
+        const file =
+            event.target.files?.[0] ??
+            null;
+
+
+        setImageFile(
+            file
+        );
+
+        setRemoveImage(
+            false
+        );
+
+        setImageError(
+            false
+        );
+
+
+        if (
+            file
+        ) {
+
+            setImagePreview(
+                URL.createObjectURL(
+                    file
+                )
+            );
+
+        } else {
+
+            setImagePreview(
+                null
+            );
+        }
+    }
+
+
+    function clearImage() {
+
+        setImageFile(
+            null
+        );
+
+        setImagePreview(
+            null
+        );
+
+        setRemoveImage(
+            true
+        );
+
+        setImageError(
+            false
+        );
+    }
+
+
+    function resetImageEditor() {
+
+        setImageFile(
+            null
+        );
+
+        setImagePreview(
+            null
+        );
+
+        setRemoveImage(
+            false
+        );
+
+        setImageError(
+            false
+        );
+    }
+
+
     /*
      * =========================================================
      * TOKEN ADMIN
@@ -500,6 +653,9 @@ export default function AdminPrizeCatalogPage() {
         );
 
 
+        resetImageEditor();
+
+
         setForm({
             ...EMPTY_FORM,
 
@@ -533,6 +689,9 @@ export default function AdminPrizeCatalogPage() {
         setSuccess(
             null
         );
+
+
+        resetImageEditor();
 
 
         setForm({
@@ -701,6 +860,100 @@ export default function AdminPrizeCatalogPage() {
                 );
 
 
+            const formData =
+                new FormData();
+
+
+            if (
+                form.prizeId
+            ) {
+
+                formData.set(
+                    "prizeId",
+                    form.prizeId
+                );
+            }
+
+
+            formData.set(
+                "sorteoId",
+                form.sorteoId
+            );
+
+            formData.set(
+                "name",
+                form.name
+            );
+
+            formData.set(
+                "description",
+                form.description
+            );
+
+            formData.set(
+                "type",
+                form.type
+            );
+
+            formData.set(
+                "cardQuantity",
+                String(
+                    form.cardQuantity
+                )
+            );
+
+            formData.set(
+                "referenceValue",
+                String(
+                    form.referenceValue
+                )
+            );
+
+            formData.set(
+                "weight",
+                String(
+                    form.weight
+                )
+            );
+
+            formData.set(
+                "stockTotal",
+                String(
+                    form.stockTotal
+                )
+            );
+
+            formData.set(
+                "claimInstructions",
+                form.claimInstructions
+            );
+
+            formData.set(
+                "active",
+                String(
+                    form.active
+                )
+            );
+
+            formData.set(
+                "removeImage",
+                String(
+                    removeImage
+                )
+            );
+
+
+            if (
+                imageFile
+            ) {
+
+                formData.set(
+                    "image",
+                    imageFile
+                );
+            }
+
+
             const response =
                 await fetch(
                     "/api/admin/premios/catalogo",
@@ -711,53 +964,12 @@ export default function AdminPrizeCatalogPage() {
                                 : "POST",
 
                         headers: {
-
                             Authorization:
                                 `Bearer ${token}`,
-
-                            "Content-Type":
-                                "application/json",
                         },
 
                         body:
-                            JSON.stringify({
-
-                                prizeId:
-                                    form.prizeId,
-
-                                sorteoId:
-                                    form.sorteoId,
-
-                                name:
-                                    form.name,
-
-                                description:
-                                    form.description,
-
-                                type:
-                                    form.type,
-
-                                imageUrl:
-                                    form.imageUrl,
-
-                                cardQuantity:
-                                    form.cardQuantity,
-
-                                referenceValue:
-                                    form.referenceValue,
-
-                                weight:
-                                    form.weight,
-
-                                stockTotal:
-                                    form.stockTotal,
-
-                                claimInstructions:
-                                    form.claimInstructions,
-
-                                active:
-                                    form.active,
-                            }),
+                            formData,
                     }
                 );
 
@@ -796,6 +1008,9 @@ export default function AdminPrizeCatalogPage() {
             setForm(
                 EMPTY_FORM
             );
+
+
+            resetImageEditor();
 
 
             await loadCatalog();
@@ -845,6 +1060,76 @@ export default function AdminPrizeCatalogPage() {
                 await getAccessToken();
 
 
+            const formData =
+                new FormData();
+
+
+            formData.set(
+                "prizeId",
+                prize.id
+            );
+
+            formData.set(
+                "name",
+                prize.name
+            );
+
+            formData.set(
+                "description",
+                prize.description
+            );
+
+            formData.set(
+                "type",
+                prize.type
+            );
+
+            formData.set(
+                "cardQuantity",
+                String(
+                    prize.cardQuantity
+                )
+            );
+
+            formData.set(
+                "referenceValue",
+                String(
+                    prize.referenceValue
+                )
+            );
+
+            formData.set(
+                "weight",
+                String(
+                    prize.weight
+                )
+            );
+
+            formData.set(
+                "stockTotal",
+                String(
+                    prize.stockTotal
+                )
+            );
+
+            formData.set(
+                "claimInstructions",
+                prize.claimInstructions
+            );
+
+            formData.set(
+                "active",
+                String(
+                    !prize.active
+                )
+            );
+
+            formData.set(
+                "removeImage",
+                "false"
+            );
+
+
             const response =
                 await fetch(
                     "/api/admin/premios/catalogo",
@@ -853,50 +1138,12 @@ export default function AdminPrizeCatalogPage() {
                             "PATCH",
 
                         headers: {
-
                             Authorization:
                                 `Bearer ${token}`,
-
-                            "Content-Type":
-                                "application/json",
                         },
 
                         body:
-                            JSON.stringify({
-
-                                prizeId:
-                                    prize.id,
-
-                                name:
-                                    prize.name,
-
-                                description:
-                                    prize.description,
-
-                                type:
-                                    prize.type,
-
-                                imageUrl:
-                                    prize.imageUrl,
-
-                                cardQuantity:
-                                    prize.cardQuantity,
-
-                                referenceValue:
-                                    prize.referenceValue,
-
-                                weight:
-                                    prize.weight,
-
-                                stockTotal:
-                                    prize.stockTotal,
-
-                                claimInstructions:
-                                    prize.claimInstructions,
-
-                                active:
-                                    !prize.active,
-                            }),
+                            formData,
                     }
                 );
 
@@ -938,6 +1185,108 @@ export default function AdminPrizeCatalogPage() {
                 err instanceof Error
                     ? err.message
                     : "No se pudo actualizar el premio."
+            );
+        }
+    }
+
+
+    /*
+ * =========================================================
+ * ELIMINAR PREMIO
+ * =========================================================
+ */
+
+    async function deletePrize(
+        prize: Prize
+    ) {
+        setError(
+            null
+        );
+
+        setSuccess(
+            null
+        );
+
+        /*
+         * Si ya tiene historial, ni siquiera
+         * intentamos borrarlo desde la interfaz.
+         */
+        if (
+            prize.stockAssigned > 0 ||
+            prize.stockScheduled > 0
+        ) {
+            setError(
+                `No se puede eliminar "${prize.name}" porque ya tiene ${prize.stockAssigned} unidad(es) asignada(s) y ${prize.stockScheduled} programada(s). Puedes mantenerlo desactivado para conservar el historial.`
+            );
+
+            return;
+        }
+
+        const confirmed =
+            window.confirm(
+                `¿Eliminar definitivamente "${prize.name}"?\n\nEsta acción no se puede deshacer.`
+            );
+
+        if (!confirmed) {
+            return;
+        }
+
+        try {
+            const token =
+                await getAccessToken();
+
+            const response =
+                await fetch(
+                    "/api/admin/premios/catalogo",
+                    {
+                        method:
+                            "DELETE",
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${token}`,
+
+                            "Content-Type":
+                                "application/json",
+                        },
+
+                        body:
+                            JSON.stringify({
+                                prizeId:
+                                    prize.id,
+                            }),
+                    }
+                );
+
+            const data =
+                (
+                    await response
+                        .json()
+                ) as ApiResponse;
+
+            if (
+                !response.ok ||
+                !data.ok
+            ) {
+                throw new Error(
+                    data.error ??
+                    "No se pudo eliminar el premio."
+                );
+            }
+
+            setSuccess(
+                `"${prize.name}" fue eliminado correctamente.`
+            );
+
+            await loadCatalog();
+
+        } catch (
+        err: unknown
+        ) {
+            setError(
+                err instanceof Error
+                    ? err.message
+                    : "No se pudo eliminar el premio."
             );
         }
     }
@@ -1520,49 +1869,132 @@ export default function AdminPrizeCatalogPage() {
                             <div className="md:col-span-2">
 
                                 <label className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                                    URL de imagen
+                                    Imagen del premio
                                 </label>
 
 
-                                <input
-                                    type="text"
-
-                                    value={
-                                        form.imageUrl
-                                    }
-
-                                    onChange={(
-                                        event
-                                    ) =>
-                                        setForm(
-                                            (
-                                                current
-                                            ) => ({
-                                                ...current,
-
-                                                imageUrl:
-                                                    event.target.value,
-                                            })
-                                        )
-                                    }
-
-                                    placeholder="/assets/premios/casco.png"
-
+                                <div
                                     className="
                                         mt-2
-                                        w-full
-                                        rounded-xl
+                                        overflow-hidden
+                                        rounded-2xl
                                         border
                                         border-slate-700
                                         bg-slate-950
-                                        px-4
-                                        py-3
-                                        text-sm
-                                        outline-none
+                                    "
+                                >
 
-                                        focus:border-orange-500
+                                    <div className="flex min-h-[240px] items-center justify-center p-4">
+
+                                        {imageShown &&
+                                            !imageError ? (
+
+                                            <img
+                                                src={
+                                                    imageShown
+                                                }
+
+                                                alt={
+                                                    form.name ||
+                                                    "Vista previa del premio"
+                                                }
+
+                                                onError={
+                                                    () =>
+                                                        setImageError(
+                                                            true
+                                                        )
+                                                }
+
+                                                className="
+                                                    max-h-[320px]
+                                                    w-full
+                                                    object-contain
+                                                "
+                                            />
+
+                                        ) : (
+
+                                            <div className="px-5 py-16 text-center text-sm text-slate-500">
+                                                Sin imagen del premio
+                                            </div>
+                                        )}
+
+                                    </div>
+
+                                </div>
+
+
+                                <input
+                                    type="file"
+
+                                    accept="image/webp,image/png,image/jpeg"
+
+                                    onChange={
+                                        selectImage
+                                    }
+
+                                    className="
+                                        mt-4
+                                        block
+                                        w-full
+                                        text-xs
+                                        text-slate-400
+
+                                        file:mr-3
+                                        file:rounded-full
+                                        file:border-0
+                                        file:bg-orange-500
+                                        file:px-4
+                                        file:py-2
+                                        file:text-xs
+                                        file:font-black
+                                        file:text-black
                                     "
                                 />
+
+
+                                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+
+                                    <p className="text-[11px] leading-5 text-slate-500">
+                                        WEBP, PNG o JPG. Máximo 5 MB.
+                                        La imagen se guardará en Supabase Storage.
+                                    </p>
+
+
+                                    {(form.imageUrl ||
+                                        imagePreview) &&
+                                        !removeImage && (
+
+                                            <button
+                                                type="button"
+
+                                                onClick={
+                                                    clearImage
+                                                }
+
+                                                className="
+                                                text-[11px]
+                                                font-bold
+                                                text-red-300
+                                                transition
+
+                                                hover:text-red-200
+                                            "
+                                            >
+                                                Quitar imagen
+                                            </button>
+                                        )}
+
+                                </div>
+
+
+                                {removeImage && (
+
+                                    <p className="mt-3 text-[11px] font-semibold text-yellow-300">
+                                        La imagen actual se eliminará al guardar los cambios.
+                                    </p>
+                                )}
 
                             </div>
 
@@ -2416,6 +2848,35 @@ export default function AdminPrizeCatalogPage() {
                                                         ? "Desactivar"
                                                         : "Activar"
                                                 }
+                                            </button>
+
+                                            <button
+                                                type="button"
+
+                                                onClick={
+                                                    () =>
+                                                        deletePrize(
+                                                            prize
+                                                        )
+                                                }
+
+                                                className="
+        rounded-lg
+        border
+        border-red-500/30
+        bg-red-500/10
+        px-4
+        py-2
+        text-xs
+        font-black
+        text-red-300
+        transition
+
+        hover:border-red-500
+        hover:bg-red-500/20
+    "
+                                            >
+                                                Eliminar
                                             </button>
 
                                         </div>

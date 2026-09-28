@@ -21,9 +21,6 @@ interface EditSorteoFormProps {
     galeriaInicial?: string[];
 }
 
-// 👇 nombre del bucket que creaste en Supabase Storage
-const STORAGE_BUCKET = "sorteos";
-
 export function EditSorteoForm({
     sorteo,
     galeriaInicial = [],
@@ -87,64 +84,94 @@ export function EditSorteoForm({
         setSaving(false);
     };
 
-    const handleImageUpload = async (e: ChangeEvent<HTMLInputElement>) => {
+    const handleImageUpload = async (
+        e: ChangeEvent<HTMLInputElement>
+    ) => {
         const file = e.target.files?.[0];
-        if (!file) return;
+
+        if (!file) {
+            return;
+        }
 
         setUploading(true);
         setErrorMsg(null);
         setSuccessMsg(null);
 
         try {
-            const ext = file.name.split(".").pop();
-            const fileName = `${sorteo.id}-${Date.now()}.${ext}`;
-            const filePath = `sorteos/${fileName}`;
+            const formData = new FormData();
 
-            // 👇 IMPORTANTE: upsert en false para que sea un INSERT limpio
-            const { error: uploadError } = await supabase.storage
-                .from(STORAGE_BUCKET)
-                .upload(filePath, file, {
-                    cacheControl: "3600",
-                    upsert: false,
-                });
+            formData.set(
+                "sorteoId",
+                sorteo.id
+            );
 
-            if (uploadError) {
-                console.error("Error subiendo imagen:", uploadError);
-                setErrorMsg(
-                    `Error al subir la imagen: ${uploadError.message ?? "Error desconocido"
-                    }`
+            formData.set(
+                "imagen",
+                file
+            );
+
+            const response = await fetch(
+                "/api/admin/sorteos/upload-image",
+                {
+                    method: "POST",
+                    credentials: "include",
+                    body: formData,
+                }
+            );
+
+            const data = await response
+                .json()
+                .catch(() => null);
+
+            if (
+                !response.ok ||
+                !data?.ok
+            ) {
+                throw new Error(
+                    data?.error ??
+                    "No se pudo subir la imagen del sorteo."
                 );
-                setUploading(false);
-                return;
             }
 
-            const { data } = supabase.storage
-                .from(STORAGE_BUCKET)
-                .getPublicUrl(filePath);
+            const url = String(
+                data.publicUrl ?? ""
+            ).trim();
 
-            const url = data?.publicUrl;
             if (!url) {
-                setErrorMsg(
+                throw new Error(
                     "La imagen se subió pero no se pudo obtener la URL pública."
                 );
-                setUploading(false);
-                return;
             }
 
-            // añadimos a la galería y, si no había principal, la usamos
-            setGaleria((prev) => [...prev, url]);
-            if (!imagenUrl) setImagenUrl(url);
+            setGaleria(
+                (prev) => [
+                    ...prev,
+                    url,
+                ]
+            );
+
+            // La nueva imagen pasa a ser también la principal.
+            setImagenUrl(url);
 
             setSuccessMsg(
                 "Imagen subida correctamente. No olvides guardar los cambios."
             );
-        } catch (err: any) {
-            console.error("Error inesperado al subir imagen:", err);
-            setErrorMsg(
-                `Ocurrió un error inesperado al subir la imagen: ${err?.message ?? "Error desconocido"
-                }`
+
+        } catch (err: unknown) {
+
+            console.error(
+                "Error inesperado al subir imagen:",
+                err
             );
+
+            setErrorMsg(
+                err instanceof Error
+                    ? `Error al subir la imagen: ${err.message}`
+                    : "Ocurrió un error inesperado al subir la imagen."
+            );
+
         } finally {
+
             setUploading(false);
             e.target.value = "";
         }

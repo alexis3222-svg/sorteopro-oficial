@@ -9,9 +9,23 @@ import {
     supabaseAdmin,
 } from "@/lib/supabaseAdmin";
 
+
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+
+const BUCKET =
+    "baruk-shop";
+
+const MAX_IMAGE_SIZE =
+    5 * 1024 * 1024;
+
+const IMAGE_TYPES =
+    new Set([
+        "image/webp",
+        "image/png",
+        "image/jpeg",
+    ]);
 
 const ALLOWED_TYPES = [
     "physical",
@@ -22,9 +36,14 @@ const ALLOWED_TYPES = [
 ] as const;
 
 
+/* ============================================================
+   HELPERS
+============================================================ */
+
 function normalizeText(
     value: unknown
 ) {
+
     const text =
         String(
             value ?? ""
@@ -37,6 +56,7 @@ function normalizeText(
 function normalizeEmail(
     value: unknown
 ) {
+
     return String(
         value ?? ""
     )
@@ -60,6 +80,7 @@ function parseInteger(
             number
         )
     ) {
+
         return fallback;
     }
 
@@ -82,6 +103,329 @@ function parseNumber(
     )
         ? number
         : fallback;
+}
+
+
+function parseBoolean(
+    value: unknown,
+    fallback = false
+) {
+
+    if (
+        value === null ||
+        value === undefined ||
+        value === ""
+    ) {
+
+        return fallback;
+    }
+
+    return String(
+        value
+    ) === "true";
+}
+
+
+function slugify(
+    value: string
+) {
+
+    return value
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
+        .toLowerCase()
+        .trim()
+        .replace(
+            /[^a-z0-9]+/g,
+            "-"
+        )
+        .replace(
+            /^-+|-+$/g,
+            ""
+        );
+}
+
+
+function getExtension(
+    file: File
+): string | null {
+
+    switch (
+    file.type
+    ) {
+
+        case "image/webp":
+            return "webp";
+
+        case "image/png":
+            return "png";
+
+        case "image/jpeg":
+            return "jpg";
+
+        default:
+            return null;
+    }
+}
+
+
+function getPublicImageUrl(
+    path: string
+) {
+
+    const {
+        data,
+    } =
+        supabaseAdmin
+            .storage
+            .from(
+                BUCKET
+            )
+            .getPublicUrl(
+                path
+            );
+
+    return data.publicUrl;
+}
+
+
+function getManagedStoragePath(
+    value:
+        | string
+        | null
+        | undefined
+): string | null {
+
+    const imageUrl =
+        normalizeText(
+            value
+        );
+
+    if (
+        !imageUrl
+    ) {
+
+        return null;
+    }
+
+
+    if (
+        imageUrl.startsWith(
+            "premios/"
+        )
+    ) {
+
+        return imageUrl;
+    }
+
+
+    const marker =
+        `/storage/v1/object/public/${BUCKET}/`;
+
+    const markerIndex =
+        imageUrl.indexOf(
+            marker
+        );
+
+
+    if (
+        markerIndex <
+        0
+    ) {
+
+        return null;
+    }
+
+
+    const encodedPath =
+        imageUrl
+            .slice(
+                markerIndex +
+                marker.length
+            )
+            .split(
+                "?"
+            )[0];
+
+
+    try {
+
+        return decodeURIComponent(
+            encodedPath
+        );
+
+    } catch {
+
+        return encodedPath;
+    }
+}
+
+
+async function removeManagedImage(
+    imageUrl:
+        | string
+        | null
+        | undefined
+) {
+
+    const path =
+        getManagedStoragePath(
+            imageUrl
+        );
+
+
+    if (
+        !path
+    ) {
+
+        return;
+    }
+
+
+    const {
+        error,
+    } =
+        await supabaseAdmin
+            .storage
+            .from(
+                BUCKET
+            )
+            .remove([
+                path,
+            ]);
+
+
+    if (
+        error
+    ) {
+
+        console.error(
+            "No se pudo eliminar la imagen administrada del premio:",
+            error
+        );
+    }
+}
+
+
+async function uploadPrizeImage(
+    file: File,
+    path: string
+) {
+
+    if (
+        !IMAGE_TYPES.has(
+            file.type
+        )
+    ) {
+
+        return {
+            ok: false as const,
+            status: 400,
+            error:
+                "La imagen debe ser WEBP, PNG o JPG.",
+        };
+    }
+
+
+    if (
+        file.size >
+        MAX_IMAGE_SIZE
+    ) {
+
+        return {
+            ok: false as const,
+            status: 400,
+            error:
+                "La imagen no puede superar los 5 MB.",
+        };
+    }
+
+
+    const extension =
+        getExtension(
+            file
+        );
+
+
+    if (
+        !extension
+    ) {
+
+        return {
+            ok: false as const,
+            status: 400,
+            error:
+                "Formato de imagen no permitido.",
+        };
+    }
+
+
+    const finalPath =
+        `${path}.${extension}`;
+
+
+    const buffer =
+        Buffer.from(
+            await file.arrayBuffer()
+        );
+
+
+    const {
+        error:
+        uploadError,
+    } =
+        await supabaseAdmin
+            .storage
+            .from(
+                BUCKET
+            )
+            .upload(
+                finalPath,
+                buffer,
+                {
+                    contentType:
+                        file.type,
+
+                    cacheControl:
+                        "3600",
+
+                    upsert:
+                        false,
+                }
+            );
+
+
+    if (
+        uploadError
+    ) {
+
+        console.error(
+            "Error subiendo imagen del premio:",
+            uploadError
+        );
+
+        return {
+            ok: false as const,
+            status: 500,
+            error:
+                "No se pudo subir la imagen del premio.",
+        };
+    }
+
+
+    return {
+        ok: true as const,
+        path:
+            finalPath,
+
+        publicUrl:
+            getPublicImageUrl(
+                finalPath
+            ),
+    };
 }
 
 
@@ -108,9 +452,7 @@ async function getAdminUser(
 
         return {
             ok: false as const,
-
             status: 401,
-
             error:
                 "No existe una sesión administrativa válida",
         };
@@ -126,13 +468,13 @@ async function getAdminUser(
             .trim();
 
 
-    if (!accessToken) {
+    if (
+        !accessToken
+    ) {
 
         return {
             ok: false as const,
-
             status: 401,
-
             error:
                 "Token administrativo inválido",
         };
@@ -160,9 +502,7 @@ async function getAdminUser(
 
         return {
             ok: false as const,
-
             status: 401,
-
             error:
                 "La sesión administrativa ha expirado",
         };
@@ -179,13 +519,13 @@ async function getAdminUser(
         ).trim();
 
 
-    if (!adminUserId) {
+    if (
+        !adminUserId
+    ) {
 
         return {
             ok: false as const,
-
             status: 500,
-
             error:
                 "No está configurado el administrador del sistema",
         };
@@ -199,9 +539,7 @@ async function getAdminUser(
 
         return {
             ok: false as const,
-
             status: 403,
-
             error:
                 "No tienes permisos de administrador",
         };
@@ -243,23 +581,23 @@ export async function GET(
             );
 
 
-        if (!admin.ok) {
+        if (
+            !admin.ok
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-                    error: admin.error,
+                    error:
+                        admin.error,
                 },
                 {
-                    status: admin.status,
+                    status:
+                        admin.status,
                 }
             );
         }
 
-
-        /* =====================================================
-           ACTIVIDADES
-        ===================================================== */
 
         const {
             data:
@@ -272,7 +610,9 @@ export async function GET(
                 .from(
                     "sorteos"
                 )
-                .select("*")
+                .select(
+                    "*"
+                )
                 .order(
                     "created_at",
                     {
@@ -282,7 +622,9 @@ export async function GET(
                 );
 
 
-        if (sorteosError) {
+        if (
+            sorteosError
+        ) {
 
             console.error(
                 "Error consultando sorteos:",
@@ -292,7 +634,6 @@ export async function GET(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "No se pudieron consultar las actividades",
                 },
@@ -335,7 +676,6 @@ export async function GET(
 
 
                     return {
-
                         id:
                             item.id,
 
@@ -344,7 +684,8 @@ export async function GET(
                         name:
                             possibleName ??
                             (
-                                activityNumber > 0
+                                activityNumber >
+                                    0
                                     ? `Actividad #${activityNumber}`
                                     : "Actividad Baruk593"
                             ),
@@ -367,10 +708,6 @@ export async function GET(
                 }
             );
 
-
-        /* =====================================================
-           PREMIOS
-        ===================================================== */
 
         const {
             data:
@@ -412,7 +749,9 @@ export async function GET(
                 );
 
 
-        if (prizesError) {
+        if (
+            prizesError
+        ) {
 
             console.error(
                 "Error consultando card_prizes:",
@@ -422,7 +761,6 @@ export async function GET(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "No se pudo consultar el catálogo de premios",
                 },
@@ -448,13 +786,11 @@ export async function GET(
                             0
                         );
 
-
                     const stockAssigned =
                         Number(
                             prize.stock_asignado ??
                             0
                         );
-
 
                     const stockScheduled =
                         Number(
@@ -464,7 +800,6 @@ export async function GET(
 
 
                     return {
-
                         id:
                             prize.id,
 
@@ -504,15 +839,12 @@ export async function GET(
                             ),
 
                         stockTotal,
-
                         stockAssigned,
-
                         stockScheduled,
 
                         stockRemaining:
                             Math.max(
                                 0,
-
                                 stockTotal -
                                 stockAssigned -
                                 stockScheduled
@@ -549,11 +881,8 @@ export async function GET(
 
 
         return NextResponse.json({
-
             ok: true,
-
             sorteos,
-
             prizes,
         });
 
@@ -567,11 +896,9 @@ export async function GET(
             error
         );
 
-
         return NextResponse.json(
             {
                 ok: false,
-
                 error:
                     error instanceof
                         Error
@@ -595,6 +922,12 @@ export async function POST(
     req: NextRequest
 ) {
 
+    let uploadedImagePath:
+        | string
+        | null =
+        null;
+
+
     try {
 
         const admin =
@@ -603,127 +936,119 @@ export async function POST(
             );
 
 
-        if (!admin.ok) {
+        if (
+            !admin.ok
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-                    error: admin.error,
-                },
-                {
-                    status: admin.status,
-                }
-            );
-        }
-
-
-        const body =
-            await req
-                .json()
-                .catch(
-                    () =>
-                        null
-                );
-
-
-        if (!body) {
-
-            return NextResponse.json(
-                {
-                    ok: false,
-
                     error:
-                        "Datos inválidos",
+                        admin.error,
                 },
                 {
-                    status: 400,
+                    status:
+                        admin.status,
                 }
             );
         }
+
+
+        const formData =
+            await req.formData();
 
 
         const sorteoId =
             normalizeText(
-                body.sorteoId
+                formData.get(
+                    "sorteoId"
+                )
             );
-
 
         const name =
             normalizeText(
-                body.name
+                formData.get(
+                    "name"
+                )
             );
-
 
         const description =
             normalizeText(
-                body.description
+                formData.get(
+                    "description"
+                )
             );
-
 
         const type =
             String(
-                body.type ??
+                formData.get(
+                    "type"
+                ) ??
                 ""
             )
                 .trim()
                 .toLowerCase();
 
-
-        const imageUrl =
-            normalizeText(
-                body.imageUrl
-            );
-
-
         const cardQuantity =
             parseInteger(
-                body.cardQuantity,
+                formData.get(
+                    "cardQuantity"
+                ),
                 0
             );
-
 
         const referenceValue =
             parseNumber(
-                body.referenceValue,
+                formData.get(
+                    "referenceValue"
+                ),
                 0
             );
-
 
         const weight =
             parseNumber(
-                body.weight,
+                formData.get(
+                    "weight"
+                ),
                 1
             );
 
-
         const stockTotal =
             parseInteger(
-                body.stockTotal,
+                formData.get(
+                    "stockTotal"
+                ),
                 0
             );
 
-
         const claimInstructions =
             normalizeText(
-                body.claimInstructions
+                formData.get(
+                    "claimInstructions"
+                )
+            );
+
+        const active =
+            parseBoolean(
+                formData.get(
+                    "active"
+                ),
+                true
+            );
+
+        const image =
+            formData.get(
+                "image"
             );
 
 
-        const active =
-            body.active !==
-            false;
-
-
-        /* =====================================================
-           VALIDACIONES
-        ===================================================== */
-
-        if (!sorteoId) {
+        if (
+            !sorteoId
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Selecciona una actividad",
                 },
@@ -734,12 +1059,13 @@ export async function POST(
         }
 
 
-        if (!name) {
+        if (
+            !name
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Ingresa el nombre del premio",
                 },
@@ -760,7 +1086,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Tipo de premio inválido",
                 },
@@ -779,7 +1104,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "El stock no puede ser negativo",
                 },
@@ -798,7 +1122,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "El valor del premio no puede ser negativo",
                 },
@@ -817,7 +1140,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "El peso de asignación no puede ser negativo",
                 },
@@ -838,7 +1160,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Un premio en efectivo debe tener un valor mayor a $0",
                 },
@@ -859,7 +1180,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Indica cuántas Tarjetas entrega este premio",
                 },
@@ -869,10 +1189,6 @@ export async function POST(
             );
         }
 
-
-        /* =====================================================
-           COMPROBAR ACTIVIDAD
-        ===================================================== */
 
         const {
             data:
@@ -903,7 +1219,6 @@ export async function POST(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "La actividad seleccionada no existe",
                 },
@@ -914,9 +1229,58 @@ export async function POST(
         }
 
 
-        /* =====================================================
-           CREAR
-        ===================================================== */
+        let imageUrl:
+            | string
+            | null =
+            null;
+
+
+        if (
+            image instanceof
+            File &&
+            image.size >
+            0
+        ) {
+
+            const prizeSlug =
+                slugify(
+                    name
+                ) ||
+                "premio";
+
+
+            const upload =
+                await uploadPrizeImage(
+                    image,
+                    `premios/${sorteoId}/${prizeSlug}-${Date.now()}`
+                );
+
+
+            if (
+                !upload.ok
+            ) {
+
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            upload.error,
+                    },
+                    {
+                        status:
+                            upload.status,
+                    }
+                );
+            }
+
+
+            uploadedImagePath =
+                upload.path;
+
+            imageUrl =
+                upload.publicUrl;
+        }
+
 
         const {
             data:
@@ -930,7 +1294,6 @@ export async function POST(
                     "card_prizes"
                 )
                 .insert({
-
                     sorteo_id:
                         sorteoId,
 
@@ -973,7 +1336,9 @@ export async function POST(
                     activo:
                         active,
                 })
-                .select("*")
+                .select(
+                    "*"
+                )
                 .single();
 
 
@@ -987,10 +1352,25 @@ export async function POST(
                 createError
             );
 
+
+            if (
+                uploadedImagePath
+            ) {
+
+                await supabaseAdmin
+                    .storage
+                    .from(
+                        BUCKET
+                    )
+                    .remove([
+                        uploadedImagePath,
+                    ]);
+            }
+
+
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         createError
                             ?.message ??
@@ -1004,12 +1384,9 @@ export async function POST(
 
 
         return NextResponse.json({
-
             ok: true,
-
             prizeId:
                 created.id,
-
         });
 
     } catch (
@@ -1023,10 +1400,30 @@ export async function POST(
         );
 
 
+        if (
+            uploadedImagePath
+        ) {
+
+            try {
+
+                await supabaseAdmin
+                    .storage
+                    .from(
+                        BUCKET
+                    )
+                    .remove([
+                        uploadedImagePath,
+                    ]);
+
+            } catch {
+                // Conservar el error original.
+            }
+        }
+
+
         return NextResponse.json(
             {
                 ok: false,
-
                 error:
                     error instanceof
                         Error
@@ -1050,6 +1447,12 @@ export async function PATCH(
     req: NextRequest
 ) {
 
+    let newImagePath:
+        | string
+        | null =
+        null;
+
+
     try {
 
         const admin =
@@ -1058,41 +1461,43 @@ export async function PATCH(
             );
 
 
-        if (!admin.ok) {
+        if (
+            !admin.ok
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-                    error: admin.error,
+                    error:
+                        admin.error,
                 },
                 {
-                    status: admin.status,
+                    status:
+                        admin.status,
                 }
             );
         }
 
 
-        const body =
-            await req
-                .json()
-                .catch(
-                    () =>
-                        null
-                );
+        const formData =
+            await req.formData();
 
 
         const prizeId =
             normalizeText(
-                body?.prizeId
+                formData.get(
+                    "prizeId"
+                )
             );
 
 
-        if (!prizeId) {
+        if (
+            !prizeId
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Falta identificar el premio",
                 },
@@ -1102,10 +1507,6 @@ export async function PATCH(
             );
         }
 
-
-        /* =====================================================
-           LEER PREMIO ACTUAL
-        ===================================================== */
 
         const {
             data:
@@ -1148,7 +1549,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "El premio no existe",
                 },
@@ -1166,14 +1566,12 @@ export async function PATCH(
                 0
             );
 
-
         const stockScheduled =
             Number(
                 current
                     .stock_programado ??
                 0
             );
-
 
         const committedStock =
             stockAssigned +
@@ -1182,34 +1580,33 @@ export async function PATCH(
 
         const name =
             normalizeText(
-                body?.name
+                formData.get(
+                    "name"
+                )
             );
-
 
         const description =
             normalizeText(
-                body?.description
+                formData.get(
+                    "description"
+                )
             );
-
 
         const type =
             String(
-                body?.type ??
+                formData.get(
+                    "type"
+                ) ??
                 current.tipo
             )
                 .trim()
                 .toLowerCase();
 
-
-        const imageUrl =
-            normalizeText(
-                body?.imageUrl
-            );
-
-
         const cardQuantity =
             parseInteger(
-                body?.cardQuantity,
+                formData.get(
+                    "cardQuantity"
+                ),
                 Number(
                     current
                         .cantidad_cards ??
@@ -1217,10 +1614,11 @@ export async function PATCH(
                 )
             );
 
-
         const referenceValue =
             parseNumber(
-                body?.referenceValue,
+                formData.get(
+                    "referenceValue"
+                ),
                 Number(
                     current
                         .valor_referencial ??
@@ -1228,10 +1626,11 @@ export async function PATCH(
                 )
             );
 
-
         const weight =
             parseNumber(
-                body?.weight,
+                formData.get(
+                    "weight"
+                ),
                 Number(
                     current
                         .peso_asignacion ??
@@ -1239,10 +1638,11 @@ export async function PATCH(
                 )
             );
 
-
         const stockTotal =
             parseInteger(
-                body?.stockTotal,
+                formData.get(
+                    "stockTotal"
+                ),
                 Number(
                     current
                         .stock_total ??
@@ -1250,26 +1650,44 @@ export async function PATCH(
                 )
             );
 
-
         const claimInstructions =
             normalizeText(
-                body
-                    ?.claimInstructions
+                formData.get(
+                    "claimInstructions"
+                )
             );
-
 
         const active =
-            Boolean(
-                body?.active
+            parseBoolean(
+                formData.get(
+                    "active"
+                ),
+                Boolean(
+                    current.activo
+                )
+            );
+
+        const removeImage =
+            parseBoolean(
+                formData.get(
+                    "removeImage"
+                ),
+                false
+            );
+
+        const image =
+            formData.get(
+                "image"
             );
 
 
-        if (!name) {
+        if (
+            !name
+        ) {
 
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Ingresa el nombre del premio",
                 },
@@ -1290,7 +1708,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Tipo de premio inválido",
                 },
@@ -1301,10 +1718,6 @@ export async function PATCH(
         }
 
 
-        /*
-         * Nunca reducir stock por debajo
-         * de lo ya asignado/programado.
-         */
         if (
             stockTotal <
             committedStock
@@ -1313,7 +1726,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         `No puedes reducir el stock a ${stockTotal}. Ya existen ${committedStock} unidades asignadas o programadas.`,
                 },
@@ -1334,7 +1746,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Los valores ingresados no son válidos",
                 },
@@ -1345,10 +1756,6 @@ export async function PATCH(
         }
 
 
-        /*
-         * Una vez comprometido un premio,
-         * evitamos cambiar su naturaleza.
-         */
         if (
             committedStock >
             0 &&
@@ -1359,7 +1766,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "No puedes cambiar el tipo de un premio que ya tiene unidades asignadas o programadas.",
                 },
@@ -1386,7 +1792,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "No puedes cambiar el valor económico de un premio que ya fue asignado o programado.",
                 },
@@ -1407,7 +1812,6 @@ export async function PATCH(
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         "Un premio en efectivo debe tener un valor mayor a $0",
                 },
@@ -1418,9 +1822,88 @@ export async function PATCH(
         }
 
 
-        /* =====================================================
-           ACTUALIZAR
-        ===================================================== */
+        if (
+            type ===
+            "digital_cards" &&
+            cardQuantity <=
+            0
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "Indica cuántas Tarjetas entrega este premio",
+                },
+                {
+                    status: 400,
+                }
+            );
+        }
+
+
+        const oldImageUrl =
+            normalizeText(
+                current.imagen_url
+            );
+
+
+        let finalImageUrl:
+            | string
+            | null =
+            oldImageUrl;
+
+
+        const hasNewImage =
+            image instanceof
+            File &&
+            image.size >
+            0;
+
+
+        if (
+            hasNewImage
+        ) {
+
+            const upload =
+                await uploadPrizeImage(
+                    image,
+                    `premios/${prizeId}/principal-${Date.now()}`
+                );
+
+
+            if (
+                !upload.ok
+            ) {
+
+                return NextResponse.json(
+                    {
+                        ok: false,
+                        error:
+                            upload.error,
+                    },
+                    {
+                        status:
+                            upload.status,
+                    }
+                );
+            }
+
+
+            newImagePath =
+                upload.path;
+
+            finalImageUrl =
+                upload.publicUrl;
+
+        } else if (
+            removeImage
+        ) {
+
+            finalImageUrl =
+                null;
+        }
+
 
         const {
             error:
@@ -1431,7 +1914,6 @@ export async function PATCH(
                     "card_prizes"
                 )
                 .update({
-
                     nombre:
                         name,
 
@@ -1442,7 +1924,7 @@ export async function PATCH(
                         type,
 
                     imagen_url:
-                        imageUrl,
+                        finalImageUrl,
 
                     cantidad_cards:
                         type ===
@@ -1475,17 +1957,34 @@ export async function PATCH(
                 );
 
 
-        if (updateError) {
+        if (
+            updateError
+        ) {
 
             console.error(
                 "Error actualizando card_prize:",
                 updateError
             );
 
+
+            if (
+                newImagePath
+            ) {
+
+                await supabaseAdmin
+                    .storage
+                    .from(
+                        BUCKET
+                    )
+                    .remove([
+                        newImagePath,
+                    ]);
+            }
+
+
             return NextResponse.json(
                 {
                     ok: false,
-
                     error:
                         updateError.message,
                 },
@@ -1496,10 +1995,24 @@ export async function PATCH(
         }
 
 
+        if (
+            oldImageUrl &&
+            oldImageUrl !==
+            finalImageUrl &&
+            (
+                hasNewImage ||
+                removeImage
+            )
+        ) {
+
+            await removeManagedImage(
+                oldImageUrl
+            );
+        }
+
+
         return NextResponse.json({
-
             ok: true,
-
             prizeId,
         });
 
@@ -1514,10 +2027,251 @@ export async function PATCH(
         );
 
 
+        if (
+            newImagePath
+        ) {
+
+            try {
+
+                await supabaseAdmin
+                    .storage
+                    .from(
+                        BUCKET
+                    )
+                    .remove([
+                        newImagePath,
+                    ]);
+
+            } catch {
+                // Conservar el error original.
+            }
+        }
+
+
         return NextResponse.json(
             {
                 ok: false,
+                error:
+                    error instanceof
+                        Error
+                        ? error.message
+                        : "Error interno",
+            },
+            {
+                status: 500,
+            }
+        );
+    }
+}
 
+
+/* ============================================================
+   DELETE
+   ELIMINAR PREMIO SIN HISTORIAL
+============================================================ */
+
+export async function DELETE(
+    req: NextRequest
+) {
+
+    try {
+
+        const admin =
+            await getAdminUser(
+                req
+            );
+
+
+        if (
+            !admin.ok
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        admin.error,
+                },
+                {
+                    status:
+                        admin.status,
+                }
+            );
+        }
+
+
+        const body =
+            await req
+                .json()
+                .catch(
+                    () =>
+                        null
+                );
+
+
+        const prizeId =
+            normalizeText(
+                body?.prizeId
+            );
+
+
+        if (
+            !prizeId
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "Falta identificar el premio",
+                },
+                {
+                    status: 400,
+                }
+            );
+        }
+
+
+        const {
+            data:
+            current,
+
+            error:
+            currentError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "card_prizes"
+                )
+                .select(`
+                    id,
+                    nombre,
+                    imagen_url,
+                    stock_asignado,
+                    stock_programado
+                `)
+                .eq(
+                    "id",
+                    prizeId
+                )
+                .maybeSingle();
+
+
+        if (
+            currentError ||
+            !current
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        "El premio no existe",
+                },
+                {
+                    status: 404,
+                }
+            );
+        }
+
+
+        const stockAssigned =
+            Number(
+                current
+                    .stock_asignado ??
+                0
+            );
+
+        const stockScheduled =
+            Number(
+                current
+                    .stock_programado ??
+                0
+            );
+
+
+        if (
+            stockAssigned >
+            0 ||
+            stockScheduled >
+            0
+        ) {
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        `No se puede eliminar "${current.nombre}" porque ya tiene ${stockAssigned} unidad(es) asignada(s) y ${stockScheduled} programada(s). Desactívalo para conservar el historial.`,
+                },
+                {
+                    status: 409,
+                }
+            );
+        }
+
+
+        const {
+            error:
+            deleteError,
+        } =
+            await supabaseAdmin
+                .from(
+                    "card_prizes"
+                )
+                .delete()
+                .eq(
+                    "id",
+                    prizeId
+                );
+
+
+        if (
+            deleteError
+        ) {
+
+            console.error(
+                "Error eliminando card_prize:",
+                deleteError
+            );
+
+            return NextResponse.json(
+                {
+                    ok: false,
+                    error:
+                        deleteError.message ??
+                        "No se pudo eliminar el premio",
+                },
+                {
+                    status: 500,
+                }
+            );
+        }
+
+
+        await removeManagedImage(
+            current.imagen_url
+        );
+
+
+        return NextResponse.json({
+            ok: true,
+            prizeId,
+        });
+
+    } catch (
+    error:
+        unknown
+    ) {
+
+        console.error(
+            "admin premios catalogo DELETE:",
+            error
+        );
+
+
+        return NextResponse.json(
+            {
+                ok: false,
                 error:
                     error instanceof
                         Error

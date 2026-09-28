@@ -429,24 +429,41 @@ export default function AdminBarukShopPage() {
         inline-flex
         items-center
         justify-center
-
         rounded-full
-
         bg-orange-500
-
         px-5
         py-2.5
-
         text-xs
         font-bold
         text-black
-
         transition
-
         hover:bg-orange-400
     "
                         >
                             + Nuevo producto
+                        </Link>
+
+                        <Link
+                            href="/admin/shop/categorias"
+                            className="
+        inline-flex
+        min-h-[44px]
+        items-center
+        justify-center
+        rounded-xl
+        border
+        border-slate-700
+        bg-slate-900
+        px-5
+        text-sm
+        font-black
+        text-white
+        transition
+        hover:border-orange-500
+        hover:text-orange-300
+    "
+                        >
+                            Categorías
                         </Link>
 
                         <Link
