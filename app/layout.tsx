@@ -719,6 +719,83 @@ export default function RootLayout({
 
               </div>
 
+              {/* =================================================
+    INFORMACIÓN LEGAL / EMPRESARIAL
+================================================= */}
+
+              <div
+                className="
+    mt-10
+    rounded-2xl
+    border
+    border-white/10
+    bg-white/[0.03]
+
+    px-5
+    py-5
+
+    sm:px-6
+  "
+              >
+                <p
+                  className="
+      text-[12px]
+      font-bold
+      leading-6
+      text-white/70
+    "
+                >
+                  <span className="font-black text-white">
+                    Baruk593
+                  </span>{" "}
+                  es una marca comercial operada por{" "}
+                  <span className="font-black text-white">
+                    ECUABARUK COMPANY S.A.S.
+                  </span>
+                </p>
+
+                <div
+                  className="
+      mt-3
+      flex
+      flex-col
+      gap-1.5
+
+      text-[11px]
+      font-medium
+      leading-5
+      text-white/45
+
+      sm:flex-row
+      sm:flex-wrap
+      sm:gap-x-5
+    "
+                >
+                  <span>
+                    RUC: 2191775511001
+                  </span>
+
+                  <a
+                    href="mailto:alexis3222@hotmail.com"
+                    className="
+        transition-colors
+        hover:text-[#ff6600]
+      "
+                  >
+                    Correo: alexis3222@hotmail.com
+                  </a>
+
+                  <a
+                    href="tel:+593980966034"
+                    className="
+        transition-colors
+        hover:text-[#ff6600]
+      "
+                  >
+                    Teléfono: +593 98 096 6034
+                  </a>
+                </div>
+              </div>
 
               {/* =================================================
                                 INFERIOR
