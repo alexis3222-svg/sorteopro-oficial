@@ -1235,16 +1235,28 @@ export default function RegaloPage() {
                                     <div className="rounded-2xl border border-slate-200 bg-slate-50 p-5">
 
                                         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-400">
-                                            Vas a reclamar este regalo con
+                                            Esta cuenta recibirá permanentemente el regalo
                                         </p>
 
                                         <p className="mt-2 break-all text-sm font-black text-[#171717]">
                                             {session.user.email}
                                         </p>
 
-                                        <p className="mt-2 text-xs leading-5 text-slate-500">
-                                            Las Tarjetas de la Suerte quedarán vinculadas permanentemente a esta cuenta.
-                                        </p>
+                                        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3">
+
+                                            <p className="text-xs font-black leading-5 text-amber-800">
+                                                Verifica que esta cuenta corresponda a{" "}
+                                                <span className="uppercase">
+                                                    {gift.recipientName}
+                                                </span>
+                                                {" "}antes de continuar.
+                                            </p>
+
+                                            <p className="mt-1 text-[11px] leading-5 text-amber-700/90">
+                                                Una vez reclamadas, las Tarjetas de la Suerte quedarán vinculadas permanentemente a esta cuenta.
+                                            </p>
+
+                                        </div>
 
                                     </div>
 
@@ -1288,7 +1300,7 @@ export default function RegaloPage() {
                                         }
                                         className="mt-3 min-h-[44px] w-full text-xs font-bold text-slate-500 underline decoration-slate-300 underline-offset-4"
                                     >
-                                        Usar otra cuenta
+                                        ¿No es la cuenta correcta? Usar otra cuenta
                                     </button>
 
                                 </div>

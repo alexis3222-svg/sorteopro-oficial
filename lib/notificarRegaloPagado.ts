@@ -154,6 +154,84 @@ function cleanTemplateValue(
 
 
 /* ============================================================
+   STATUS CALLBACK DE TWILIO
+
+   Usamos siempre la URL pública de producción porque Twilio
+   no puede llamar a localhost. El giftId permite identificar
+   el regalo incluso si el callback llega antes de guardar
+   el MessageSid devuelto por Twilio.
+============================================================ */
+
+function getWhatsAppStatusCallbackUrl(
+    giftId: string
+): string {
+
+    return (
+        "https://www.baruk593.com" +
+        "/api/twilio/whatsapp/status" +
+        `?giftId=${encodeURIComponent(giftId)}`
+    );
+}
+
+
+function isWhatsAppAlreadyDispatched(
+    status:
+        | string
+        | null
+        | undefined
+): boolean {
+
+    return [
+        "sending",
+        "accepted",
+        "queued",
+        "sent",
+        "delivered",
+        "read",
+        "undelivered",
+    ].includes(
+        String(status ?? "")
+            .trim()
+            .toLowerCase()
+    );
+}
+
+
+function normalizeTwilioInitialStatus(
+    value: unknown
+): string {
+
+    const status =
+        String(
+            value ?? ""
+        )
+            .trim()
+            .toLowerCase();
+
+    if (
+        [
+            "accepted",
+            "queued",
+            "sending",
+            "sent",
+            "delivered",
+            "read",
+            "undelivered",
+            "failed",
+        ].includes(status)
+    ) {
+        return status;
+    }
+
+    /*
+     * La API de Twilio aceptó el mensaje, aunque no haya
+     * devuelto un estado que reconozcamos.
+     */
+    return "sent";
+}
+
+
+/* ============================================================
    CONFIGURACIÓN TWILIO
 ============================================================ */
 
@@ -261,6 +339,7 @@ export async function notificarRegaloPagado(
                     token_reclamo,
 
                     whatsapp_status,
+                    whatsapp_message_sid,
                     enviado_at
                 `)
                 .eq(
@@ -308,31 +387,21 @@ export async function notificarRegaloPagado(
            3. IDEMPOTENCIA
         ===================================================== */
 
-        if (
-            gift.whatsapp_status ===
-            "sent"
-        ) {
-
-            return {
-                ok: true,
-
-                alreadySent:
-                    true,
-            };
-        }
-
-
         /*
-         * Si otra ejecución ya tomó
-         * la notificación, no duplicamos.
+         * Una vez que Twilio recibió el mensaje, no lo reenviamos
+         * automáticamente aunque después termine como undelivered.
+         *
+         * Esto evita duplicados y, especialmente, evita reintentar
+         * de inmediato errores de Meta como 63049.
          */
         if (
-            gift.whatsapp_status ===
-            "sending"
+            isWhatsAppAlreadyDispatched(
+                gift.whatsapp_status
+            )
         ) {
 
             console.log(
-                `[WhatsApp] El regalo ${giftId} ya se está notificando.`
+                `[WhatsApp] El regalo ${giftId} ya fue enviado o está en seguimiento (${gift.whatsapp_status}).`
             );
 
 
@@ -562,6 +631,21 @@ export async function notificarRegaloPagado(
                 .update({
                     whatsapp_status:
                         "sending",
+
+                    whatsapp_message_sid:
+                        null,
+
+                    whatsapp_error_code:
+                        null,
+
+                    whatsapp_error_message:
+                        null,
+
+                    whatsapp_status_updated_at:
+                        new Date().toISOString(),
+
+                    whatsapp_failed_at:
+                        null,
                 })
                 .eq(
                     "id",
@@ -620,12 +704,10 @@ export async function notificarRegaloPagado(
 
 
             if (
-                currentGift
-                    ?.whatsapp_status ===
-                "sent" ||
-                currentGift
-                    ?.whatsapp_status ===
-                "sending"
+                isWhatsAppAlreadyDispatched(
+                    currentGift
+                        ?.whatsapp_status
+                )
             ) {
 
                 return {
@@ -682,6 +764,14 @@ export async function notificarRegaloPagado(
         body.set(
             "ContentSid",
             contentSid
+        );
+
+
+        body.set(
+            "StatusCallback",
+            getWhatsAppStatusCallbackUrl(
+                giftId
+            )
         );
 
 
@@ -794,6 +884,22 @@ export async function notificarRegaloPagado(
                     .update({
                         whatsapp_status:
                             "failed",
+
+                        whatsapp_error_code:
+                            data?.code
+                                ? String(data.code)
+                                : null,
+
+                        whatsapp_error_message:
+                            data?.message
+                                ? String(data.message).slice(0, 1000)
+                                : "Twilio rechazó el mensaje de WhatsApp.",
+
+                        whatsapp_status_updated_at:
+                            new Date().toISOString(),
+
+                        whatsapp_failed_at:
+                            new Date().toISOString(),
                     })
                     .eq(
                         "id",
@@ -830,6 +936,18 @@ export async function notificarRegaloPagado(
                 .toISOString();
 
 
+        const messageSid =
+            cleanTemplateValue(
+                data?.sid
+            );
+
+
+        const initialStatus =
+            normalizeTwilioInitialStatus(
+                data?.status
+            );
+
+
         const {
             error:
             updateError,
@@ -840,7 +958,20 @@ export async function notificarRegaloPagado(
                 )
                 .update({
                     whatsapp_status:
-                        "sent",
+                        initialStatus,
+
+                    whatsapp_message_sid:
+                        messageSid ||
+                        null,
+
+                    whatsapp_error_code:
+                        null,
+
+                    whatsapp_error_message:
+                        null,
+
+                    whatsapp_status_updated_at:
+                        now,
 
                     enviado_at:
                         gift.enviado_at ??
@@ -849,6 +980,14 @@ export async function notificarRegaloPagado(
                 .eq(
                     "id",
                     giftId
+                )
+                /*
+                 * Si el callback llegó primero, ya habrá cambiado
+                 * el estado y no debemos retrocederlo a queued/sent.
+                 */
+                .eq(
+                    "whatsapp_status",
+                    "sending"
                 );
 
 
@@ -886,8 +1025,10 @@ export async function notificarRegaloPagado(
                 pedidoId,
 
                 messageSid:
-                    data?.sid ??
+                    messageSid ||
                     null,
+
+                initialStatus,
 
                 to:
                     recipientPhone,
@@ -934,6 +1075,17 @@ export async function notificarRegaloPagado(
                 .update({
                     whatsapp_status:
                         "failed",
+
+                    whatsapp_error_message:
+                        error instanceof Error
+                            ? error.message.slice(0, 1000)
+                            : "Error interno al notificar el regalo por WhatsApp",
+
+                    whatsapp_status_updated_at:
+                        new Date().toISOString(),
+
+                    whatsapp_failed_at:
+                        new Date().toISOString(),
                 })
                 .eq(
                     "id",
