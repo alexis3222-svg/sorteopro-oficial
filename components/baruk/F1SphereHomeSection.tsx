@@ -353,6 +353,34 @@ export default function F1SphereHomeSection() {
                             premio de la colección.
                         </p>
 
+                        {/* =================================================
+    IPHONE — SOLO MÓVIL
+================================================= */}
+
+                        <div
+                            className="
+        mt-7
+        flex
+        justify-center
+        lg:hidden
+    "
+                        >
+                            <img
+                                src={IPHONE_IMAGE}
+                                alt="iPhone 18 Pro Max, premio F1 Sphere Collection"
+                                draggable={false}
+                                className="
+            relative
+            z-10
+            w-[190px]
+            rotate-[5deg]
+            object-contain
+            drop-shadow-[0_22px_22px_rgba(0,0,0,0.18)]
+
+            sm:w-[220px]
+        "
+                            />
+                        </div>
 
                         {/* =================================================
                             ESFERAS
@@ -753,16 +781,14 @@ export default function F1SphereHomeSection() {
 
                     <div
                         className="
-                            relative
-                            flex
-                            min-h-[390px]
-                            items-center
-                            justify-center
+        relative
+        hidden
 
-                            sm:min-h-[460px]
-                            lg:min-h-[610px]
-                            lg:justify-end
-                        "
+        lg:flex
+        lg:min-h-[610px]
+        lg:items-center
+        lg:justify-end
+    "
                     >
 
                         {/* IPHONE */}
