@@ -1,246 +1,598 @@
-import { NextRequest, NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabaseAdmin";
+import {
+    NextRequest,
+    NextResponse,
+} from "next/server";
 
-export const dynamic = "force-dynamic";
-export const runtime = "nodejs";
+import {
+    supabaseAdmin,
+} from "@/lib/supabaseAdmin";
 
-function unauthorized() {
-    return NextResponse.json(
-        {
-            success: false,
-            error: "Unauthorized",
-        },
-        { status: 401 }
-    );
-}
 
-function normalizeSearch(value: string) {
-    return value
-        .trim()
+export const runtime =
+    "nodejs";
+
+export const dynamic =
+    "force-dynamic";
+
+
+// =========================================================
+// NORMALIZAR TEXTO
+// =========================================================
+
+function normalizar(
+    value:
+        | string
+        | null
+        | undefined
+): string {
+
+    return (
+        value ??
+        ""
+    )
+        .normalize("NFD")
+        .replace(
+            /[\u0300-\u036f]/g,
+            ""
+        )
         .toLowerCase()
-        .replace(/[(),]/g, " ")
-        .replace(/\s+/g, " ")
-        .slice(0, 100);
+        .replace(
+            /[^a-z0-9]+/g,
+            " "
+        )
+        .trim();
 }
 
-export async function GET(request: NextRequest) {
+
+// =========================================================
+// GET
+// =========================================================
+
+export async function GET(
+    request: NextRequest
+) {
+
     try {
+
         // =====================================================
-        // 1. AUTORIZACIÓN PRIVADA
+        // 1. AUTENTICACIÓN INTERNA
         // =====================================================
 
         const expectedSecret =
-            process.env.BARUK_AI_INTERNAL_SECRET;
+            process.env
+                .BARUK_AI_INTERNAL_SECRET;
 
-        if (!expectedSecret) {
+
+        if (
+            !expectedSecret
+        ) {
+
+            console.error(
+                "BARUK_AI_INTERNAL_SECRET no está configurado"
+            );
+
             return NextResponse.json(
                 {
-                    success: false,
-                    error: "Configuración interna incompleta",
+                    success:
+                        false,
+
+                    error:
+                        "Configuración interna incompleta",
                 },
-                { status: 500 }
+                {
+                    status:
+                        500,
+                }
             );
         }
 
+
         const authorization =
-            request.headers.get("authorization");
+            request.headers.get(
+                "authorization"
+            );
+
 
         if (
-            !authorization ||
-            authorization !== `Bearer ${expectedSecret}`
+            authorization !==
+            `Bearer ${expectedSecret}`
         ) {
-            return unauthorized();
+
+            return NextResponse.json(
+                {
+                    success:
+                        false,
+
+                    error:
+                        "Unauthorized",
+                },
+                {
+                    status:
+                        401,
+                }
+            );
         }
 
+
         // =====================================================
-        // 2. TEXTO DE BÚSQUEDA
+        // 2. CONSULTA
         // =====================================================
 
         const rawQuery =
-            request.nextUrl.searchParams.get("q") ?? "";
+            request
+                .nextUrl
+                .searchParams
+                .get("q")
+                ?.trim() ??
+            "";
 
-        const query = normalizeSearch(rawQuery);
 
-        if (query.length < 2) {
+        if (
+            rawQuery.length <
+            2
+        ) {
+
             return NextResponse.json(
                 {
-                    success: false,
+                    success:
+                        false,
+
                     error:
-                        "Debes indicar al menos 2 caracteres para buscar",
+                        "La búsqueda debe contener al menos dos caracteres",
                 },
-                { status: 400 }
+                {
+                    status:
+                        400,
+                }
             );
         }
+
+
+        const queryNormalizada =
+            normalizar(
+                rawQuery
+            );
+
+
+        const tokens =
+            queryNormalizada
+                .split(/\s+/)
+                .filter(
+                    (
+                        token
+                    ) =>
+                        token.length >
+                        1
+                );
+
 
         // =====================================================
         // 3. PRODUCTOS ACTIVOS
         // =====================================================
 
         const {
-            data: products,
-            error: productsError,
-        } = await supabaseAdmin
-            .from("store_products")
-            .select(`
-        id,
-        category_id,
-        nombre,
-        slug,
-        descripcion_corta,
-        precio,
-        precio_anterior,
-        stock,
-        sku,
-        imagen_principal,
-        destacado,
-        tendencia,
-        nuevo,
-        etiqueta
-      `)
-            .eq("activo", true)
-            .or(
-                [
-                    `nombre.ilike.%${query}%`,
-                    `slug.ilike.%${query}%`,
-                    `sku.ilike.%${query}%`,
-                ].join(",")
-            )
-            .order("destacado", {
-                ascending: false,
-            })
-            .order("orden", {
-                ascending: true,
-            })
-            .limit(10);
+            data:
+            productos,
 
-        if (productsError) {
+            error:
+            productosError,
+
+        } =
+            await supabaseAdmin
+                .from(
+                    "store_products"
+                )
+                .select(`
+                    id,
+                    nombre,
+                    slug,
+                    descripcion_corta,
+                    precio,
+                    precio_anterior,
+                    stock,
+                    sku,
+                    imagen_principal,
+                    activo,
+                    destacado,
+                    tendencia,
+                    nuevo,
+                    etiqueta,
+                    orden,
+
+                    store_categories (
+                        nombre,
+                        slug
+                    )
+                `)
+                .eq(
+                    "activo",
+                    true
+                )
+                .order(
+                    "orden",
+                    {
+                        ascending:
+                            true,
+                    }
+                );
+
+
+        if (
+            productosError
+        ) {
+
             console.error(
-                "Error buscando productos:",
-                productsError
+                "Error consultando Baruk Shop:",
+                productosError
             );
 
-            return NextResponse.json(
-                {
-                    success: false,
-                    error: "No se pudieron consultar los productos",
-                },
-                { status: 500 }
-            );
+            throw productosError;
         }
 
-        const categoryIds = [
-            ...new Set(
-                (products ?? [])
-                    .map((product) => product.category_id)
-                    .filter(Boolean)
-            ),
-        ];
 
         // =====================================================
-        // 4. CATEGORÍAS
+        // 4. BÚSQUEDA FLEXIBLE
         // =====================================================
 
-        let categories: {
-            id: string;
-            nombre: string;
-            slug: string;
-        }[] = [];
+        const encontrados =
+            (
+                productos ??
+                []
+            )
+                .map(
+                    (
+                        producto:
+                            any
+                    ) => {
 
-        if (categoryIds.length > 0) {
-            const {
-                data,
-                error,
-            } = await supabaseAdmin
-                .from("store_categories")
-                .select("id, nombre, slug")
-                .in("id", categoryIds);
+                        const categoria =
+                            Array.isArray(
+                                producto
+                                    .store_categories
+                            )
+                                ? producto
+                                    .store_categories[0] ??
+                                null
+                                : producto
+                                    .store_categories ??
+                                null;
 
-            if (!error && data) {
-                categories = data;
-            }
-        }
 
-        const categoryMap = new Map(
-            categories.map((category) => [
-                category.id,
-                category,
-            ])
-        );
+                        const nombre =
+                            normalizar(
+                                producto.nombre
+                            );
 
-        // =====================================================
-        // 5. RESPUESTA COMERCIAL
-        // =====================================================
 
-        const result = (products ?? []).map(
-            (product) => {
-                const category = product.category_id
-                    ? categoryMap.get(product.category_id)
-                    : null;
+                        const slug =
+                            normalizar(
+                                producto.slug
+                            );
 
-                return {
-                    id: product.id,
 
-                    nombre: product.nombre,
-                    slug: product.slug,
+                        const descripcion =
+                            normalizar(
+                                producto
+                                    .descripcion_corta
+                            );
 
-                    precio: Number(product.precio),
 
-                    precio_anterior:
-                        product.precio_anterior !== null
-                            ? Number(product.precio_anterior)
-                            : null,
+                        const sku =
+                            normalizar(
+                                producto.sku
+                            );
 
-                    moneda: "USD",
 
-                    stock: product.stock,
+                        const etiqueta =
+                            normalizar(
+                                producto.etiqueta
+                            );
 
-                    disponible: product.stock > 0,
 
-                    sku: product.sku,
+                        const categoriaTexto =
+                            normalizar(
+                                categoria
+                                    ?.nombre
+                            );
 
-                    imagen_principal:
-                        product.imagen_principal,
 
-                    categoria: category
-                        ? {
-                            nombre: category.nombre,
-                            slug: category.slug,
+                        const searchable =
+                            [
+                                nombre,
+                                slug,
+                                descripcion,
+                                sku,
+                                etiqueta,
+                                categoriaTexto,
+                            ]
+                                .filter(
+                                    Boolean
+                                )
+                                .join(
+                                    " "
+                                );
+
+
+                        // -----------------------------------------
+                        // TODOS LOS TÉRMINOS PUEDEN ESTAR
+                        // EN CUALQUIER ORDEN
+                        // -----------------------------------------
+
+                        const tokensEncontrados =
+                            tokens.filter(
+                                (
+                                    token
+                                ) =>
+                                    searchable.includes(
+                                        token
+                                    )
+                            );
+
+
+                        if (
+                            tokensEncontrados.length ===
+                            0
+                        ) {
+
+                            return null;
                         }
-                        : null,
 
-                    destacado: product.destacado,
-                    tendencia: product.tendencia,
-                    nuevo: product.nuevo,
-                    etiqueta: product.etiqueta,
-                };
-            }
-        );
+
+                        // -----------------------------------------
+                        // PUNTUACIÓN DE RELEVANCIA
+                        // -----------------------------------------
+
+                        let score =
+                            tokensEncontrados.length *
+                            10;
+
+
+                        if (
+                            nombre ===
+                            queryNormalizada
+                        ) {
+
+                            score +=
+                                100;
+                        }
+
+
+                        if (
+                            nombre.includes(
+                                queryNormalizada
+                            )
+                        ) {
+
+                            score +=
+                                50;
+                        }
+
+
+                        if (
+                            tokens.length >
+                            0 &&
+                            tokens.every(
+                                (
+                                    token
+                                ) =>
+                                    nombre.includes(
+                                        token
+                                    )
+                            )
+                        ) {
+
+                            score +=
+                                40;
+                        }
+
+
+                        if (
+                            tokens.length >
+                            0 &&
+                            tokens.every(
+                                (
+                                    token
+                                ) =>
+                                    searchable.includes(
+                                        token
+                                    )
+                            )
+                        ) {
+
+                            score +=
+                                20;
+                        }
+
+
+                        return {
+                            producto,
+                            categoria,
+                            score,
+                        };
+                    }
+                )
+                .filter(
+                    Boolean
+                )
+                .sort(
+                    (
+                        a:
+                            any,
+                        b:
+                            any
+                    ) =>
+                        b.score -
+                        a.score
+                )
+                .slice(
+                    0,
+                    8
+                );
+
+
+        // =====================================================
+        // 5. RESPUESTA PARA BARUK AI
+        // =====================================================
+
+        const products =
+            encontrados.map(
+                (
+                    item:
+                        any
+                ) => {
+
+                    const producto =
+                        item.producto;
+
+
+                    const stock =
+                        Number(
+                            producto.stock
+                        );
+
+
+                    const precio =
+                        Number(
+                            producto.precio
+                        );
+
+
+                    const precioAnterior =
+                        producto
+                            .precio_anterior ===
+                            null ||
+                            producto
+                                .precio_anterior ===
+                            undefined
+                            ? null
+                            : Number(
+                                producto
+                                    .precio_anterior
+                            );
+
+
+                    return {
+                        id:
+                            producto.id,
+
+                        nombre:
+                            producto.nombre,
+
+                        slug:
+                            producto.slug,
+
+                        precio,
+
+                        precio_anterior:
+                            precioAnterior,
+
+                        moneda:
+                            "USD",
+
+                        stock,
+
+                        disponible:
+                            stock >
+                            0,
+
+                        sku:
+                            producto.sku ??
+                            null,
+
+                        imagen_principal:
+                            producto
+                                .imagen_principal ??
+                            null,
+
+                        categoria:
+                            item.categoria
+                                ? {
+                                    nombre:
+                                        item
+                                            .categoria
+                                            .nombre,
+
+                                    slug:
+                                        item
+                                            .categoria
+                                            .slug,
+                                }
+                                : null,
+
+                        destacado:
+                            Boolean(
+                                producto
+                                    .destacado
+                            ),
+
+                        tendencia:
+                            Boolean(
+                                producto
+                                    .tendencia
+                            ),
+
+                        nuevo:
+                            Boolean(
+                                producto
+                                    .nuevo
+                            ),
+
+                        etiqueta:
+                            producto
+                                .etiqueta ??
+                            null,
+                    };
+                }
+            );
+
 
         return NextResponse.json(
             {
-                success: true,
-                query,
-                count: result.length,
-                products: result,
+                success:
+                    true,
+
+                query:
+                    rawQuery,
+
+                count:
+                    products.length,
+
+                products,
             },
             {
+                status:
+                    200,
+
                 headers: {
-                    "Cache-Control": "no-store",
+                    "Cache-Control":
+                        "no-store",
                 },
             }
         );
-    } catch (error) {
+
+
+    } catch (
+    error
+    ) {
+
         console.error(
-            "Baruk AI products API error:",
+            "Baruk AI products error:",
             error
         );
 
+
         return NextResponse.json(
             {
-                success: false,
-                error: "Error interno del servidor",
+                success:
+                    false,
+
+                error:
+                    "No se pudo consultar Baruk Shop",
             },
-            { status: 500 }
+            {
+                status:
+                    500,
+            }
         );
     }
 }
