@@ -1,155 +1,291 @@
-import { Anton } from "next/font/google";
-import Link from "next/link";
+import type { Metadata } from "next";
+import LegalPage from "@/components/legal/LegalPage";
 
-const anton = Anton({
-    subsets: ["latin"],
-    weight: "400",
-});
+export const metadata: Metadata = {
+    title: "Términos y Condiciones | Baruk593",
+    description:
+        "Términos y condiciones generales de uso de Baruk593.",
+};
 
-export default function TerminosYCondicionesPage() {
+export default function TerminosPage() {
+
     return (
-        <main className="min-h-screen bg-white">
-            <div className="mx-auto max-w-4xl px-5 py-10">
-                {/* TÍTULO */}
-                <h1
-                    className={`${anton.className} text-lg md:text-xl uppercase tracking-[0.14em] text-center text-slate-800`}
-                >
-                    Términos y Condiciones
-                </h1>
+        <LegalPage
+            title="Términos y Condiciones"
+            updatedAt="3 de octubre de 2026"
+        >
 
-                {/* CONTENIDO */}
-                <div className="mt-6 space-y-2 text-sm md:text-[15px] text-slate-600 leading-[1.35]">
-                    <p>
-                        <span className="font-semibold text-slate-700">1. Duración:</span>{" "}
-                        El sorteo se realizará una vez se haya completado la venta total de
-                        números.
-                    </p>
+            <section>
+                <p>
+                    Estos Términos y Condiciones regulan el acceso y uso de
+                    los servicios ofrecidos por
+                    <strong> ECUABARUK COMPANY S.A.S.</strong> bajo la
+                    marca comercial <strong>Baruk593</strong>.
+                </p>
+            </section>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">2. Elegibilidad:</span>{" "}
-                        El sorteo está abierto a cualquier persona sin restricción de edad.
-                    </p>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            3. Selección del Ganador:
-                        </span>{" "}
-                        El ganador será determinado en base a un sorteo en vivo.
-                    </p>
+            <section>
+                <h2>1. Identificación</h2>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">4. Premio:</span> El
-                        premio será entregado a nombre del ganador o su representante mayor
-                        de edad con todos los procesos de ley.
-                    </p>
+                <p>
+                    <strong>Empresa:</strong> ECUABARUK COMPANY S.A.S.
+                    <br />
+                    <strong>Marca:</strong> Baruk593
+                    <br />
+                    <strong>Sitio web:</strong>{" "}
+                    <a href="https://www.baruk593.com">
+                        www.baruk593.com
+                    </a>
+                    <br />
+                    <strong>Correo:</strong>{" "}
+                    <a href="mailto:administracion@baruk593.com">
+                        administracion@baruk593.com
+                    </a>
+                </p>
+            </section>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            5. Notificación al Ganador:
-                        </span>{" "}
-                        Nos pondremos en contacto con el ganador a través de los datos
-                        proporcionados al participar en el sorteo. Los resultados serán
-                        publicados en las redes y medios participantes.
-                    </p>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            6. Propiedad Intelectual:
-                        </span>{" "}
-                        Todo el contenido proporcionado a través de este servicio está
-                        protegido por derechos de autor y otros derechos de propiedad
-                        intelectual.
-                    </p>
+            <section>
+                <h2>2. Aceptación</h2>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            7. Condiciones Generales:
-                        </span>{" "}
-                        Deben venderse todos los números participantes para poder realizar el
-                        sorteo.
-                    </p>
+                <p>
+                    Al acceder, registrarse, comprar o utilizar los
+                    servicios de Baruk593, el usuario acepta estos
+                    Términos y las condiciones particulares que puedan
+                    corresponder a cada producto, promoción o servicio.
+                </p>
+            </section>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">8. Premio:</span> Los
-                        ganadores deben seguir nuestras redes sociales indicadas para el
-                        sorteo y demostrar que tienen el número ganador.
-                    </p>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            8.1 Premio mayor:
-                        </span>{" "}
-                        El premio será entregado personalmente en la ciudad del ganador, se
-                        aplicarán restricciones. El ganador acepta ser grabado en video al
-                        momento de la entrega del premio.
-                    </p>
+            <section>
+                <h2>3. Servicios de Baruk593</h2>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            8.2 Premios económicos o especiales:
-                        </span>{" "}
-                        Serán entregados inmediatamente al ganador del número acertante vía
-                        transferencia, efectivo o físicamente, una vez verificado y
-                        corroborado por los técnicos.
-                    </p>
+                <p>
+                    Baruk593 puede ofrecer, entre otros:
+                </p>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">8.2.1</span> El ganador
-                        del premio especial deberá enviar un video mencionando a Baruk593,
-                        indicando el sorteo, el premio y mostrando el número ganador.
-                    </p>
+                <ul>
+                    <li>Productos físicos mediante Baruk Shop.</li>
+                    <li>Productos y experiencias digitales.</li>
+                    <li>Tarjetas de la Suerte.</li>
+                    <li>Promociones y beneficios.</li>
+                    <li>Programas de afiliados o socios comerciales.</li>
+                    <li>Atención automatizada mediante Baruk AI Sales Agent.</li>
+                </ul>
+            </section>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">8.2.2</span> Si el
-                        premio económico es igual o mayor a $400, el ganador se compromete a
-                        comprar $100 en números del sorteo vigente. Si el premio es igual o
-                        mayor a $1000, deberá comprar el 10% del valor del premio en números
-                        del sorteo vigente.
-                    </p>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">8.2.3</span> Las
-                        promociones lanzadas en cada actividad mediante nuestras redes
-                        sociales y canales oficiales son vigentes únicamente desde el
-                        momento en que se anuncian hasta las 11:59 pm del mismo día.
-                    </p>
+            <section>
+                <h2>4. Información de productos</h2>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            9. Asignación de números:
-                        </span>{" "}
-                        Los números serán asignados por el sistema de manera única y
-                        aleatoria para cada participante.
-                    </p>
+                <p>
+                    Procuramos que precios, fotografías, características,
+                    disponibilidad y demás información comercial sean
+                    correctos.
+                </p>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            10. Aceptación de Términos:
-                        </span>{" "}
-                        La participación en el sorteo implica la aceptación total de estos
-                        términos y condiciones.
-                    </p>
+                <p className="mt-4">
+                    La disponibilidad de un producto se confirma en el
+                    momento de procesar el pedido.
+                </p>
+            </section>
 
-                    <p>
-                        <span className="font-semibold text-slate-700">
-                            11. Pagos con transferencia:
-                        </span>{" "}
-                        El participante tendrá una hora para realizar el pago y enviar los
-                        datos al WhatsApp de Baruk593. De no hacerlo en ese tiempo, el
-                        pedido no será procesado y no se permitirá ningún reembolso.
-                    </p>
-                </div>
 
-                {/* BOTÓN */}
-                <div className="mt-8 text-center">
-                    <Link
-                        href="/"
-                        className="inline-block rounded-md border border-slate-300 px-5 py-2 text-sm text-slate-600 hover:bg-slate-100"
-                    >
-                        Volver al inicio
-                    </Link>
-                </div>
-            </div>
-        </main>
+            <section>
+                <h2>5. Pedidos</h2>
+
+                <p>
+                    Un pedido puede permanecer pendiente hasta que se
+                    complete y confirme el pago correspondiente.
+                </p>
+
+                <p className="mt-4">
+                    La creación de un pedido o enlace de pago no significa
+                    por sí sola que el pago haya sido aprobado.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>6. Pagos</h2>
+
+                <p>
+                    Baruk593 podrá ofrecer diferentes medios de pago,
+                    incluyendo proveedores electrónicos y transferencia
+                    bancaria, según disponibilidad.
+                </p>
+
+                <p className="mt-4">
+                    El pedido se considerará pagado cuando el sistema de
+                    Baruk593 o el proveedor autorizado confirme la
+                    operación.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>7. Entregas</h2>
+
+                <p>
+                    Para productos físicos, el usuario debe proporcionar
+                    información de entrega completa y correcta.
+                </p>
+
+                <p className="mt-4">
+                    Los tiempos y costos de entrega pueden variar según
+                    ubicación, producto, operador logístico y otras
+                    condiciones aplicables.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>8. Tarjetas de la Suerte y promociones</h2>
+
+                <p>
+                    Las Tarjetas de la Suerte, promociones, campañas,
+                    experiencias o dinámicas pueden estar sujetas a reglas
+                    particulares publicadas para cada campaña.
+                </p>
+
+                <p className="mt-4">
+                    Cuando existan reglas específicas de una campaña,
+                    dichas reglas complementarán estos Términos y
+                    prevalecerán respecto de los aspectos particulares de
+                    esa actividad.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>9. Baruk AI Sales Agent</h2>
+
+                <p>
+                    Baruk593 puede utilizar un asistente automatizado para
+                    responder preguntas, consultar información comercial,
+                    ayudar a encontrar productos y asistir en procesos de
+                    compra.
+                </p>
+
+                <p className="mt-4">
+                    El sistema puede generar respuestas automáticamente.
+                    La información crítica relacionada con precios, stock,
+                    pedidos y pagos será validada mediante los sistemas
+                    autorizados de Baruk593 cuando corresponda.
+                </p>
+
+                <p className="mt-4">
+                    El usuario puede solicitar atención humana cuando sea
+                    necesario.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>10. Cuenta del usuario</h2>
+
+                <p>
+                    El usuario es responsable de proporcionar información
+                    correcta y de mantener la seguridad de las credenciales
+                    asociadas a su cuenta.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>11. Uso permitido</h2>
+
+                <p>No está permitido utilizar Baruk593 para:</p>
+
+                <ul>
+                    <li>Cometer fraude o suplantación.</li>
+                    <li>Manipular promociones, sistemas o mecanismos de compra.</li>
+                    <li>Intentar acceder a áreas restringidas.</li>
+                    <li>Interferir con la operación de la plataforma.</li>
+                    <li>Utilizar información falsa para realizar operaciones.</li>
+                </ul>
+            </section>
+
+
+            <section>
+                <h2>12. Propiedad intelectual</h2>
+
+                <p>
+                    Los nombres, marcas, interfaces, diseños, textos,
+                    elementos gráficos y contenidos propios de Baruk593
+                    están protegidos por los derechos que correspondan a
+                    sus respectivos titulares.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>13. Servicios de terceros</h2>
+
+                <p>
+                    Algunas funciones pueden depender de plataformas de
+                    pago, mensajería, alojamiento, autenticación,
+                    inteligencia artificial, logística u otros servicios
+                    de terceros.
+                </p>
+
+                <p className="mt-4">
+                    Estos proveedores pueden tener términos y políticas
+                    propias.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>14. Disponibilidad del servicio</h2>
+
+                <p>
+                    Baruk593 puede realizar mantenimiento, mejoras,
+                    actualizaciones o modificaciones que produzcan
+                    interrupciones temporales.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>15. Privacidad</h2>
+
+                <p>
+                    El tratamiento de información personal se describe en
+                    nuestra{" "}
+                    <a href="https://www.baruk593.com/politica-de-privacidad">
+                        Política de Privacidad
+                    </a>.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>16. Modificaciones</h2>
+
+                <p>
+                    ECUABARUK COMPANY S.A.S. podrá actualizar estos
+                    Términos cuando sea necesario. La versión vigente se
+                    encontrará publicada en esta página.
+                </p>
+            </section>
+
+
+            <section>
+                <h2>17. Contacto</h2>
+
+                <p>
+                    Para consultas relacionadas con estos términos:
+                </p>
+
+                <p className="mt-4">
+                    <a href="mailto:administracion@baruk593.com">
+                        administracion@baruk593.com
+                    </a>
+                </p>
+            </section>
+
+        </LegalPage>
     );
 }
