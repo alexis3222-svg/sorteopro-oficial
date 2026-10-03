@@ -7,6 +7,10 @@ import {
     supabaseAdmin,
 } from "@/lib/supabaseAdmin";
 
+import {
+    getBarukShopImageUrl,
+} from "@/lib/barukShopImage";
+
 
 export const runtime =
     "nodejs";
@@ -202,6 +206,13 @@ export async function GET(
                     store_categories (
                         nombre,
                         slug
+                    ),
+
+                    store_product_images (
+                        id,
+                        image_url,
+                        alt_text,
+                        orden
                     )
                 `)
                 .eq(
@@ -313,11 +324,6 @@ export async function GET(
                                 );
 
 
-                        // -----------------------------------------
-                        // TODOS LOS TÉRMINOS PUEDEN ESTAR
-                        // EN CUALQUIER ORDEN
-                        // -----------------------------------------
-
                         const tokensEncontrados =
                             tokens.filter(
                                 (
@@ -337,10 +343,6 @@ export async function GET(
                             return null;
                         }
 
-
-                        // -----------------------------------------
-                        // PUNTUACIÓN DE RELEVANCIA
-                        // -----------------------------------------
 
                         let score =
                             tokensEncontrados.length *
@@ -471,6 +473,83 @@ export async function GET(
                             );
 
 
+                    const imagenPrincipal =
+                        getBarukShopImageUrl(
+                            producto
+                                .imagen_principal ??
+                            null
+                        );
+
+
+                    const imagenesAdicionales =
+                        (
+                            producto
+                                .store_product_images ??
+                            []
+                        )
+                            .slice()
+                            .sort(
+                                (
+                                    a:
+                                        any,
+                                    b:
+                                        any
+                                ) =>
+                                    Number(
+                                        a.orden ??
+                                        0
+                                    ) -
+                                    Number(
+                                        b.orden ??
+                                        0
+                                    )
+                            )
+                            .map(
+                                (
+                                    imagen:
+                                        any
+                                ) => {
+
+                                    const url =
+                                        getBarukShopImageUrl(
+                                            imagen
+                                                .image_url ??
+                                            null
+                                        );
+
+
+                                    if (
+                                        !url
+                                    ) {
+                                        return null;
+                                    }
+
+
+                                    return {
+                                        id:
+                                            imagen.id,
+
+                                        url,
+
+                                        alt:
+                                            imagen
+                                                .alt_text ??
+                                            producto.nombre,
+
+                                        orden:
+                                            Number(
+                                                imagen
+                                                    .orden ??
+                                                0
+                                            ),
+                                    };
+                                }
+                            )
+                            .filter(
+                                Boolean
+                            );
+
+
                     return {
                         id:
                             producto.id,
@@ -480,6 +559,9 @@ export async function GET(
 
                         slug:
                             producto.slug,
+
+                        url_producto:
+                            `https://www.baruk593.com/tienda/${producto.slug}`,
 
                         precio,
 
@@ -500,9 +582,10 @@ export async function GET(
                             null,
 
                         imagen_principal:
-                            producto
-                                .imagen_principal ??
-                            null,
+                            imagenPrincipal,
+
+                        imagenes:
+                            imagenesAdicionales,
 
                         categoria:
                             item.categoria
