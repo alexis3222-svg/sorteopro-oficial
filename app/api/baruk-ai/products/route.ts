@@ -7,10 +7,6 @@ import {
     supabaseAdmin,
 } from "@/lib/supabaseAdmin";
 
-import {
-    getBarukShopImageUrl,
-} from "@/lib/barukShopImage";
-
 
 export const runtime =
     "nodejs";
@@ -34,7 +30,9 @@ function normalizar(
         value ??
         ""
     )
-        .normalize("NFD")
+        .normalize(
+            "NFD"
+        )
         .replace(
             /[\u0300-\u036f]/g,
             ""
@@ -45,6 +43,42 @@ function normalizar(
             " "
         )
         .trim();
+}
+
+
+// =========================================================
+// URL JPEG COMPATIBLE CON WHATSAPP
+// =========================================================
+
+function buildWhatsAppImageUrl(
+    request: NextRequest,
+    productId: string,
+    image:
+        string
+) {
+
+    const url =
+        new URL(
+            "/api/baruk-ai/whatsapp-image",
+            request
+                .nextUrl
+                .origin
+        );
+
+
+    url.searchParams.set(
+        "product_id",
+        productId
+    );
+
+
+    url.searchParams.set(
+        "image",
+        image
+    );
+
+
+    return url.toString();
 }
 
 
@@ -74,6 +108,7 @@ export async function GET(
             console.error(
                 "BARUK_AI_INTERNAL_SECRET no está configurado"
             );
+
 
             return NextResponse.json(
                 {
@@ -126,7 +161,9 @@ export async function GET(
             request
                 .nextUrl
                 .searchParams
-                .get("q")
+                .get(
+                    "q"
+                )
                 ?.trim() ??
             "";
 
@@ -160,7 +197,9 @@ export async function GET(
 
         const tokens =
             queryNormalizada
-                .split(/\s+/)
+                .split(
+                    /\s+/
+                )
                 .filter(
                     (
                         token
@@ -237,6 +276,7 @@ export async function GET(
                 productosError
             );
 
+
             throw productosError;
         }
 
@@ -271,13 +311,15 @@ export async function GET(
 
                         const nombre =
                             normalizar(
-                                producto.nombre
+                                producto
+                                    .nombre
                             );
 
 
                         const slug =
                             normalizar(
-                                producto.slug
+                                producto
+                                    .slug
                             );
 
 
@@ -290,13 +332,15 @@ export async function GET(
 
                         const sku =
                             normalizar(
-                                producto.sku
+                                producto
+                                    .sku
                             );
 
 
                         const etiqueta =
                             normalizar(
-                                producto.etiqueta
+                                producto
+                                    .etiqueta
                             );
 
 
@@ -336,7 +380,8 @@ export async function GET(
 
 
                         if (
-                            tokensEncontrados.length ===
+                            tokensEncontrados
+                                .length ===
                             0
                         ) {
 
@@ -345,7 +390,8 @@ export async function GET(
 
 
                         let score =
-                            tokensEncontrados.length *
+                            tokensEncontrados
+                                .length *
                             10;
 
 
@@ -449,13 +495,15 @@ export async function GET(
 
                     const stock =
                         Number(
-                            producto.stock
+                            producto
+                                .stock
                         );
 
 
                     const precio =
                         Number(
-                            producto.precio
+                            producto
+                                .precio
                         );
 
 
@@ -473,12 +521,19 @@ export async function GET(
                             );
 
 
+                    // La URL que recibe Baruk AI ya devuelve JPEG,
+                    // aunque el archivo original en Supabase sea WebP.
                     const imagenPrincipal =
-                        getBarukShopImageUrl(
-                            producto
-                                .imagen_principal ??
-                            null
-                        );
+                        producto
+                            .imagen_principal
+                            ? buildWhatsAppImageUrl(
+                                request,
+                                String(
+                                    producto.id
+                                ),
+                                "principal"
+                            )
+                            : null;
 
 
                     const imagenesAdicionales =
@@ -510,17 +565,13 @@ export async function GET(
                                         any
                                 ) => {
 
-                                    const url =
-                                        getBarukShopImageUrl(
-                                            imagen
-                                                .image_url ??
-                                            null
-                                        );
-
-
                                     if (
-                                        !url
+                                        !imagen
+                                            ?.id ||
+                                        !imagen
+                                            ?.image_url
                                     ) {
+
                                         return null;
                                     }
 
@@ -529,12 +580,22 @@ export async function GET(
                                         id:
                                             imagen.id,
 
-                                        url,
+                                        url:
+                                            buildWhatsAppImageUrl(
+                                                request,
+                                                String(
+                                                    producto.id
+                                                ),
+                                                String(
+                                                    imagen.id
+                                                )
+                                            ),
 
                                         alt:
                                             imagen
                                                 .alt_text ??
-                                            producto.nombre,
+                                            producto
+                                                .nombre,
 
                                         orden:
                                             Number(
