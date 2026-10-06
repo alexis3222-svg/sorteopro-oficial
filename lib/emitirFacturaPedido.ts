@@ -11,7 +11,7 @@ import {
 
 import {
     getFactuplanClient,
-    isFactuplanTestMode,
+    getFactuplanEnvironment,
 } from "@/lib/factuplan";
 
 import {
@@ -393,20 +393,6 @@ export async function emitirFacturaPedidoPrueba(
          * Seguridad:
          * este módulo NO puede emitir con ak_live_*.
          */
-        if (
-            !isFactuplanTestMode()
-        ) {
-            return {
-                ok: false,
-                pedidoId,
-                error:
-                    "La emisión de prueba solo está habilitada con ak_test_*.",
-                code:
-                    "LIVE_KEY_BLOCKED",
-                details:
-                    null,
-            };
-        }
 
 
         const {
@@ -771,6 +757,8 @@ export async function emitirFacturaPedidoPrueba(
             };
         }
 
+        const environment =
+            getFactuplanEnvironment();
 
         const factuplan =
             getFactuplanClient();
@@ -918,8 +906,7 @@ export async function emitirFacturaPedidoPrueba(
                         provider:
                             "factuplan",
 
-                        environment:
-                            "test",
+                        environment,
 
                         factuplan_receipt_id:
                             receiptId,

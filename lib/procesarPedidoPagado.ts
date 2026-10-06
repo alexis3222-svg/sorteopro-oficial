@@ -117,11 +117,11 @@ async function intentarFacturarPedidoPrueba(
             ?.trim() ??
         "";
 
-    if (
-        !factuplanApiKey.startsWith(
-            "ak_test_"
-        )
-    ) {
+    const validFactuplanKey =
+        factuplanApiKey.startsWith("ak_test_") ||
+        factuplanApiKey.startsWith("ak_live_");
+
+    if (!validFactuplanKey) {
         return;
     }
 
