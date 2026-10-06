@@ -10,7 +10,9 @@ import {
 } from "factuplan";
 
 import {
+    createFactuplanInvoiceIdempotent,
     getFactuplanClient,
+    getFactuplanEnvironment,
     isFactuplanTestMode,
 } from "@/lib/factuplan";
 
@@ -772,10 +774,6 @@ export async function emitirFacturaPedidoPrueba(
         }
 
 
-        const factuplan =
-            getFactuplanClient();
-
-
 
         /*
          * SANDBOX:
@@ -786,84 +784,95 @@ export async function emitirFacturaPedidoPrueba(
          * El tratamiento tributario se revisará para PRODUCCIÓN
          * con la definición final de Ecuabaruk.
          */
-        const invoice =
-            await factuplan
-                .invoices
-                .create({
-                    customer: {
-                        identificationType:
-                            identificationType!,
+        const environment =
+            getFactuplanEnvironment();
 
-                        identification,
 
-                        legalName,
+        const invoicePayload = {
+            customer: {
+                identificationType:
+                    identificationType!,
 
-                        email,
+                identification,
 
-                        ...(identifiedCustomer
+                legalName,
+
+                email,
+
+                ...(identifiedCustomer
+                    ? {
+                        address:
+                            billingAddress,
+
+                        ...(billingPhone
                             ? {
-                                address:
-                                    billingAddress,
-
-                                ...(billingPhone
-                                    ? {
-                                        phone:
-                                            billingPhone,
-                                    }
-                                    : {}),
+                                phone:
+                                    billingPhone,
                             }
                             : {}),
-                    },
+                    }
+                    : {}),
+            },
 
-                    items: [
-                        {
-                            code:
-                                `ACT${actividadNumero}`,
 
-                            description:
-                                `Tarjetas digitales de participación - Actividad Baruk593 #${actividadNumero}`,
+            items: [
+                {
+                    code:
+                        `ACT${actividadNumero}`,
 
-                            quantity,
+                    description:
+                        `Tarjetas digitales de participación - Actividad Baruk593 #${actividadNumero}`,
 
-                            unitPrice,
+                    quantity,
 
-                            discount:
-                                0,
+                    unitPrice,
 
-                            taxType:
-                                "NOT_TAXABLE",
-                        },
-                    ],
+                    discount:
+                        0,
 
-                    payments: [
-                        {
-                            method:
-                                "20",
+                    taxType:
+                        "NOT_TAXABLE",
+                },
+            ],
 
-                            amount:
-                                total,
-                        },
-                    ],
 
-                    /*
-                     * Factuplan agrega automáticamente al RIDE algunos
-                     * datos de contacto del customer (por ejemplo Email
-                     * y Teléfono). No los duplicamos manualmente aquí.
-                     */
-                    additionalInfo: {
-                        Pedido:
-                            `#${pedidoId}`,
+            payments: [
+                {
+                    method:
+                        "20",
 
-                        NombreComercial:
-                            "Tarjetas de la Suerte",
+                    amount:
+                        total,
+                },
+            ],
 
-                        MetodoPago:
-                            String(
-                                pedido.metodo_pago ??
-                                "No especificado"
-                            ),
-                    },
-                });
+
+            additionalInfo: {
+                Pedido:
+                    `#${pedidoId}`,
+
+                NombreComercial:
+                    "Tarjetas de la Suerte",
+
+                MetodoPago:
+                    String(
+                        pedido.metodo_pago ??
+                        "No especificado"
+                    ),
+            },
+
+
+            sendEmail:
+                true,
+        };
+
+
+        const invoice =
+            await createFactuplanInvoiceIdempotent(
+                invoicePayload,
+
+                `baruk593-${environment}-pedido-${pedidoId}`
+            );
 
 
         const receiptId =
@@ -918,8 +927,7 @@ export async function emitirFacturaPedidoPrueba(
                         provider:
                             "factuplan",
 
-                        environment:
-                            "test",
+                        environment,
 
                         factuplan_receipt_id:
                             receiptId,
