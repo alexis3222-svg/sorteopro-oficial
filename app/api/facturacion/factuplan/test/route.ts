@@ -7,7 +7,6 @@ import {
 } from "factuplan";
 
 import {
-    createFactuplanInvoiceIdempotent,
     getFactuplanClient,
     isFactuplanTestMode,
 } from "@/lib/factuplan";
@@ -240,79 +239,43 @@ export async function POST(req: NextRequest) {
             (quantity * unitPrice).toFixed(2)
         );
 
+        const factuplan = getFactuplanClient();
 
-        const testId =
-            String(
-                body?.testId ??
-                "BARUK-PREPROD-001"
-            )
-                .trim()
-                .replace(
-                    /[^a-zA-Z0-9_-]/g,
-                    "-"
-                );
+        const invoice = await factuplan.invoices.create({
+            customer: {
+                identificationType: "FINAL_CONSUMER",
+                identification: "9999999999999",
+                legalName: "CONSUMIDOR FINAL",
+                email,
+            },
 
-
-        const invoice =
-            await createFactuplanInvoiceIdempotent(
+            items: [
                 {
-                    customer: {
-                        identificationType:
-                            "FINAL_CONSUMER",
-
-                        identification:
-                            "9999999999999",
-
-                        legalName:
-                            "CONSUMIDOR FINAL",
-
-                        email,
-                    },
-
-                    items: [
-                        {
-                            code:
-                                "BARUK-TEST-001",
-
-                            description:
-                                "PRUEBA - Tarjetas de la Suerte - Baruk593",
-
-                            quantity,
-
-                            unitPrice,
-
-                            discount:
-                                0,
-
-                            taxType:
-                                "NOT_TAXABLE",
-                        },
-                    ],
-
-                    payments: [
-                        {
-                            method:
-                                "20",
-
-                            amount:
-                                total,
-                        },
-                    ],
-
-                    additionalInfo: {
-                        Referencia:
-                            testId,
-
-                        Ambiente:
-                            "Prueba Baruk593",
-                    },
-
-                    sendEmail:
-                        false,
+                    code: "BARUK-TEST-001",
+                    description:
+                        "PRUEBA - Tarjetas de la Suerte - Baruk593",
+                    quantity,
+                    unitPrice,
+                    discount: 0,
+                    taxType: "NOT_TAXABLE",
                 },
+            ],
 
-                `baruk593-test-${testId}`
-            );
+            payments: [
+                {
+                    method: "20",
+                    amount: total,
+                },
+            ],
+
+            additionalInfo: {
+                Referencia: String(
+                    body?.testId ?? "BARUK-PRUEBA"
+                ),
+                Ambiente: "Prueba Baruk593",
+            },
+
+        });
 
         return NextResponse.json(
             {
