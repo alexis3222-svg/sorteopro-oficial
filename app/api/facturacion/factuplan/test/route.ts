@@ -7,6 +7,7 @@ import {
 } from "factuplan";
 
 import {
+    createFactuplanInvoiceIdempotent,
     getFactuplanClient,
     isFactuplanTestMode,
 } from "@/lib/factuplan";
@@ -239,43 +240,79 @@ export async function POST(req: NextRequest) {
             (quantity * unitPrice).toFixed(2)
         );
 
-        const factuplan = getFactuplanClient();
 
-        const invoice = await factuplan.invoices.create({
-            customer: {
-                identificationType: "FINAL_CONSUMER",
-                identification: "9999999999999",
-                legalName: "CONSUMIDOR FINAL",
-                email,
-            },
+        const testId =
+            String(
+                body?.testId ??
+                "BARUK-PREPROD-001"
+            )
+                .trim()
+                .replace(
+                    /[^a-zA-Z0-9_-]/g,
+                    "-"
+                );
 
-            items: [
+
+        const invoice =
+            await createFactuplanInvoiceIdempotent(
                 {
-                    code: "BARUK-TEST-001",
-                    description:
-                        "PRUEBA - Tarjetas de la Suerte - Baruk593",
-                    quantity,
-                    unitPrice,
-                    discount: 0,
-                    taxType: "NOT_TAXABLE",
+                    customer: {
+                        identificationType:
+                            "FINAL_CONSUMER",
+
+                        identification:
+                            "9999999999999",
+
+                        legalName:
+                            "CONSUMIDOR FINAL",
+
+                        email,
+                    },
+
+                    items: [
+                        {
+                            code:
+                                "BARUK-TEST-001",
+
+                            description:
+                                "PRUEBA - Tarjetas de la Suerte - Baruk593",
+
+                            quantity,
+
+                            unitPrice,
+
+                            discount:
+                                0,
+
+                            taxType:
+                                "NOT_TAXABLE",
+                        },
+                    ],
+
+                    payments: [
+                        {
+                            method:
+                                "20",
+
+                            amount:
+                                total,
+                        },
+                    ],
+
+                    additionalInfo: {
+                        Referencia:
+                            testId,
+
+                        Ambiente:
+                            "Prueba Baruk593",
+                    },
+
+                    sendEmail:
+                        false,
                 },
-            ],
 
-            payments: [
-                {
-                    method: "20",
-                    amount: total,
-                },
-            ],
-
-            additionalInfo: {
-                Referencia: String(
-                    body?.testId ?? "BARUK-PRUEBA"
-                ),
-                Ambiente: "Prueba Baruk593",
-            },
-
-        });
+                `baruk593-test-${testId}`
+            );
 
         return NextResponse.json(
             {
