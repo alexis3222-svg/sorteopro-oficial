@@ -18,6 +18,9 @@ import {
     supabaseAdmin,
 } from "@/lib/supabaseAdmin";
 
+import {
+    getOrderCode,
+} from "@/lib/orderCode";
 
 type PedidoFactura = {
     id: number;
@@ -840,7 +843,7 @@ export async function emitirFacturaPedidoPrueba(
                      */
                     additionalInfo: {
                         Pedido:
-                            `#${pedidoId}`,
+                            getOrderCode(pedidoId),
 
                         NombreComercial:
                             "Tarjetas de la Suerte",
