@@ -441,6 +441,12 @@ export async function GET(
            4. ENLACE DE REFERIDO
         ===================================================== */
 
+        const downloadQr =
+            req.nextUrl
+                .searchParams
+                .get("download") ===
+            "1";
+
         const siteUrl =
             getSiteUrl(
                 req
@@ -460,7 +466,9 @@ export async function GET(
         const qrUrl =
             buildQrUrl(
                 referralUrl,
-                420
+                downloadQr
+                    ? 1200
+                    : 420
             );
 
 
@@ -471,6 +479,78 @@ export async function GET(
          *
          * devuelve directamente la imagen PNG.
          */
+
+
+        if (
+            downloadQr
+        ) {
+
+            const qrResponse =
+                await fetch(
+                    qrUrl,
+                    {
+                        method:
+                            "GET",
+
+                        headers: {
+                            Accept:
+                                "image/png",
+                        },
+
+                        cache:
+                            "no-store",
+                    }
+                );
+
+
+            if (
+                !qrResponse.ok
+            ) {
+
+                throw new Error(
+                    "QR_DOWNLOAD_ERROR"
+                );
+            }
+
+
+            const qrImage =
+                await qrResponse
+                    .arrayBuffer();
+
+
+            const safeCode =
+                code
+                    .replace(
+                        /[^a-zA-Z0-9_-]/g,
+                        "-"
+                    )
+                    .slice(
+                        0,
+                        60
+                    ) ||
+                "afiliado";
+
+
+            return new NextResponse(
+                qrImage,
+                {
+                    status:
+                        200,
+
+                    headers: {
+                        "Content-Type":
+                            "image/png",
+
+                        "Content-Disposition":
+                            `attachment; filename="baruk593-qr-${safeCode}.png"`,
+
+                        "Cache-Control":
+                            "private, no-store, max-age=0",
+                    },
+                }
+            );
+        }
+
 
         return NextResponse.redirect(
             qrUrl

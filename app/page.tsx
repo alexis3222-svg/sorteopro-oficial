@@ -49,6 +49,15 @@ type PedidoCreado = {
 export default function HomePage() {
   const router = useRouter();
 
+  const whatsappComprobantes =
+    String(
+      process.env.NEXT_PUBLIC_SHOP_WHATSAPP ??
+      ""
+    ).replace(
+      /\D/g,
+      ""
+    );
+
   const [sorteo, setSorteo] = useState<any>(null);
   const [loading, setLoading] = useState(true);
 
@@ -114,6 +123,8 @@ export default function HomePage() {
   // estado de guardado
   const [savingOrder, setSavingOrder] = useState(false);
   const [orderError, setOrderError] = useState<string | null>(null);
+  const [transferPedidoId, setTransferPedidoId] =
+    useState<number | null>(null);
 
   // 🔍 Estado para consulta de números por correo
   const [buscaCorreo, setBuscaCorreo] = useState("");
@@ -306,6 +317,7 @@ export default function HomePage() {
     // Estados del pedido.
     setOrderError(null);
     setSavingOrder(false);
+    setTransferPedidoId(null);
   };
 
   const totalPaquete =
@@ -1081,6 +1093,11 @@ export default function HomePage() {
          * TRANSFERENCIA
          * ===============================================
          */
+
+        setTransferPedidoId(
+          pedido.id
+        );
+
 
         setModalStep(
           "ok"
@@ -3490,9 +3507,14 @@ export default function HomePage() {
                 {/* WHATSAPP */}
 
                 <a
-                  href={`https://wa.me/${process.env.NEXT_PUBLIC_WHATSAPP_COMPROBANTES || "593986261763"}?text=${encodeURIComponent(
-                    `Hola Baruk593, adjunto el comprobante de mi transferencia por $${totalPaquete.toFixed(2)} correspondiente a ${selectedCantidad} Tarjetas de la Suerte.`
-                  )}`}
+                  href={
+                    transferPedidoId &&
+                    whatsappComprobantes
+                      ? `https://wa.me/${whatsappComprobantes}?text=${encodeURIComponent(
+                          `Hola, envío el comprobante de transferencia del pedido de Tarjetas de la Suerte #${transferPedidoId}.`
+                        )}`
+                      : "#"
+                  }
                   target="_blank"
                   rel="noreferrer"
                   className="

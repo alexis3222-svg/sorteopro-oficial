@@ -1,3 +1,26 @@
+/* ============================================================
+DESTINO:
+app/mi-cuenta/afiliado/page.tsx
+
+BASE:
+Archivo original actual compartido por el usuario.
+
+ÚNICO CAMBIO:
+- Botón "Descargar QR"
+- Descarga autenticada vía /api/affiliate/qr?download=1
+
+NO SE MODIFICA:
+- niveles
+- comisiones
+- progreso
+- ventas
+- billetera
+- perfil de afiliado
+- enlace personal
+- compartir
+- ver/ocultar QR
+============================================================ */
+
 "use client";
 
 import {
@@ -221,6 +244,13 @@ export default function MiAfiliadoPage() {
     const [
         showQr,
         setShowQr,
+    ] =
+        useState(false);
+
+
+    const [
+        downloadingQr,
+        setDownloadingQr,
     ] =
         useState(false);
 
@@ -751,6 +781,177 @@ export default function MiAfiliadoPage() {
 
 
     /* =========================================================
+       DESCARGAR QR
+    ========================================================= */
+
+    async function handleDownloadQr() {
+
+        if (
+            downloadingQr
+        ) {
+            return;
+        }
+
+
+        setDownloadingQr(
+            true
+        );
+
+        setError(
+            null
+        );
+
+        setMessage(
+            null
+        );
+
+
+        try {
+
+            const {
+                data:
+                sessionData,
+
+                error:
+                sessionError,
+            } =
+                await supabaseBrowser
+                    .auth
+                    .getSession();
+
+
+            if (
+                sessionError
+            ) {
+                throw sessionError;
+            }
+
+
+            const session =
+                sessionData.session;
+
+
+            if (
+                !session
+            ) {
+
+                throw new Error(
+                    "Tu sesión ha finalizado."
+                );
+            }
+
+
+            const response =
+                await fetch(
+                    "/api/affiliate/qr?download=1",
+                    {
+                        method:
+                            "GET",
+
+                        headers: {
+                            Authorization:
+                                `Bearer ${session.access_token}`,
+                        },
+
+                        cache:
+                            "no-store",
+                    }
+                );
+
+
+            if (
+                !response.ok
+            ) {
+
+                const data =
+                    await response
+                        .json()
+                        .catch(
+                            () => null
+                        );
+
+
+                throw new Error(
+                    data?.error ??
+                    "No se pudo descargar el QR."
+                );
+            }
+
+
+            const blob =
+                await response
+                    .blob();
+
+
+            const objectUrl =
+                URL.createObjectURL(
+                    blob
+                );
+
+
+            const anchor =
+                document.createElement(
+                    "a"
+                );
+
+
+            const affiliateCode =
+                affiliateState
+                    ?.affiliate
+                    ?.code ??
+                "afiliado";
+
+
+            anchor.href =
+                objectUrl;
+
+            anchor.download =
+                `baruk593-qr-${affiliateCode}.png`;
+
+
+            document.body
+                .appendChild(
+                    anchor
+                );
+
+            anchor.click();
+
+            anchor.remove();
+
+
+            URL.revokeObjectURL(
+                objectUrl
+            );
+
+
+            setMessage(
+                "QR descargado."
+            );
+
+        } catch (
+        err:
+            unknown
+        ) {
+
+            setError(
+                err instanceof
+                    Error
+
+                    ? err.message
+
+                    : "No se pudo descargar el QR."
+            );
+
+        } finally {
+
+            setDownloadingQr(
+                false
+            );
+        }
+    }
+
+
+    /* =========================================================
        CARGANDO
     ========================================================= */
 
@@ -1199,6 +1400,23 @@ export default function MiAfiliadoPage() {
                                     className="min-h-[44px] rounded-xl bg-[#C1317F] px-5 text-xs font-black text-white"
                                 >
                                     Compartir
+                                </button>
+
+
+                                <button
+                                    type="button"
+                                    disabled={
+                                        downloadingQr
+                                    }
+                                    onClick={
+                                        handleDownloadQr
+                                    }
+                                    className="min-h-[44px] rounded-xl border border-orange-200 bg-orange-50 px-5 text-xs font-black text-orange-700 transition hover:bg-orange-100 disabled:cursor-not-allowed disabled:opacity-60"
+                                >
+                                    {downloadingQr
+                                        ? "Descargando..."
+                                        : "Descargar QR"
+                                    }
                                 </button>
 
 
